@@ -14,12 +14,7 @@
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "sourceMap": true, 
-    "declaration": true, 
-    "baseUrl": ".", 
-    "paths": { 
-      "*": ["types/*"]
-    },
-    "types": ["node"]
+    "declaration": true
   },
   "include": [
     "*.ts", 
@@ -27,6 +22,7 @@
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "vite.config.ts"
   ]
 }

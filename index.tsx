@@ -18,7 +18,7 @@ import { decode, decodeAudioData } from './utils.js' // <-- MODIFIED HERE
 // NOTE: This import path is an example. Update to your actual API key import method.
 // Ensure process.env.GEMINI_API_KEY is available in your environment.
 // Fix: Use process.env.API_KEY instead of process.env.GEMINI_API_KEY and remove apiVersion
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 const model = 'lyria-realtime-exp';
 
 
@@ -1969,7 +1969,7 @@ private async connectToSession(isRetryOrigin = false) {
             this.connectionError = false;
         } else {
             this.session = null;
-            if (typeof this.lastConnectionErrorMessage === 'string' && this.lastConnectionErrorMessage.includes('The service is currently unavailable')) {
+            if (this.lastConnectionErrorMessage && this.lastConnectionErrorMessage.includes('The service is currently unavailable')) {
                 this.toastMessage.show('Lyria Musikdienst ist derzeit nicht erreichbar. Bitte später erneut versuchen.');
             } else {
                 this.toastMessage.show('Maximale Verbindungsversuche erreicht. Bitte später erneut versuchen.');
