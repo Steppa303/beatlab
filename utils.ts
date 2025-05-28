@@ -49,30 +49,50 @@ async function decodeAudioData(
   sampleRate: number,
   numChannels: number,
 ): Promise<AudioBuffer> {
+  if (numChannels <= 0) {
+    throw new Error("Number of channels must be positive and an integer.");
+  }
+  if (!Number.isInteger(numChannels)) {
+    throw new Error("Number of channels must be an integer.");
+  }
+  if (data.length % (2 * numChannels) !== 0) {
+    // Data length must be a multiple of (bytesPerSample * numChannels)
+    // Assuming 2 bytes per sample (Int16)
+    throw new Error("Invalid data length for the given number of channels and sample format.");
+  }
+
+  const numFrames = data.length / (2 * numChannels);
+  if (numFrames <= 0) {
+      throw new Error("Calculated number of frames is not positive.");
+  }
+
   const buffer = ctx.createBuffer(
     numChannels,
-    data.length / 2 / numChannels,
+    numFrames,
     sampleRate,
   );
 
-  const dataInt16 = new Int16Array(data.buffer);
-  const l = dataInt16.length;
-  const dataFloat32 = new Float32Array(l);
-  for (let i = 0; i < l; i++) {
-    dataFloat32[i] = dataInt16[i] / 32768.0;
-  }
-  // Extract interleaved channels
-  if (numChannels === 0) { // Should be numChannels === 1 for mono, or handle stereo logic below
-    buffer.copyToChannel(dataFloat32, 0);
-  } else { // Assuming numChannels > 0, typically 2 for stereo
-    for (let i = 0; i < numChannels; i++) {
-      const channel = dataFloat32.filter(
-        (_, index) => index % numChannels === i,
-      );
-      buffer.copyToChannel(channel, i);
-    }
+  // Data is Int16, but AudioBuffer expects Float32
+  const dataInt16 = new Int16Array(data.buffer, data.byteOffset, data.length / 2);
+  const dataFloat32 = new Float32Array(dataInt16.length);
+  for (let i = 0; i < dataInt16.length; i++) {
+    dataFloat32[i] = dataInt16[i] / 32768.0; // Convert Int16 to Float32 range [-1.0, 1.0)
   }
 
+  if (numChannels === 1) { // Mono
+    // For mono, dataFloat32 is already the single channel data
+    buffer.copyToChannel(dataFloat32, 0);
+  } else { // Stereo or more channels (interleaved)
+    for (let i = 0; i < numChannels; i++) {
+      // Create a new Float32Array for each channel's data
+      const channelData = new Float32Array(numFrames);
+      for (let j = 0; j < numFrames; j++) {
+        // De-interleave: pick the j-th sample for the i-th channel
+        channelData[j] = dataFloat32[j * numChannels + i];
+      }
+      buffer.copyToChannel(channelData, i);
+    }
+  }
   return buffer;
 }
 

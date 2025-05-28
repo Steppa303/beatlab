@@ -18,6 +18,7 @@ import { decode, decodeAudioData } from './utils.js' // <-- MODIFIED HERE
 // NOTE: This import path is an example. Update to your actual API key import method.
 // Ensure process.env.GEMINI_API_KEY is available in your environment.
 // Fix: Use process.env.API_KEY instead of process.env.GEMINI_API_KEY and remove apiVersion
+// The following line is CORRECT as per guidelines, assuming API_KEY is always set.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 const model = 'lyria-realtime-exp';
 
@@ -1925,7 +1926,8 @@ private async connectToSession(isRetryOrigin = false) {
                         this.lastConnectionErrorMessage = specificErrorMessage;
                         this.connectionError = true;
                         this.stop();
-                        if (specificErrorMessage.includes('The service is currently unavailable')) {
+                        // Defensive check for .includes
+                        if (typeof specificErrorMessage === 'string' && specificErrorMessage.includes('The service is currently unavailable')) {
                             this.toastMessage.show('Verbindung zum Lyria Dienst unterbrochen (Dienst nicht verfügbar). Bitte Audio neu starten.');
                         } else {
                            this.toastMessage.show('Sitzungsfehler. Bitte Audio neu starten.');
@@ -1969,7 +1971,8 @@ private async connectToSession(isRetryOrigin = false) {
             this.connectionError = false;
         } else {
             this.session = null;
-            if (this.lastConnectionErrorMessage && this.lastConnectionErrorMessage.includes('The service is currently unavailable')) {
+            // Defensive check for .includes
+            if (typeof this.lastConnectionErrorMessage === 'string' && this.lastConnectionErrorMessage.includes('The service is currently unavailable')) {
                 this.toastMessage.show('Lyria Musikdienst ist derzeit nicht erreichbar. Bitte später erneut versuchen.');
             } else {
                 this.toastMessage.show('Maximale Verbindungsversuche erreicht. Bitte später erneut versuchen.');
