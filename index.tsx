@@ -1565,16 +1565,18 @@ class PromptDjMidi extends LitElement {
       this.learnBeatgridCCMode = false;
       this.learnTransitionCCMode = false; // Added for transition
       // Ensure only one prompt controller is in learn mode
-      this.shadowRoot?.querySelectorAll('prompt-controller').forEach((pc: PromptController) => {
-        if (pc.promptId !== event.detail.controllerId && pc.learnMode) {
-            pc.learnMode = false; 
+      this.shadowRoot?.querySelectorAll('prompt-controller').forEach((pc: Element) => {
+        const promptController = pc as PromptController; // Cast
+        if (promptController.promptId !== event.detail.controllerId && promptController.learnMode) {
+            promptController.learnMode = false; 
         }
       });
     } else {
         this.anyPromptControllerInLearnMode = false;
         // Check if ANY prompt controller is still in learn mode
-        this.shadowRoot?.querySelectorAll('prompt-controller').forEach((pc: PromptController) => {
-            if (pc.learnMode) this.anyPromptControllerInLearnMode = true;
+        this.shadowRoot?.querySelectorAll('prompt-controller').forEach((pc: Element) => {
+            const promptController = pc as PromptController; // Cast
+            if (promptController.learnMode) this.anyPromptControllerInLearnMode = true;
         });
     }
     this.requestUpdate();
@@ -1583,9 +1585,10 @@ class PromptDjMidi extends LitElement {
 
   private deactivateAllPromptLearnModes() {
     this.anyPromptControllerInLearnMode = false;
-    this.shadowRoot?.querySelectorAll('prompt-controller').forEach((pc: PromptController) => {
-        if (pc.learnMode) {
-            pc.learnMode = false; // This will trigger its own update and event
+    this.shadowRoot?.querySelectorAll('prompt-controller').forEach((pc: Element) => {
+        const promptController = pc as PromptController; // Cast
+        if (promptController.learnMode) {
+            promptController.learnMode = false; // This will trigger its own update and event
         }
     });
   }
@@ -2679,8 +2682,10 @@ private async handlePlayPause() {
 
   private renderPrompts() {
     return [...this.prompts.values()].map((prompt) => {
-      const promptController = this.shadowRoot?.querySelector<PromptController>(`prompt-controller[promptId="${prompt.promptId}"]`);
-      const isLearning = this.anyPromptControllerInLearnMode && promptController?.learnMode === true;
+      const promptControllerElement = this.shadowRoot?.querySelector<PromptController>(`prompt-controller[promptId="${prompt.promptId}"]`);
+      // Ensure promptControllerElement is not null before accessing its properties
+      const isLearning = this.anyPromptControllerInLearnMode && promptControllerElement?.learnMode === true;
+
 
       return html`<prompt-controller
         .promptId=${prompt.promptId}
