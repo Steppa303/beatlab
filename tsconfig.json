@@ -1,0 +1,32 @@
+
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "jsx": "preserve", 
+    "experimentalDecorators": true,
+    "useDefineForClassFields": true, 
+    "moduleResolution": "bundler", 
+    "outDir": "./dist",
+    "rootDir": "./", 
+    "strict": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "sourceMap": true, 
+    "declaration": true, 
+    "baseUrl": ".", 
+    "paths": { 
+      "*": ["types/*"]
+    },
+    "types": ["node"]
+  },
+  "include": [
+    "*.ts", 
+    "*.tsx"  
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

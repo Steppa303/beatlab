@@ -1,0 +1,6 @@
+{
+  "name": "evennode part2 Steppa's RealTimeJam",
+  "description": "Control music genres in real time with a MIDI controller.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
