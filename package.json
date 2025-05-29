@@ -1,20 +1,30 @@
 {
-  "name": "minimal-lyria-player",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "name": "lyria-render-player",
+  "version": "1.0.0",
+  "description": "Minimal Lyria Player with Node.js backend for Render",
+  "main": "dist/server.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build:client": "tsc -p tsconfig.client.json",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build": "npm run build:server && npm run build:client",
+    "start": "node dist/server.js",
+    "dev:server": "nodemon --watch src --exec ts-node src/server.ts",
+    "dev:client": "tsc -p tsconfig.client.json --watch",
+    "dev": "concurrently \"npm:dev:server\" \"npm:dev:client\""
   },
+  "author": "",
+  "license": "Apache-2.0",
   "dependencies": {
-    "lit": "^3.3.0",
-    "@google/genai": "^1.0.0"
+    "@google/genai": "^1.0.0",
+    "express": "^4.19.2",
+    "lit": "^3.1.0"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "typescript": "~5.7.2",
-    "vite": "^6.2.0"
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.0",
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
   }
 }

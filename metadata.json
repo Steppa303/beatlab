@@ -1,7 +1,6 @@
-
 {
-  "name": "Minimal Lyria Player",
-  "description": "A minimal example to demonstrate real-time music generation with Lyria using a single text prompt.",
+  "name": "Minimal Lyria Player for Render",
+  "description": "A minimal example for real-time music generation with Lyria, using a Node.js backend on Render to handle API communication and audio streaming via SSE. The UI allows a single text prompt and play/pause.",
   "requestFramePermissions": [],
-  "prompt": "Create a simple web application that allows a user to input a text prompt and generate real-time music using the Lyria model. The UI should consist of a text input for the prompt and a play/pause button. The application should handle connecting to the Lyria service, sending the prompt, receiving audio data, and playing it back. Basic error handling and status messages should be included."
+  "prompt": "Adapt the Lyria minimal player to use a backend server (Node.js/Express on Render) for API key management and Lyria communication. The backend should stream audio to the client using Server-Sent Events. The client sends control commands (play, pause, prompt) to the backend."
 }

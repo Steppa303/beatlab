@@ -1,5 +1,6 @@
 /**
- * @fileoverview Minimal example for real-time music generation with Lyria.
+ * @fileoverview Minimal example for real-time music generation with Lyria,
+ * adapted for backend communication.
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,35 +9,13 @@ import {css, CSSResultGroup, html, LitElement, svg} from 'lit';
 import {customElement, property, query, state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
 
-import {
-  GoogleGenAI,
-  type LiveMusicGenerationConfig,
-  type LiveMusicServerMessage,
-  type LiveMusicSession,
-} from '@google/genai';
+// Note: @google/genai types might be useful for structuring data exchanged with backend,
+// but the SDK itself is not used directly in the client anymore.
+// import type { LiveMusicServerMessage } from '@google/genai';
+
 import {decode, decodeAudioData} from './utils';
 
-// IMPORTANT: Replace with your actual API key, ensuring it's handled securely
-// and not hardcoded in production environments.
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
-if (!GEMINI_API_KEY) {
-  // A more robust solution would be to display this message in the UI
-  console.error(
-    'API key is not set. Please set the GEMINI_API_KEY environment variable.',
-  );
-  alert(
-    'API key is not set. Please set the GEMINI_API_KEY environment variable.',
-  );
-}
-
-const ai = new GoogleGenAI({
-  apiKey: GEMINI_API_KEY,
-  apiVersion: 'v1alpha',
-});
-const model = 'lyria-realtime-exp';
-
-type PlaybackState = 'stopped' | 'playing' | 'loading' | 'paused';
+type PlaybackState = 'stopped' | 'playing' | 'loading' | 'paused' | 'error';
 
 /** Throttles a callback to be called at most once per `freq` milliseconds. */
 function throttle(func: (...args: unknown[]) => void, delay: number) {
@@ -51,7 +30,7 @@ function throttle(func: (...args: unknown[]) => void, delay: number) {
   };
 }
 
-// Base class for icon buttons.
+// Base class for icon buttons (unchanged)
 class IconButton extends LitElement {
   static override styles = css`
     :host {
@@ -190,6 +169,7 @@ class IconButton extends LitElement {
   }
 }
 
+
 @customElement('play-pause-button')
 export class PlayPauseButton extends IconButton {
   @property({type: String}) playbackState: PlaybackState = 'stopped';
@@ -292,19 +272,19 @@ class ToastMessage extends LitElement {
     </div>`;
   }
 
-  show(message: string) {
+  show(message: string, duration = 5000) {
     this.showing = true;
     this.message = message;
-    // Automatically hide after some time
     setTimeout(() => {
       this.hide();
-    }, 5000);
+    }, duration);
   }
 
   hide() {
     this.showing = false;
   }
 }
+
 
 @customElement('minimal-lyria-player')
 class MinimalLyriaPlayer extends LitElement {
@@ -359,32 +339,24 @@ class MinimalLyriaPlayer extends LitElement {
       color: #aaa;
       margin-top: 10px;
     }
+    .error-text {
+      font-size: 1.2vmin;
+      color: #ff8a80; /* Light red for errors */
+      margin-top: 10px;
+    }
   `;
 
   @state() private currentPromptText = 'Ambient electronic soundscape';
-  private session?: LiveMusicSession;
-  private readonly sampleRate = 48000;
+  private readonly sampleRate = 48000; // Should match Lyria's output
   private audioContext!: AudioContext;
   private outputNode!: GainNode;
   private nextStartTime = 0;
-  private readonly bufferTime = 1.0; // audio buffer for network latency (reduced from 2.0)
+  private readonly bufferTime = 2; // audio buffer
   @state() private playbackState: PlaybackState = 'stopped';
-  @state() private connectionError = false;
+  private eventSource?: EventSource;
 
   @query('#prompt-input') private promptInputEl!: HTMLInputElement;
   @query('toast-message') private toastMessage!: ToastMessage;
-
-  constructor() {
-    super();
-    if (!GEMINI_API_KEY) {
-      this.connectionError = true;
-    }
-  }
-
-  override firstUpdated() {
-    // Defer AudioContext creation until first user interaction (play)
-    // to comply with browser autoplay policies.
-  }
 
   private async ensureAudioContext() {
     if (!this.audioContext) {
@@ -398,206 +370,209 @@ class MinimalLyriaPlayer extends LitElement {
     }
   }
 
-  private async connectToSession() {
-    if (!GEMINI_API_KEY) {
-      this.toastMessage.show(
-        'API Key is missing. Cannot connect to Lyria.',
-      );
-      this.connectionError = true;
-      this.playbackState = 'stopped';
-      return;
-    }
-    if (this.session) {
-      try {
-        // If a session exists, it might be from a previous connection attempt or state.
-        // Lyria sessions are typically closed by stop() or on error.
-        // Explicitly closing here if it's somehow still around and not desired.
-        if (this.session.stop) await this.session.stop(); // stop also closes
-      } catch (e) {
-        console.warn('Error stopping/closing existing session before new connection:', e);
-      }
-      this.session = undefined;
-    }
-
-    this.playbackState = 'loading';
-    this.connectionError = false; // Reset error state for new attempt
+  private async sendControlCommand(
+    action: 'play' | 'pause' | 'stop' | 'setPrompt',
+    prompt?: string,
+  ) {
     try {
-      this.session = await ai.live.music.connect({
-        model: model,
-        callbacks: {
-          onmessage: async (e: LiveMusicServerMessage) => {
-            console.log('Received message from server:', e);
-            if (e.setupComplete) {
-              this.connectionError = false;
-              if (this.playbackState === 'loading' || this.playbackState === 'playing') {
-                 this.setSessionPrompts();
-              }
-            }
-            if (e.filteredPrompt) {
-              this.toastMessage.show(
-                `Prompt filtered: ${e.filteredPrompt.filteredReason}`,
-              );
-            }
-            if (e.serverContent?.audioChunks !== undefined) {
-              if (this.playbackState !== 'playing' && this.playbackState !== 'loading') {
-                return; // Not expecting audio data
-              }
-
-              await this.ensureAudioContext();
-
-              const audioBuffer = await decodeAudioData(
-                decode(e.serverContent?.audioChunks[0].data),
-                this.audioContext,
-                this.sampleRate,
-                2, // Assuming stereo
-              );
-              const source = this.audioContext.createBufferSource();
-              source.buffer = audioBuffer;
-              source.connect(this.outputNode);
-
-              const currentTime = this.audioContext.currentTime;
-
-              if (this.playbackState === 'loading') {
-                // First chunk after 'play' or underrun recovery
-                this.nextStartTime = currentTime + this.bufferTime;
-                source.start(this.nextStartTime);
-                this.playbackState = 'playing';
-                this.nextStartTime += audioBuffer.duration;
-              } else if (this.playbackState === 'playing') {
-                if (this.nextStartTime < currentTime) {
-                  // Audio underrun
-                  console.warn(
-                    `Audio underrun. Expected: ${this.nextStartTime}, Current: ${currentTime}. Re-buffering.`,
-                  );
-                  this.playbackState = 'loading'; // Go back to loading state
-                  // This chunk is skipped. The next chunk will enter the 'loading' branch
-                  // and re-initialize nextStartTime.
-                  // Optionally, explicitly reset nextStartTime here for the next chunk:
-                  this.nextStartTime = currentTime + this.bufferTime;
-                } else {
-                  // Normal playback, no underrun
-                  source.start(this.nextStartTime);
-                  this.nextStartTime += audioBuffer.duration;
-                }
-              }
-            }
-          },
-          onerror: (e: ErrorEvent | {message: string}) => {
-            const errorMessage = (e as {message: string}).message || (e as ErrorEvent).type || 'Unknown Lyria error';
-            console.error('Lyria error:', e);
-            this.connectionError = true;
-            this.toastMessage.show(`Connection error: ${errorMessage}. Please try again.`);
-            this.stopAudio(); // Stop audio and reset state fully on error
-          },
-          onclose: (e: CloseEvent) => {
-            console.log('Lyria connection closed.', e);
-            // Don't show error if closed by user (e.g. stopAudio called, which sets state to 'stopped')
-            // or if an error already occurred (connectionError is true)
-            if (this.playbackState !== 'stopped' && !this.connectionError) {
-                this.toastMessage.show('Connection closed unexpectedly. Please try again.');
-            }
-            // Ensure cleanup if closed unexpectedly while not stopped by user
-            if (this.playbackState !== 'stopped') {
-                 this.stopAudio(); // Go to a clean stopped state
-            }
-          },
+      const response = await fetch('/api/lyria/control', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({action, prompt: prompt || this.currentPromptText}),
       });
-
-      if (this.playbackState === 'loading' && this.currentPromptText.trim() !== '') {
-        // If still loading (i.e., setupComplete hasn't fired yet to send prompts)
-        // and we have a prompt, send it. This covers cases where connect is fast.
-        // However, setSessionPrompts is also called in onmessage->setupComplete if loading.
-        // This might be redundant but ensures prompt is sent.
-        await this.setSessionPrompts();
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Server error: ${response.status}`);
       }
-
-    } catch (err) {
-      console.error('Failed to connect to Lyria session:', err);
+      const data = await response.json();
+      console.log('Backend response:', data);
+      if (data.message) {
+         // this.toastMessage.show(data.message); // Can be noisy
+      }
+      return data;
+    } catch (error) {
+      console.error('Error sending control command:', error);
       this.toastMessage.show(
-        `Failed to connect: ${(err as Error).message || 'Unknown error'}. Check API Key.`,
+        `Error: ${(error as Error).message}`,
+        7000,
       );
-      this.connectionError = true;
-      this.playbackState = 'stopped';
+      this.playbackState = 'error';
+      this.disconnectFromStream(); // Disconnect on error
+      return {success: false, error: (error as Error).message};
     }
   }
 
-  private setSessionPrompts = throttle(async () => {
-    if (!this.session || this.connectionError) {
-      return;
+  private connectToStream() {
+    if (this.eventSource) {
+      this.eventSource.close();
     }
-    // Check if session is active/open before sending.
-    // Lyria sessions might not have a direct 'isOpen' property easily accessible,
-    // rely on connectionError and presence of session. Errors during setWeightedPrompts will be caught.
-    if (this.currentPromptText.trim() === '') {
-      this.toastMessage.show('Please enter a music prompt.');
-      return;
-    }
+    this.eventSource = new EventSource('/api/lyria/stream');
+    this.playbackState = 'loading';
 
-    try {
-      await this.session.setWeightedPrompts({
-        weightedPrompts: [{text: this.currentPromptText, weight: 1.0}],
-      });
-      console.log('Sent prompt to Lyria:', this.currentPromptText);
-    } catch (e) {
-      this.toastMessage.show(
-        `Error sending prompt: ${(e as Error).message || 'Unknown error'}`,
-      );
-      this.pauseAudio();
+    this.eventSource.onmessage = async (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('Received from SSE:', data.type);
+
+        if (data.type === 'audioChunk' && data.audioDataB64) {
+          if (this.playbackState === 'paused' || this.playbackState === 'stopped' || this.playbackState === 'error') {
+            return;
+          }
+          await this.ensureAudioContext();
+          const audioBytes = decode(data.audioDataB64);
+          const audioBuffer = await decodeAudioData(
+            audioBytes,
+            this.audioContext,
+            this.sampleRate,
+            2, // Assuming stereo
+          );
+          const source = this.audioContext.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(this.outputNode);
+
+          const currentTime = this.audioContext.currentTime;
+          if (this.nextStartTime === 0 || this.playbackState === 'loading') { // Initial start or recovering
+            this.nextStartTime = currentTime + this.bufferTime;
+            this.playbackState = 'playing'; // Transition to playing once first chunk is scheduled
+             // Fade in gain if it was 0
+            if(this.outputNode.gain.value === 0) {
+                this.outputNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+                this.outputNode.gain.linearRampToValueAtTime(1, this.audioContext.currentTime + 0.1);
+            }
+          }
+
+          if (this.nextStartTime < currentTime) {
+            console.warn('Audio underrun, resetting start time.');
+            this.playbackState = 'loading';
+            this.nextStartTime = currentTime + this.bufferTime / 2;
+            // No need to skip chunk, just adjust timing for future ones
+          }
+          source.start(this.nextStartTime);
+          this.nextStartTime += audioBuffer.duration;
+
+        } else if (data.type === 'playbackState') {
+           if (data.state === 'playing' && this.playbackState === 'loading') {
+             // Backend might confirm playing state earlier than first audio chunk
+             // this.playbackState = 'playing';
+           } else if (data.state === 'stopped' || data.state === 'paused' || data.state === 'error') {
+             this.playbackState = data.state;
+             if (data.state === 'stopped' || data.state === 'error') this.disconnectFromStream();
+           }
+           if(data.message) this.toastMessage.show(data.message);
+
+        } else if (data.type === 'error') {
+          console.error('Error from SSE:', data.message);
+          this.toastMessage.show(`Server error: ${data.message}`, 7000);
+          this.playbackState = 'error';
+          this.disconnectFromStream();
+        } else if (data.type === 'info' && data.message) {
+           this.toastMessage.show(data.message);
+        }
+      } catch (err) {
+        console.error('Error processing SSE message:', err);
+        // this.toastMessage.show('Error processing audio stream.');
+        // this.playbackState = 'error';
+      }
+    };
+
+    this.eventSource.onerror = (error) => {
+      console.error('EventSource failed:', error);
+      // Don't show toast if it was an intentional close from client changing state
+      if (this.playbackState !== 'stopped' && this.playbackState !== 'paused') {
+         this.toastMessage.show('Stream connection error.');
+      }
+      this.playbackState = 'error';
+      this.disconnectFromStream();
+    };
+  }
+
+  private disconnectFromStream() {
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = undefined;
     }
-  }, 500);
+  }
+
+  private throttledSetPrompt = throttle(async () => {
+    if (this.playbackState === 'playing' || this.playbackState === 'loading') {
+      if (this.currentPromptText.trim() === '') {
+        this.toastMessage.show('Prompt cannot be empty while playing.');
+        this.promptInputEl.value = this.currentPromptText || 'Ambient electronic soundscape'; // Restore old or default
+        return;
+      }
+      await this.sendControlCommand('setPrompt', this.currentPromptText);
+    }
+  }, 700);
 
   private handlePromptInputChange(e: Event) {
     this.currentPromptText = (e.target as HTMLInputElement).value;
-    if (this.playbackState === 'playing' || this.playbackState === 'loading') {
-      this.setSessionPrompts();
-    }
+    this.throttledSetPrompt();
   }
 
   private async handlePlayPause() {
-    if (!GEMINI_API_KEY) {
-        this.toastMessage.show('API Key is missing. Cannot play music.');
-        return;
-    }
-
     await this.ensureAudioContext();
 
     if (this.playbackState === 'playing') {
-      this.pauseAudio();
-    } else if (
-      this.playbackState === 'paused' ||
-      this.playbackState === 'stopped'
-    ) {
+      await this.sendControlCommand('pause');
+      this.playbackState = 'paused'; // Optimistic UI update
+       if (this.audioContext && this.outputNode) {
+            this.outputNode.gain.setValueAtTime(
+                this.outputNode.gain.value, this.audioContext.currentTime);
+            this.outputNode.gain.linearRampToValueAtTime(
+                0,
+                this.audioContext.currentTime + 0.1,
+            );
+        }
+    } else if (this.playbackState === 'paused') {
       if (this.currentPromptText.trim() === '') {
         this.toastMessage.show('Please enter a music prompt before playing.');
         return;
       }
-      // If session doesn't exist, is closed (implicitly by previous stop/error), or connectionError is true
-      if (!this.session || this.connectionError) {
-        await this.connectToSession(); // This will set playbackState to 'loading'
-                                     // Prompts are sent via onmessage->setupComplete or end of connectToSession
+      // Request backend to play, this will also re-establish SSE if needed by backend
+      const response = await this.sendControlCommand('play');
+      if (response?.success) { // Backend confirms play command
+        this.connectToStream(); // Re-connect or ensure connection
+        this.playbackState = 'loading'; // Expect audio soon
+         if (this.audioContext && this.outputNode) {
+            this.outputNode.gain.setValueAtTime(0, this.audioContext.currentTime); // Start muted, will fade in
+            this.outputNode.gain.linearRampToValueAtTime(
+              1,
+              this.audioContext.currentTime + 0.1,
+            );
+        }
       } else {
-        // Session exists and no connection error, resume playback
-        this.loadAudio(); // This sets state to 'loading' and calls session.play()
+        this.playbackState = 'error'; // If command failed
       }
+    } else if (this.playbackState === 'stopped' || this.playbackState === 'error') {
+      if (this.currentPromptText.trim() === '') {
+        this.toastMessage.show('Please enter a music prompt before playing.');
+        return;
+      }
+      const response = await this.sendControlCommand('play'); // This will also (re)start SSE from backend
+       if (response?.success) {
+        this.connectToStream();
+        this.playbackState = 'loading';
+         if (this.audioContext && this.outputNode) { // Ensure gain is up
+            this.outputNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+            this.outputNode.gain.linearRampToValueAtTime(1, this.audioContext.currentTime + 0.1);
+         }
+      } else {
+        this.playbackState = 'error';
+      }
+
     } else if (this.playbackState === 'loading') {
-      this.stopAudio(); // If loading, clicking again acts as cancel/stop
+      // If loading, clicking again should stop/cancel
+      await this.stopAudio();
     }
   }
 
-  private pauseAudio() {
-    if (this.session) {
-        try {
-            this.session.pause();
-        } catch (e) {
-            console.warn("Error pausing session:", e);
-            // If pausing fails, it might indicate session is already closed/invalid
-            this.stopAudio(); // Fallback to full stop
-            return;
-        }
-    }
-    this.playbackState = 'paused';
-    if (this.audioContext && this.outputNode) {
+  private async stopAudio() {
+    await this.sendControlCommand('stop');
+    this.disconnectFromStream();
+    this.playbackState = 'stopped';
+     if (this.audioContext && this.outputNode) {
         this.outputNode.gain.setValueAtTime(
             this.outputNode.gain.value, this.audioContext.currentTime);
         this.outputNode.gain.linearRampToValueAtTime(
@@ -605,66 +580,7 @@ class MinimalLyriaPlayer extends LitElement {
             this.audioContext.currentTime + 0.1,
         );
     }
-  }
-
-  private loadAudio() { // Called when resuming from pause or starting with an existing session
-    if (!this.session || this.currentPromptText.trim() === '') return;
-
-    if (this.audioContext.state === 'suspended') {
-      this.audioContext.resume().then(() => {
-        this._startPlayback();
-      });
-    } else {
-      this._startPlayback();
-    }
-  }
-
-  private _startPlayback() {
-    if (!this.session) {
-        console.error("Attempted to start playback without a valid session.");
-        this.stopAudio(); // Ensure clean state if session is unexpectedly missing
-        return;
-    }
-    try {
-        this.session.play();
-    } catch (e) {
-        console.error("Error calling session.play():", e);
-        this.toastMessage.show("Error resuming playback. Please try again.");
-        this.stopAudio(); // If play fails, session might be invalid
-        return;
-    }
-    this.playbackState = 'loading'; // Becomes 'playing' once audio data arrives and is scheduled
-    if (this.outputNode) { // outputNode might not exist if audioContext was never created
-        this.outputNode.gain.setValueAtTime(0, this.audioContext.currentTime); // Start muted
-        this.outputNode.gain.linearRampToValueAtTime(
-          1, // Fade in
-          this.audioContext.currentTime + 0.1,
-        );
-    }
-    this.setSessionPrompts(); // Send current prompt
-  }
-
-  private async stopAudio() {
-    if (this.session) {
-        try {
-            await this.session.stop(); // This also closes the connection
-        } catch (e) {
-            console.warn("Error during session.stop():", e);
-        }
-        this.session = undefined;
-    }
-    this.playbackState = 'stopped';
-     if (this.audioContext && this.outputNode) {
-        this.outputNode.gain.setValueAtTime(
-            this.outputNode.gain.value, this.audioContext.currentTime);
-        this.outputNode.gain.linearRampToValueAtTime(
-            0, // Fade out
-            this.audioContext.currentTime + 0.1,
-        );
-    }
-    this.nextStartTime = 0; // Critical: reset audio scheduling
-    // Don't reset connectionError here automatically, it might be a persistent issue.
-    // It will be reset on a new connection attempt.
+    this.nextStartTime = 0;
   }
 
   override render() {
@@ -680,9 +596,11 @@ class MinimalLyriaPlayer extends LitElement {
         <play-pause-button
           @click=${this.handlePlayPause}
           .playbackState=${this.playbackState}></play-pause-button>
+
         ${this.playbackState === 'loading' ? html`<div class="info-text">Loading audio...</div>` : ''}
         ${this.playbackState === 'playing' ? html`<div class="info-text">Playing music...</div>` : ''}
-        ${this.connectionError && this.playbackState === 'stopped' ? html`<div class="info-text" style="color: #ff8a80;">Connection error. Check API key or console.</div>` : ''}
+        ${this.playbackState === 'error' ? html`<div class="error-text">An error occurred. Please try again.</div>` : ''}
+        ${this.playbackState === 'paused' ? html`<div class="info-text">Paused.</div>` : ''}
 
       </div>
       <toast-message></toast-message>
@@ -691,30 +609,15 @@ class MinimalLyriaPlayer extends LitElement {
 
   override disconnectedCallback() {
     super.disconnectedCallback();
-    this.stopAudio();
+    this.stopAudio(); // Ensure session is stopped on backend
+    this.disconnectFromStream();
     if (this.audioContext && this.audioContext.state !== 'closed') {
-      this.audioContext.close().catch(e => console.warn("Error closing AudioContext:", e));
+      this.audioContext.close();
     }
   }
 }
 
 function main(container: HTMLElement) {
-  if (!GEMINI_API_KEY) {
-    const errorDiv = document.createElement('div');
-    errorDiv.style.color = 'red';
-    errorDiv.style.padding = '20px';
-    errorDiv.style.textAlign = 'center';
-    errorDiv.style.fontFamily = 'sans-serif';
-    errorDiv.textContent =
-      'ERROR: GEMINI_API_KEY environment variable is not set. This application cannot function without it. Please set it and reload.';
-    container.innerHTML = ''; // Clear the container
-    container.appendChild(errorDiv);
-
-    // Additionally, try to render the player but in a disabled/error state
-    const player = new MinimalLyriaPlayer();
-    container.appendChild(player); // The player itself will show API key error
-    return;
-  }
   const player = new MinimalLyriaPlayer();
   container.appendChild(player);
 }
@@ -731,23 +634,3 @@ declare global {
     webkitAudioContext: typeof AudioContext;
   }
 }
-interface ProcessEnv {
-  GEMINI_API_KEY: string;
-}
-// Shim for process.env if not defined (e.g. in browser without build tool)
-if (typeof process === 'undefined') {
-  // @ts-ignore
-  globalThis.process = {env: {}};
-}
-// Attempt to load from a script tag or a global variable if not set by a build process
-// This is a fallback and not a recommended way for production API key management.
-if (!process.env.GEMINI_API_KEY) {
-  // @ts-ignore
-  process.env.GEMINI_API_KEY = window.GEMINI_API_KEY;
-}
-// Re-assign after potential shimming, so the top-level const gets the value
-// const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // This line is effectively done at the top already.
-                                                  // No need to redeclare/reassign here.
-                                                  // The initial const GEMINI_API_KEY will pick up
-                                                  // process.env.GEMINI_API_KEY after shimming.
-

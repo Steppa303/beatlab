@@ -1,32 +1,32 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Minimal Lyria Player</title>
+    <title>Minimal Lyria Player on Render</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="index.css">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-  <script type="importmap">
+  <!-- For local development with live server, you might still use an import map.
+       For a production build deployed to Render, dependencies are typically bundled,
+       or you'd serve them from a CDN or your static assets.
+       This simplified version assumes index.js is a bundle or handles its imports.
+  -->
+<script type="importmap">
 {
   "imports": {
-    "lit/": "https://esm.sh/lit@^3.3.0/",
     "lit": "https://esm.sh/lit@^3.3.0",
-    "@google/genai": "https://esm.sh/@google/genai@^1.0.0"
+    "lit/": "https://esm.sh/lit@^3.3.0/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.2.0",
+    "path": "https://esm.sh/path@^0.12.7",
+    "express": "https://esm.sh/express@^5.1.0"
   }
 }
 </script>
-<script>
-  // Fallback for API key if not set via environment variables.
-  // IMPORTANT: This is for local development convenience ONLY.
-  // DO NOT expose your API key in client-side code in production.
-  // Use environment variables or a secure backend proxy.
-  // window.GEMINI_API_KEY = "YOUR_API_KEY_HERE"; // Replace if you must use this method
-</script>
 </head>
   <body>
-    <script src="index.tsx" type="module"></script>
+    <!-- The compiled JavaScript will be placed here by the build process -->
+    <script src="index.js" type="module"></script>
   </body>
-</html>
-<link rel="stylesheet" href="index.css">
+</html><link rel="stylesheet" href="index.css">
 <script src="index.tsx" type="module"></script>
