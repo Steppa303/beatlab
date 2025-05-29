@@ -496,20 +496,24 @@ export class HelpButton extends IconButton {
   static override styles = [
     IconButton.styles,
     css`
-      .icon-path {
-        fill: #FEFEFE;
-        stroke: #FEFEFE; /* For paths that are strokes */
-        stroke-width: 5;
+      .icon-path-curve {
+        stroke: #FEFEFE;
+        stroke-width: 8; /* Increased stroke width for curve */
         stroke-linecap: round;
         stroke-linejoin: round;
+        fill: none;
+      }
+      .icon-path-dot {
+        fill: #FEFEFE;
+        stroke: none;
       }
     `
   ];
-  // Simple question mark icon
+
   private renderHelpIcon() {
     return svg`
-      <path class="icon-path" d="M40 30 Q50 20 60 30 Q50 40 50 50 V55" fill="none"/>
-      <circle class="icon-path" cx="50" cy="70" r="5" fill="#FEFEFE" stroke="none"/>
+      <path class="icon-path-curve" d="M40 33 C40 18, 60 18, 60 33 C60 43, 50 38, 50 53 L50 58" />
+      <circle class="icon-path-dot" cx="50" cy="70" r="5" />
     `;
   }
   override renderIcon() {
@@ -854,9 +858,15 @@ class HelpGuidePanel extends LitElement {
       margin-bottom: 0.3em;
       font-weight: 500;
     }
-    .panel-content p {
+    .panel-content p, .panel-content ul {
       line-height: 1.6;
       margin-bottom: 0.8em;
+    }
+    .panel-content ul {
+      padding-left: 20px;
+    }
+    .panel-content li {
+      margin-bottom: 0.5em;
     }
     .panel-content strong {
       color: #fff;
@@ -907,8 +917,6 @@ class HelpGuidePanel extends LitElement {
             <p>Klicke auf das Zahnrad-Icon (⚙️) in der oberen Leiste, um die erweiterten Einstellungen ein- oder auszublenden.</p>
             <h4>Temperature</h4>
             <p>Regelt die Zufälligkeit und "Kreativität" der Musikgenerierung. Höhere Werte (bis 2.0) bedeuten mehr Variation und potentiell unerwartetere Ergebnisse. Niedrigere Werte (Richtung 0.0) führen zu deterministischeren Ergebnissen.</p>
-            <h4>Guidance Scale</h4>
-            <p>Bestimmt, wie stark sich die Musik an deinen eingegebenen Prompts orientiert. Höhere Werte (bis 20) zwingen die Engine stärker, den Prompts zu folgen. Niedrigere Werte (Richtung 1) geben der Engine mehr Freiheit.</p>
           </section>
           <section>
             <h3>Tracks verwalten</h3>
@@ -916,6 +924,17 @@ class HelpGuidePanel extends LitElement {
             <p>Klicke einfach auf den Text des Prompts, bearbeite ihn und drücke <strong>Enter</strong>.</p>
             <h4>Tracks entfernen</h4>
             <p>Klicke auf das rote <strong>✕</strong>-Symbol rechts neben einem Track, um ihn zu entfernen.</p>
+          </section>
+          <section>
+            <h3>Inspirations-Ecke: Was kannst du Cooles machen?</h3>
+            <ul>
+              <li><strong>Ambient-Klangwelten:</strong> Erzeuge beruhigende Ambient-Klanglandschaften für Meditation oder Fokus. Nutze Prompts wie <code>tiefer Weltraumklang, langsame Synthesizer-Pads, ferne Chöre</code> und halte die Temperatur niedrig (z.B. 0.5-0.8) für subtile Entwicklungen.</li>
+              <li><strong>Dynamische Live-Sets:</strong> Mixe verschiedene Musikstile live! Starte mit einem <code>Deep House Beat mit 120 BPM</code>, füge dann einen Track mit <code>funky analog Bassline</code> hinzu und überblende später zu <code>energetischer Trance-Melodie mit treibenden Arpeggios</code>. Nutze die Gewichts-Slider (Ratio) und einen MIDI-Controller für fließende Übergänge.</li>
+              <li><strong>Kreative Sound-Experimente:</strong> Entdecke verrückte und einzigartige Sounds! Probiere ungewöhnliche Prompts wie <code>singende Roboter im Dschungel bei Gewitter</code>, <code>gläserne Regentropfen auf einer alten Holztür</code> oder <code>flüsternde Alien-Stimmen in einer Höhle</code>. Spiele mit hoher Temperatur (z.B. 1.2-1.8) für überraschende und unvorhersehbare Ergebnisse.</li>
+              <li><strong>Storytelling mit Musik:</strong> Untermale eine Geschichte, ein Hörspiel oder ein Rollenspiel live mit passender Musik. Ändere die Prompts dynamisch, um die Stimmung der jeweiligen Szene widerzuspiegeln – von <code>spannungsgeladener Verfolgungsmusik mit schnellen Drums</code> bis zu <code>friedlicher Melodie bei Sonnenaufgang mit sanften Streichern</code>.</li>
+              <li><strong>Interaktive Jam-Session mit der KI:</strong> Verwende einen MIDI-Keyboard-Controller, um die Gewichte der Tracks wie Instrumente in einer Band zu 'spielen'. Erstelle einen Basis-Groove mit einem Prompt und improvisiere dann Melodien, Harmonien oder Stimmungsänderungen, indem du andere Prompts über die Slider (oder MIDI CCs) ein- und ausblendest.</li>
+              <li><strong>Genre-Mashups:</strong> Kombiniere gegensätzliche Genres! Was passiert, wenn du <code>Barockes Cembalo-Solo</code> mit <code>Heavy Dubstep Wobble Bass</code> mischst? Sei mutig und finde neue Klangkombinationen.</li>
+            </ul>
           </section>
           <section>
             <h3>Tipps & Fehlerbehebung</h3>
@@ -1228,7 +1247,6 @@ class PromptDj extends LitElement {
   @state() private selectedMidiInputId: string | null = null;
   @state() private showAdvancedSettings = false;
   @state() private temperature = 1.0; // Default, Min: 0, Max: 2, Step: 0.1
-  @state() private guidanceScale = 7.0; // Default, Min: 1, Max: 20, Step: 0.1
   @state() private showHelpPanel = false;
 
 
@@ -1402,7 +1420,6 @@ class PromptDj extends LitElement {
     }
     const musicGenConfig: LiveMusicGenerationConfig = {
         temperature: this.temperature,
-        guidanceScale: this.guidanceScale,
     };
     try {
         await this.session.setMusicGenerationConfig({ musicGenerationConfig: musicGenConfig });
@@ -1660,11 +1677,6 @@ class PromptDj extends LitElement {
     this.setGenerationConfiguration();
   }
 
-  private handleGuidanceScaleChange(e: CustomEvent<number>) {
-    this.guidanceScale = e.detail;
-    this.setGenerationConfiguration();
-  }
-
   private toggleHelpPanel() {
     this.showHelpPanel = !this.showHelpPanel;
   }
@@ -1715,14 +1727,6 @@ class PromptDj extends LitElement {
             max="2"
             step="0.1"
             @input=${this.handleTemperatureChange}
-            ></parameter-slider>
-            <parameter-slider
-            label="Guidance Scale"
-            .value=${this.guidanceScale}
-            min="1"
-            max="20"
-            step="0.1"
-            @input=${this.handleGuidanceScaleChange}
             ></parameter-slider>
         </div>
         <a class="hide-settings-link" @click=${this.toggleAdvancedSettings}>Hide Advanced Settings</a>
