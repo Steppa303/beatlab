@@ -1,3 +1,5 @@
+
+
 /**
  * @fileoverview Control real time music with text prompts - Minimal Demo
  * @license
@@ -447,6 +449,9 @@ export class PlayPauseButton extends IconButton {
       .icon-path {
         fill: #FEFEFE;
       }
+      .play-icon-path {
+        fill: #4CAF50; /* Green play icon */
+      }
     `,
   ];
 
@@ -455,7 +460,8 @@ export class PlayPauseButton extends IconButton {
   }
 
   private renderPlay() {
-    return svg`<path class="icon-path" d="M30 20 L75 50 L30 80 Z" />`;
+    // Added play-icon-path class for specific styling
+    return svg`<path class="icon-path play-icon-path" d="M30 20 L75 50 L30 80 Z" />`;
   }
 
   private renderLoading() {
@@ -559,25 +565,57 @@ export class HelpButton extends IconButton {
 export class ShareButton extends IconButton {
   static override styles = [
     IconButton.styles,
-    css`
-      .icon-path {
-        fill: #FEFEFE;
-        stroke: #FEFEFE; /* Some share icons might use stroke */
-        stroke-width: 4;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-      }
-    `
+    // No specific icon path styles needed if using text
   ];
-  // Icon: Box with an arrow pointing out/up (common for "share" or "export")
-  private renderShareIcon() {
+
+  private renderShareText() {
     return svg`
-      <path class="icon-path" d="M70 30 H55 V20 L80 40 L55 60 V50 H70 V65 H30 V30 H45 V20 L20 40 L45 60 V50 H30" fill="none" />
-      <path class="icon-path" d="M50 15 L50 55 M35 30 L50 15 L65 30" fill="none"/>
+      <text 
+        x="50%" 
+        y="50%" 
+        dominant-baseline="middle" 
+        text-anchor="middle" 
+        font-family="Arial, sans-serif"
+        font-size="30"  /* Adjust as needed for "Share" */
+        font-weight="bold" 
+        fill="#FEFEFE">
+        Share
+      </text>
     `;
   }
   override renderIcon() {
-    return this.renderShareIcon();
+    return this.renderShareText();
+  }
+}
+
+// DropButton component (formerly FXButton)
+@customElement('drop-button')
+export class DropButton extends IconButton {
+  static override styles = [
+    IconButton.styles,
+    css`
+      /* Gold color is applied directly in the SVG text element. */
+    `
+  ];
+
+  private renderDropIcon() {
+    return svg`
+      <text 
+        x="50%" 
+        y="50%" 
+        dominant-baseline="middle" 
+        text-anchor="middle" 
+        font-family="Arial, sans-serif"
+        font-size="38"  /* Adjusted for "Drop!" */
+        font-weight="bold" 
+        fill="#FFD700">
+        Drop!
+      </text>
+    `;
+  }
+
+  override renderIcon() {
+    return this.renderDropIcon();
   }
 }
 
@@ -663,6 +701,8 @@ class ToastMessage extends LitElement {
   show(message: string) {
     this.showing = true;
     this.message = message;
+    // Auto-hide after some time
+    setTimeout(() => this.hide(), 5000);
   }
 
   hide() {
@@ -1108,23 +1148,25 @@ class HelpGuidePanel extends LitElement {
           <section>
             <h3>Grundlagen</h3>
             <h4>Tracks hinzufügen</h4>
-            <p>Klicke auf den <strong>+</strong> Button in der oberen Leiste, um einen neuen Track (Prompt-Zeile) hinzuzufügen.</p>
+            <p>Klicke auf den großen <strong>+ Button</strong> unterhalb deiner aktuellen Track-Liste, um einen neuen Track (Prompt-Zeile) hinzuzufügen.</p>
             <h4>Prompts schreiben</h4>
             <p>Klicke auf den Text (z.B. "Ambient Chill" oder "New Prompt") eines Tracks oder den Bearbeiten-Button (Stift-Icon) daneben, um deinen eigenen Musik-Prompt einzugeben. Drücke <strong>Enter</strong> oder klicke den Speichern-Button (Haken-Icon), um zu speichern. Die Musik-Engine versucht dann, diesen Prompt umzusetzen.</p>
             <h4>Gewichtung anpassen (Ratio)</h4>
             <p>Ziehe den farbigen Slider unter jedem Prompt, um dessen Einfluss (Gewichtung) auf die generierte Musik anzupassen. Werte reichen von 0 (kein Einfluss) bis 2 (starker Einfluss). Die aktuelle Ratio wird rechts neben dem Prompt-Text angezeigt.</p>
             <h4>Musik starten/pausieren</h4>
-            <p>Verwende den Play/Pause-Button (▶️/⏸️) in der oberen Leiste. Beim ersten Start oder nach einer Unterbrechung kann es einen Moment dauern (Lade-Symbol), bis die Musik beginnt.</p>
+            <p>Verwende den großen <strong>Play/Pause-Button (▶️/⏸️ unten links)</strong>. Beim ersten Start oder nach einer Unterbrechung kann es einen Moment dauern (Lade-Symbol), bis die Musik beginnt.</p>
+            <h4>"Drop!"-Effekt</h4>
+            <p>Klicke den <strong>Drop!-Button ( unten rechts)</strong> für einen Überraschungseffekt! Die Musik baut Spannung auf und entlädt sich dann – perfekt für Übergänge oder um Energie freizusetzen.</p>
           </section>
           <section>
             <h3>Konfiguration Teilen (via Link)</h3>
-            <p>Klicke auf den <strong>Teilen-Button (Icon: Kasten mit Pfeil nach oben 📤)</strong> unten rechts. Dadurch wird ein spezieller Link in deine Zwischenablage kopiert.</p>
+            <p>Klicke auf den <strong>Share-Button</strong> unten rechts. Dadurch wird ein spezieller Link in deine Zwischenablage kopiert.</p>
             <p>Wenn jemand diesen Link öffnet, startet PromptDJ automatisch mit genau deiner aktuellen Konfiguration (Prompts, Gewichtungen, Temperatur).</p>
             <p>Ideal, um deine Kreationen schnell und einfach zu präsentieren oder gemeinsam an Klanglandschaften zu arbeiten!</p>
           </section>
           <section>
             <h3>Erweiterte Einstellungen (Zahnrad-Icon)</h3>
-            <p>Klicke auf das Zahnrad-Icon (⚙️) in der oberen Leiste, um die erweiterten Einstellungen ein- oder auszublenden.</p>
+            <p>Klicke auf das Zahnrad-Icon (⚙️) in der oberen rechten Leiste, um die erweiterten Einstellungen ein- oder auszublenden.</p>
             <h4>Temperature</h4>
             <p>Regelt die Zufälligkeit und "Kreativität" der Musikgenerierung. Höhere Werte (bis 2.0) bedeuten mehr Variation und potentiell unerwartetere Ergebnisse. Niedrigere Werte (Richtung 0.0) führen zu deterministischeren Ergebnissen.</p>
           </section>
@@ -1136,20 +1178,20 @@ class HelpGuidePanel extends LitElement {
             <p>Klicke auf das rote <strong>✕</strong>-Symbol rechts neben einem Track, um ihn zu entfernen.</p>
           </section>
           <section>
-            <h3>MIDI-Steuerung</h3>
-            <p>Wähle dein MIDI-Gerät aus dem Dropdown-Menü oben links aus. Wenn kein Gerät erscheint, stelle sicher, dass es verbunden ist und dein Browser Zugriff auf MIDI-Geräte hat.</p>
-            <p>Die MIDI Control Change (CC) Nachrichten steuern die Gewichts-Slider der Tracks. CC1 steuert den ersten Track, CC2 den zweiten, und so weiter. Der CC-Wert (0-127) wird automatisch auf den Slider-Bereich (0-2) umgerechnet.</p>
-          </section>
-          <section>
             <h3>Inspirations-Ecke: Was kannst du Cooles machen?</h3>
             <ul>
               <li><strong>Ambient-Klangwelten:</strong> Erzeuge beruhigende Ambient-Klanglandschaften für Meditation oder Fokus. Nutze Prompts wie <code>tiefer Weltraumklang, langsame Synthesizer-Pads, ferne Chöre</code> und halte die Temperatur niedrig (z.B. 0.5-0.8) für subtile Entwicklungen.</li>
-              <li><strong>Dynamische Live-Sets:</strong> Mixe verschiedene Musikstile live! Starte mit einem <code>Deep House Beat mit 120 BPM</code>, füge dann einen Track mit <code>funky analog Bassline</code> hinzu und überblende später zu <code>energetischer Trance-Melodie mit treibenden Arpeggios</code>. Nutze die Gewichts-Slider (Ratio) und einen MIDI-Controller für fließende Übergänge.</li>
+              <li><strong>Dynamische Live-Sets:</strong> Mixe verschiedene Musikstile live! Starte mit einem <code>Deep House Beat mit 120 BPM</code>, füge dann einen Track mit <code>funky analog Bassline</code> hinzu und überblende später zu <code>energetischer Trance-Melodie mit treibenden Arpeggios</code>. Nutze die Gewichts-Slider (Ratio) und einen MIDI-Controller für fließende Übergänge. Nutze den <strong>Drop!</strong>-Button für dramatische Höhepunkte!</li>
               <li><strong>Kreative Sound-Experimente:</strong> Entdecke verrückte und einzigartige Sounds! Probiere ungewöhnliche Prompts wie <code>singende Roboter im Dschungel bei Gewitter</code>, <code>gläserne Regentropfen auf einer alten Holztür</code> oder <code>flüsternde Alien-Stimmen in einer Höhle</code>. Spiele mit hoher Temperatur (z.B. 1.2-1.8) für überraschende und unvorhersehbare Ergebnisse.</li>
               <li><strong>Storytelling mit Musik:</strong> Untermale eine Geschichte, ein Hörspiel oder ein Rollenspiel live mit passender Musik. Ändere die Prompts dynamisch, um die Stimmung der jeweiligen Szene widerzuspiegeln – von <code>spannungsgeladener Verfolgungsmusik mit schnellen Drums</code> bis zu <code>friedlicher Melodie bei Sonnenaufgang mit sanften Streichern</code>.</li>
               <li><strong>Interaktive Jam-Session mit der KI:</strong> Verwende einen MIDI-Keyboard-Controller, um die Gewichte der Tracks wie Instrumente in einer Band zu 'spielen'. Erstelle einen Basis-Groove mit einem Prompt und improvisiere dann Melodien, Harmonien oder Stimmungsänderungen, indem du andere Prompts über die Slider (oder MIDI CCs) ein- und ausblendest.</li>
               <li><strong>Genre-Mashups:</strong> Kombiniere gegensätzliche Genres! Was passiert, wenn du <code>Barockes Cembalo-Solo</code> mit <code>Heavy Dubstep Wobble Bass</code> mischst? Sei mutig und finde neue Klangkombinationen.</li>
             </ul>
+          </section>
+          <section>
+            <h3>MIDI-Steuerung</h3>
+            <p>Wähle dein MIDI-Gerät aus dem Dropdown-Menü oben links aus. Wenn kein Gerät erscheint, stelle sicher, dass es verbunden ist und dein Browser Zugriff auf MIDI-Geräte hat.</p>
+            <p>Die MIDI Control Change (CC) Nachrichten steuern die Gewichts-Slider der Tracks. CC1 steuert den ersten Track, CC2 den zweiten, und so weiter. Der CC-Wert (0-127) wird automatisch auf den Slider-Bereich (0-2) umgerechnet.</p>
           </section>
           <section>
             <h3>Tipps & Fehlerbehebung</h3>
@@ -1169,7 +1211,6 @@ class HelpGuidePanel extends LitElement {
     `;
   }
 }
-
 
 /** Component for the PromptDJ UI. */
 @customElement('prompt-dj')
@@ -1328,35 +1369,25 @@ class PromptDj extends LitElement {
       border-color: #444;
       box-shadow: none;
     }
-    .header-actions {
+    .header-actions { /* Now only contains settings button */
       display: flex;
       align-items: center;
-      gap: 1.5vmin; /* Slightly reduced gap */
+      gap: 1.5vmin; 
     }
-    .header-actions > add-prompt-button,
-    .header-actions > play-pause-button,
     .header-actions > settings-button {
       width: 7vmin; 
       height: 7vmin;
       max-width: 55px; 
       max-height: 55px;
     }
-    .header-actions > save-preset-button,
-    .header-actions > load-preset-button {
-      /* Hidden by commenting out in render */
-      /* width: 3.7vmin; */
-      /* height: 3.7vmin; */
-      /* max-width: 29px; */
-      /* max-height: 29px; */
-    }
 
 
     .advanced-settings-panel {
-      background-color: #222; /* Slightly darker than header */
+      background-color: #222; 
       width: 100%;
-      padding: 0; /* Will be controlled by inner content or set explicitly */
+      padding: 0; 
       box-sizing: border-box;
-      z-index: 99; /* Below header but above content if overlapping */
+      z-index: 99; 
       position: relative;
       overflow: hidden;
       max-height: 0;
@@ -1365,7 +1396,7 @@ class PromptDj extends LitElement {
       border-bottom: 1px solid #383838;
     }
     .advanced-settings-panel.visible {
-      max-height: 500px; /* Adjust as needed for content */
+      max-height: 500px; 
       opacity: 1;
       padding: 2vmin 3vmin;
     }
@@ -1417,6 +1448,8 @@ class PromptDj extends LitElement {
       box-sizing: border-box;
       padding-right: 8px; 
       padding-left: 3px; 
+      /* Add padding at the bottom if add button is inside and absolutely positioned at bottom of container
+         padding-bottom: calc(21vmin + 4vmin); /* Approx button height + desired margin */
     }
     #prompts-container::-webkit-scrollbar {
       width: 10px; 
@@ -1438,21 +1471,58 @@ class PromptDj extends LitElement {
       flex-shrink: 0;
       box-sizing: border-box;
     }
-    .utility-button-cluster {
+    
+    .floating-add-button { /* Styles for the add-prompt-button when it's below prompts */
+      display: block; /* Or flex if content inside needs centering */
+      width: 21vmin;
+      height: 21vmin;
+      max-width: 150px;
+      max-height: 150px;
+      margin: 3vmin auto 1vmin auto; /* Top margin, Auto horizontal, Bottom margin */
+      flex-shrink: 0; /* Prevent shrinking if prompts-container is flex */
+    }
+
+    .bottom-left-utility-cluster {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column; /* Stacked vertically */
+      align-items: center;
+      gap: 15px;
+    }
+
+    .bottom-left-utility-cluster > play-pause-button {
+      width: 21vmin; /* Increased size */
+      height: 21vmin;
+      max-width: 150px;
+      max-height: 150px;
+    }
+
+    .utility-button-cluster { /* This is the bottom-right cluster */
       position: fixed;
       bottom: 20px;
       right: 20px;
-      z-index: 1000; /* Above most content */
+      z-index: 1000; 
       display: flex;
       flex-direction: column;
-      gap: 10px; /* Space between share and help buttons */
+      align-items: center; 
+      gap: 15px; 
+    }
+
+    .utility-button-cluster > drop-button { 
+      width: 12vmin;
+      height: 12vmin;
+      max-width: 80px;
+      max-height: 80px;
     }
 
     .utility-button-cluster > share-button,
     .utility-button-cluster > help-button {
-      width: 7vmin; /* Smaller than header buttons */
+      width: 7vmin; 
       height: 7vmin;
-      max-width: 50px; /* Max size for these utility buttons */
+      max-width: 50px; 
       max-height: 50px;
     }
   `;
@@ -1490,6 +1560,12 @@ class PromptDj extends LitElement {
   @state() private showAdvancedSettings = false;
   @state() private temperature = 1.0; // Default, Min: 0, Max: 2, Step: 0.1
   @state() private showHelpPanel = false;
+  
+  // Drop effect states
+  @state() private isDropActive = false;
+  private originalPromptWeightsBeforeDrop: Map<string, number> | null = null;
+  private temporaryDropPromptId: string | null = null;
+  private dropTimeoutId: number | null = null;
 
 
   constructor() {
@@ -1516,6 +1592,10 @@ class PromptDj extends LitElement {
 
   override disconnectedCallback(): void {
       super.disconnectedCallback();
+      if (this.dropTimeoutId) {
+        clearTimeout(this.dropTimeoutId);
+        this.dropTimeoutId = null;
+      }
       this.midiController.destroy();
       this.removeEventListener('midi-cc-received', this.handleMidiCcReceived as EventListener);
       this.midiController.removeEventListener('midi-inputs-changed', this.handleMidiInputsChanged as EventListener);
@@ -1848,6 +1928,10 @@ class PromptDj extends LitElement {
 
 
   private async handleAddPrompt() {
+    if (this.isDropActive) {
+        this.toastMessage.show("Cannot add prompt during Drop sequence.");
+        return;
+    }
     const newPromptId = `prompt-${this.nextPromptId}`;
     const newColor = TRACK_COLORS[this.nextPromptId % TRACK_COLORS.length];
     this.nextPromptId++;
@@ -1873,6 +1957,12 @@ class PromptDj extends LitElement {
   private handlePromptRemoved(e: CustomEvent<string>) {
     e.stopPropagation();
     const promptIdToRemove = e.detail;
+    if (this.isDropActive && promptIdToRemove === this.temporaryDropPromptId) {
+        // If user tries to remove the drop prompt itself, let the drop logic handle it
+        // or simply disallow. For now, let's assume drop logic is robust.
+        console.log("Attempted to remove active drop prompt. Drop logic will handle it.");
+        return;
+    }
     if (this.prompts.has(promptIdToRemove)) {
         this.actuallyRemovePrompt(promptIdToRemove);
     } else {
@@ -1886,11 +1976,19 @@ class PromptDj extends LitElement {
     const newPrompts = new Map(this.prompts);
     newPrompts.delete(promptIdToRemove);
     this.prompts = newPrompts; 
+    
+    // If a drop is active and a non-drop prompt is removed, update original weights
+    if (this.isDropActive && this.originalPromptWeightsBeforeDrop?.has(promptIdToRemove)) {
+        this.originalPromptWeightsBeforeDrop.delete(promptIdToRemove);
+    }
+
     this.setSessionPrompts();
   }
 
 
   private handleMidiCcReceived(event: CustomEvent<{ ccNumber: number, value: number }>) {
+    if (this.isDropActive) return; // Don't allow MIDI control during drop
+
     const receivedCc = event.detail.ccNumber;
     const normalizedValue = event.detail.value;
 
@@ -1915,6 +2013,13 @@ class PromptDj extends LitElement {
   }
 
   private handleTemperatureChange(e: CustomEvent<number>) {
+    if (this.isDropActive) { // Disallow changing temp during drop
+        this.toastMessage.show("Cannot change temperature during Drop sequence.");
+        // Optionally revert the slider UI if it was optimistic
+        const slider = e.target as ParameterSlider;
+        if (slider) slider.value = this.temperature;
+        return;
+    }
     this.temperature = e.detail;
     this.setGenerationConfiguration();
   }
@@ -1922,8 +2027,63 @@ class PromptDj extends LitElement {
   private toggleHelpPanel() {
     this.showHelpPanel = !this.showHelpPanel;
   }
+  
+  private handleDropClick() {
+    if (this.isDropActive) {
+      this.toastMessage.show("Drop sequence already in progress!");
+      return;
+    }
+
+    this.isDropActive = true;
+    this.toastMessage.show("Drop sequence initiated! Brace yourself!");
+
+    this.originalPromptWeightsBeforeDrop = new Map();
+    const newPromptsForDrop = new Map<string, Prompt>();
+
+    this.prompts.forEach((prompt, id) => {
+      this.originalPromptWeightsBeforeDrop!.set(id, prompt.weight);
+      newPromptsForDrop.set(id, { ...prompt, weight: 0.1 }); // Reduce weight of existing prompts
+    });
+
+    this.temporaryDropPromptId = `drop-prompt-${Date.now()}`;
+    const dropPromptText = "epic buildup, dramatic pause, massive bass drop, explosive energy release";
+    newPromptsForDrop.set(this.temporaryDropPromptId, {
+      promptId: this.temporaryDropPromptId,
+      text: dropPromptText,
+      weight: 2.0, // High weight for the drop prompt
+      color: TRACK_COLORS[4], // Purple, or another distinct color
+    });
+
+    this.prompts = newPromptsForDrop;
+    this.setSessionPrompts();
+
+    this.dropTimeoutId = window.setTimeout(() => {
+      const newPromptsAfterDrop = new Map<string, Prompt>();
+      // Restore original prompts and their weights
+      this.originalPromptWeightsBeforeDrop?.forEach((originalWeight, promptId) => {
+        const currentPromptState = this.prompts.get(promptId); // Get from the state *during* the drop
+        if (currentPromptState && promptId !== this.temporaryDropPromptId) { // Check if prompt still exists and is not the drop prompt
+           newPromptsAfterDrop.set(promptId, { ...currentPromptState, weight: originalWeight });
+        }
+      });
+      
+      this.prompts = newPromptsAfterDrop; // Prompts map no longer contains the drop prompt.
+      this.setSessionPrompts();
+
+      this.isDropActive = false;
+      this.originalPromptWeightsBeforeDrop = null;
+      this.temporaryDropPromptId = null;
+      this.dropTimeoutId = null;
+      this.toastMessage.show("Drop sequence complete!");
+    }, 8000); // 8 seconds for the drop effect
+  }
+
 
   private _applyConfiguration(configData: Preset, source: 'preset' | 'share-link') {
+    if (this.isDropActive) {
+        this.toastMessage.show(`Cannot load ${source} during Drop sequence.`);
+        return;
+    }
     // Basic validation
     if (
         configData.version !== CURRENT_PRESET_VERSION ||
@@ -1969,6 +2129,10 @@ class PromptDj extends LitElement {
 
 
   private handleSavePreset() {
+    if (this.isDropActive) {
+        this.toastMessage.show("Cannot save preset during Drop sequence.");
+        return;
+    }
     const presetPrompts: PresetPrompt[] = Array.from(this.prompts.values()).map(p => ({
       text: p.text,
       weight: p.weight,
@@ -1994,6 +2158,10 @@ class PromptDj extends LitElement {
   }
 
   private handleLoadPresetClick() {
+    if (this.isDropActive) {
+        this.toastMessage.show("Cannot load preset during Drop sequence.");
+        return;
+    }
     if (this.fileInputForPreset) {
       this.fileInputForPreset.click();
     }
@@ -2047,6 +2215,10 @@ class PromptDj extends LitElement {
   }
 
   private async handleShareClick() {
+    if (this.isDropActive) {
+        this.toastMessage.show("Cannot share configuration during Drop sequence.");
+        return;
+    }
     const currentPrompts: PresetPrompt[] = Array.from(this.prompts.values()).map(p => ({
       text: p.text,
       weight: p.weight,
@@ -2063,10 +2235,9 @@ class PromptDj extends LitElement {
       const base64State = btoa(jsonString);
       const encodedBase64State = encodeURIComponent(base64State);
       
-      // Use the specified Render URL, or fallback to current origin for local dev
       const baseUrl = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") 
           ? window.location.origin + window.location.pathname
-          : 'https://steppas-beatlab.onrender.com/'; // Ensure trailing slash if it's a base path
+          : 'https://steppas-beatlab.onrender.com/'; 
 
       const shareUrl = `${baseUrl}?share=${encodedBase64State}`;
 
@@ -2074,10 +2245,8 @@ class PromptDj extends LitElement {
         await navigator.clipboard.writeText(shareUrl);
         this.toastMessage.show('Share link copied to clipboard!');
       } else {
-        // Fallback for older browsers or insecure contexts
         this.toastMessage.show('Could not copy link. Please copy manually.');
         console.warn('Share URL (copy manually):', shareUrl);
-         // Consider showing the URL in a modal or prompt for manual copying
       }
     } catch (e: any) {
       console.error('Error creating share link:', e);
@@ -2102,7 +2271,7 @@ class PromptDj extends LitElement {
             class="midi-selector"
             @change=${this.handleMidiDeviceChange}
             .value=${this.selectedMidiInputId || ''}
-            ?disabled=${this.availableMidiInputs.length === 0}
+            ?disabled=${this.availableMidiInputs.length === 0 || this.isDropActive}
             aria-label="Select MIDI Input Device">
             ${this.availableMidiInputs.length === 0 ?
                 html`<option value="">No MIDI Devices</option>` :
@@ -2113,19 +2282,9 @@ class PromptDj extends LitElement {
                 )}
                 `}
             </select>
-            <!--
-            <save-preset-button @click=${this.handleSavePreset} aria-label="Save current preset"></save-preset-button>
-            <load-preset-button @click=${this.handleLoadPresetClick} aria-label="Load preset from file"></load-preset-button>
-            -->
         </div>
         <div class="header-actions">
           <settings-button @click=${this.toggleAdvancedSettings} aria-label="Toggle advanced settings"></settings-button>
-          <add-prompt-button @click=${this.handleAddPrompt} aria-label="Add new prompt"></add-prompt-button>
-          <play-pause-button
-            @click=${this.handlePlayPause}
-            .playbackState=${this.playbackState}
-            aria-label=${this.playbackState === 'playing' ? 'Pause audio' : 'Play audio'}
-          ></play-pause-button>
         </div>
       </div>
       <div class="advanced-settings-panel ${classMap({visible: this.showAdvancedSettings})}">
@@ -2137,6 +2296,7 @@ class PromptDj extends LitElement {
             max="2"
             step="0.1"
             @input=${this.handleTemperatureChange}
+            ?disabled=${this.isDropActive}
             ></parameter-slider>
         </div>
         <a class="hide-settings-link" @click=${this.toggleAdvancedSettings}>Hide Advanced Settings</a>
@@ -2144,14 +2304,32 @@ class PromptDj extends LitElement {
       <div class="content-area">
         <div id="prompts-container" @prompt-removed=${this.handlePromptRemoved}>
           ${this.renderPrompts()}
+          <add-prompt-button 
+            class="floating-add-button"
+            @click=${this.handleAddPrompt} 
+            aria-label="Add new prompt track">
+          </add-prompt-button>
         </div>
       </div>
       <toast-message .message=${this.toastMessage?.message || ''} .showing=${this.toastMessage?.showing || false}></toast-message>
+      
+      <div class="bottom-left-utility-cluster">
+        <play-pause-button
+            @click=${this.handlePlayPause}
+            .playbackState=${this.playbackState}
+            aria-label=${this.playbackState === 'playing' ? 'Pause audio' : 'Play audio'}
+          ></play-pause-button>
+        <!-- AddPromptButton removed from here -->
+      </div>
+
       <div class="utility-button-cluster">
+        <drop-button @click=${this.handleDropClick} aria-label="Trigger Drop Effect"></drop-button>
         <share-button @click=${this.handleShareClick} aria-label="Share current configuration via link"></share-button>
         <help-button @click=${this.toggleHelpPanel} aria-label="Open help guide"></help-button>
       </div>
+      
       <help-guide-panel .isOpen=${this.showHelpPanel} @close-help=${this.toggleHelpPanel}></help-guide-panel>
+      
       <input type="file" id="presetFileInput" accept=".json" style="display: none;" @change=${this.handlePresetFileSelected}>
       `;
   }
@@ -2164,6 +2342,7 @@ class PromptDj extends LitElement {
         .text=${prompt.text}
         .weight=${prompt.weight}
         .sliderColor=${prompt.color}
+        ?disabled=${this.isDropActive && prompt.promptId !== this.temporaryDropPromptId}
         @prompt-changed=${this.handlePromptChanged}>
       </prompt-controller>`;
     });
@@ -2196,6 +2375,7 @@ declare global {
     'parameter-slider': ParameterSlider;
     'toast-message': ToastMessage;
     'help-guide-panel': HelpGuidePanel;
+    'drop-button': DropButton; // Renamed from fx-button
   }
 
   interface MidiInputInfo {
