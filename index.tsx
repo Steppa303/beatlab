@@ -64,22 +64,22 @@ class WeightSlider extends LitElement {
       display: flex;
       align-items: center;
       box-sizing: border-box;
-      height: 10px; /* Define height for the host, which contains the slider track */
+      height: 20px; /* Doubled height for the host */
       touch-action: none; /* Prevent default touch actions like scrolling */
     }
     .slider-container {
       position: relative;
-      height: 6px; /* Fixed height for the track */
+      height: 12px; /* Doubled height for the track */
       width: 100%; /* Track takes full width of host */
       background-color: #555; /* Darker track for better contrast */
-      border-radius: 3px;
+      border-radius: 6px; /* Adjusted radius */
     }
     #thumb {
       position: absolute;
       left: 0;
       top: 0;
       height: 100%;
-      border-radius: 3px; /* Match container radius */
+      border-radius: 6px; /* Match container radius */
       box-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
     }
   `;
@@ -220,16 +220,16 @@ class IconButton extends LitElement {
       align-items: center;
       justify-content: center;
       pointer-events: none;
-      width: 50px;
-      height: 50px;
+      /* width and height will be set by inheriting classes based on vmin */
     }
     :host(:hover) svg {
       transform: scale(1.2);
+      filter: brightness(1.2); /* Added brightness on hover */
     }
     svg {
       width: 100%;
       height: 100%;
-      transition: transform 0.5s cubic-bezier(0.25, 1.56, 0.32, 0.99);
+      transition: transform 0.3s cubic-bezier(0.25, 1.56, 0.32, 0.99), filter 0.3s ease-out; /* Adjusted timing */
     }
     .hitbox {
       pointer-events: all;
@@ -399,6 +399,16 @@ class ToastMessage extends LitElement {
 @customElement('prompt-controller')
 class PromptController extends LitElement {
   static override styles = css`
+    @keyframes promptAppear {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
     .prompt {
       position: relative;
       width: 100%;
@@ -409,6 +419,7 @@ class PromptController extends LitElement {
       background-color: #3E3E3E; /* Screenshot-like grey */
       border-radius: 12px; /* Screenshot-like rounding */
       padding: 0; /* Padding will be handled by inner elements */
+      animation: promptAppear 0.3s ease-out forwards;
     }
     .prompt-header {
       display: flex;
@@ -432,7 +443,7 @@ class PromptController extends LitElement {
       line-height: 28px; /* Center 'X' vertically */
       cursor: pointer;
       opacity: 0.8;
-      transition: opacity 0.2s, transform 0.2s;
+      transition: opacity 0.15s, transform 0.15s; /* Quicker transition */
       flex-shrink: 0; /* Prevent button from shrinking */
     }
     .remove-button:hover {
@@ -450,7 +461,7 @@ class PromptController extends LitElement {
     }
     weight-slider {
       width: auto; /* Slider takes width from margin */
-      height: 10px; /* Height of the slider interaction area */
+      height: 20px; /* Height of the slider interaction area, matches WeightSlider :host height */
       margin: 0 15px 12px 15px; /* Padding around slider, bottom margin */
     }
     #text {
@@ -474,11 +485,13 @@ class PromptController extends LitElement {
       min-height: 1.2em; /* Ensure it has some height */
       line-height: 1.2em;
       flex-grow: 1; /* Allow text to take up space */
+      transition: box-shadow 0.2s ease-in-out; /* Animation for focus */
     }
     #text:focus {
         overflow: visible;
         white-space: normal;
         text-overflow: clip;
+        box-shadow: 0 2px 0px -1px #66afe9; /* Subtle focus indicator */
     }
     :host([filtered='true']) #text { /* Keep existing filter style */
       background: #da2000;
@@ -573,12 +586,12 @@ class PromptDj extends LitElement {
       align-items: center;
       box-sizing: border-box;
       position: relative;
-      font-size: 1.8vmin;
+      font-size: 1.8vmin; /* Base font size, others can scale from this */
       background-color: #111;
     }
     .header-bar {
       width: 100%;
-      padding: 1vmin 2vmin;
+      padding: 2vmin 3vmin; /* Increased padding for more height */
       background-color: #1c1c1c;
       display: flex;
       justify-content: space-between;
@@ -592,30 +605,38 @@ class PromptDj extends LitElement {
       background-color: #333;
       color: #fff;
       border: 1px solid #555;
-      padding: 0.6em 0.8em;
-      border-radius: 4px;
-      font-size: 1.6vmin;
-      min-width: 180px;
-      max-width: 300px;
-      height: 100%;
+      padding: 0.8em 1em; /* Increased padding */
+      border-radius: 6px; /* Slightly larger radius */
+      font-size: 2vmin; /* Increased font size */
+      min-width: 200px; /* Adjusted min-width */
+      max-width: 320px;
       box-sizing: border-box;
+      transition: border-color 0.2s ease-in-out;
+    }
+    .midi-selector:hover {
+      border-color: #777;
+    }
+    .midi-selector:focus {
+      border-color: #66afe9;
+      outline: none;
     }
     .midi-selector:disabled {
       background-color: #222;
       color: #777;
       cursor: not-allowed;
+      border-color: #444;
     }
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 1.5vmin;
+      gap: 2vmin; /* Increased gap */
     }
     .header-actions > add-prompt-button,
     .header-actions > play-pause-button {
-      width: 6vmin;
-      height: 6vmin;
-      max-width: 50px;
-      max-height: 50px;
+      width: 8vmin; /* Increased size */
+      height: 8vmin; /* Increased size */
+      max-width: 65px; /* Adjusted max */
+      max-height: 65px; /* Adjusted max */
     }
 
     .content-area {
@@ -660,7 +681,6 @@ class PromptDj extends LitElement {
     }
     prompt-controller {
       width: 100%;
-      /* min-height: 18vmin; Removed, height will be intrinsic */
       flex-shrink: 0;
       box-sizing: border-box;
     }

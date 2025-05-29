@@ -6,63 +6,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Local type definitions for Web MIDI API
-declare namespace WebMidi {
-  interface MIDIAccess extends EventTarget {
-    inputs: ReadonlyMap<string, MIDIInput>;
-    outputs: ReadonlyMap<string, MIDIOutput>;
-    onstatechange: ((event: MIDIConnectionEvent) => void) | null;
-    sysexEnabled: boolean;
-  }
-
-  interface MIDIPort extends EventTarget {
-    id: string;
-    manufacturer?: string;
-    name?: string;
-    type: MIDIPortType;
-    version?: string;
-    state: MIDIPortDeviceState;
-    connection: MIDIPortConnectionState;
-    onstatechange: ((event: MIDIConnectionEvent) => void) | null;
-    open(): Promise<MIDIPort>;
-    close(): Promise<MIDIPort>;
-  }
-
-  interface MIDIInput extends MIDIPort {
-    type: "input";
-    onmidimessage: ((event: MIDIMessageEvent) => void) | null;
-  }
-
-  interface MIDIOutput extends MIDIPort {
-    type: "output";
-    send(data: Uint8Array | number[], timestamp?: number): void;
-    clear(): void;
-  }
-
-  type MIDIPortType = "input" | "output";
-  type MIDIPortDeviceState = "disconnected" | "connected";
-  type MIDIPortConnectionState = "open" | "closed" | "pending";
-
-  interface MIDIMessageEvent extends Event {
-    data: Uint8Array;
-    receivedTime: number; // DOMHighResTimeStamp
-  }
-
-  interface MIDIConnectionEvent extends Event {
-    port: MIDIPort;
-  }
-}
-
-// End of local type definitions
+// Local type definitions for Web MIDI API removed, relying on global types.
 
 export interface MidiInputInfo {
   id: string;
   name: string;
 }
 export class MidiController extends EventTarget {
-  private midiAccess: WebMidi.MIDIAccess | null = null;
-  private inputs: WebMidi.MIDIInput[] = [];
-  private selectedInput: WebMidi.MIDIInput | null = null;
+  private midiAccess: MIDIAccess | null = null;
+  private inputs: MIDIInput[] = [];
+  private selectedInput: MIDIInput | null = null;
 
   constructor() {
     super();
@@ -79,7 +32,7 @@ export class MidiController extends EventTarget {
       this.midiAccess = await navigator.requestMIDIAccess({ sysex: false }); // sysex not needed for CC
       this.updateInputList();
 
-      this.midiAccess.onstatechange = (event: WebMidi.MIDIConnectionEvent) => {
+      this.midiAccess.onstatechange = (event: MIDIConnectionEvent) => {
         console.log('MIDI state changed:', event.port.name, event.port.state);
         this.updateInputList();
         // If the selected input is disconnected, we need to clear it.
@@ -147,7 +100,7 @@ export class MidiController extends EventTarget {
     }
   }
 
-  private onMidiMessage(event: WebMidi.MIDIMessageEvent): void {
+  private onMidiMessage(event: MIDIMessageEvent): void {
     // This will only be called if 'this.selectedInput' is set and has this handler
     const [status, data1, data2] = event.data;
     // Check for Control Change message (0xB0 - 0xBF for channels 1-16)
