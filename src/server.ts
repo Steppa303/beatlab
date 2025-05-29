@@ -1,4 +1,5 @@
-import express, { Request, Response, NextFunction } from 'express';
+
+import * as express from 'express';
 import path from 'path';
 import {
   GoogleGenAI,
@@ -17,7 +18,7 @@ if (!GEMINI_API_KEY) {
   console.error(
     'FATAL ERROR: GEMINI_API_KEY environment variable is not set.',
   );
-  process.exit(1); // This is standard Node.js; TS error indicates a @types/node setup issue.
+  process.exit(1); // This is standard Node.js; error may indicate @types/node setup issue.
 }
 
 const ai = new GoogleGenAI({
@@ -27,7 +28,7 @@ const ai = new GoogleGenAI({
 const modelName = 'lyria-realtime-exp';
 
 let session: LiveMusicSession | undefined;
-let clientResponse: Response | undefined; // Express Response object for SSE
+let clientResponse: express.Response | undefined; // Use express.Response
 
 app.use(express.json()); // Middleware to parse JSON request bodies
 
@@ -44,12 +45,9 @@ function sendSseMessage(data: object) {
 async function initializeLyriaSession() {
   if (session) {
     try {
-      // Based on error "Property 'catch' does not exist on type 'void'" for session.close().catch(),
-      // session.close() is assumed to return void.
       session.close();
       console.log('Closed existing Lyria session.');
     } catch (e) {
-      // If session.close() can throw synchronously
       console.warn('Error closing existing Lyria session:', e);
     }
     session = undefined;
@@ -75,15 +73,14 @@ async function initializeLyriaSession() {
              sendSseMessage({ type: 'info', message: `Prompt filtered: ${e.filteredPrompt.filteredReason}` });
           }
         },
-        onerror: (e: ErrorEvent | {message: string}) => { // ErrorEvent might need specific typing in Node
-          const errorMessage = (e as {message: string}).message || (e as ErrorEvent)?.type || 'Unknown Lyria error';
+        onerror: (e: any) => { // Changed type to any to avoid DOM type issues
+          const errorMessage = (e as {message: string})?.message || (e as {type?: string})?.type || 'Unknown Lyria error';
           console.error('Lyria session error:', errorMessage);
           sendSseMessage({ type: 'error', message: `Lyria error: ${errorMessage}` });
           closeLyriaSessionAndStream();
         },
-        onclose: (/*e: CloseEvent*/) => { // CloseEvent is typically a browser type. Parameter 'e' might be problematic.
-          // console.log('Lyria connection closed.', (e as CloseEvent)?.reason);
-          console.log('Lyria connection closed.'); // Simplified log
+        onclose: (e: any) => { // Changed type to any
+          console.log('Lyria connection closed.', (e as {reason?: string})?.reason);
            if (clientResponse) {
             sendSseMessage({ type: 'playbackState', state: 'stopped', message: 'Lyria connection closed.' });
           }
@@ -103,10 +100,8 @@ async function initializeLyriaSession() {
 function closeLyriaSessionAndStream() {
     if (session) {
         try {
-            // session.close() is assumed to return void.
             session.close();
         } catch (e) {
-            // If session.close() can throw synchronously
             console.warn("Error closing Lyria session on cleanup:", e);
         }
         session = undefined;
@@ -125,30 +120,27 @@ interface LyriaControlRequestBody {
   prompt?: string;
 }
 
-app.post('/api/lyria/control', async (req: Request<{}, any, LyriaControlRequestBody>, res: Response) => {
-  const {action, prompt} = req.body; // req.body should be typed by LyriaControlRequestBody
+app.post('/api/lyria/control', async (req: express.Request<any, any, LyriaControlRequestBody>, res: express.Response) => {
+  const {action, prompt} = req.body; // req.body is now typed due to generics
   console.log(`Control action: ${action}, prompt: ${prompt}`);
 
   if (action === 'play') {
-    // Check if session is undefined (i.e., not active or closed)
     if (!session) {
       const success = await initializeLyriaSession();
-      if (!success || !session) { // Re-check session as initialization might fail
+      if (!success || !session) {
         return res.status(500).json({message: 'Failed to initialize Lyria session.'});
       }
     }
-    // At this point, session should be valid if initialization succeeded
     try {
-      if (prompt && session) { // Ensure session is not undefined before using
+      if (prompt && session) {
         await session.setWeightedPrompts({weightedPrompts: [{text: prompt, weight: 1.0}]});
         console.log('Prompt set:', prompt);
       }
-      if (session) { // Ensure session is not undefined
+      if (session) {
         await session.play();
         sendSseMessage({ type: 'playbackState', state: 'playing' });
         res.json({success: true, message: 'Playback started/resumed.'});
       } else {
-        // Should not happen if logic above is correct, but as a safeguard:
         res.status(500).json({message: 'Lyria session is not available.'});
       }
     } catch (e) {
@@ -156,7 +148,6 @@ app.post('/api/lyria/control', async (req: Request<{}, any, LyriaControlRequestB
       res.status(500).json({message: `Error starting playback: ${(e as Error).message}`});
     }
   } else if (action === 'pause') {
-    // Check if session is active
     if (session) {
       await session.pause();
       sendSseMessage({ type: 'playbackState', state: 'paused' });
@@ -166,12 +157,11 @@ app.post('/api/lyria/control', async (req: Request<{}, any, LyriaControlRequestB
     }
   } else if (action === 'stop') {
     if (session) {
-        await session.stop(); // stop might also trigger onclose which calls closeLyriaSessionAndStream
+        await session.stop();
     }
-    closeLyriaSessionAndStream(); // Ensure cleanup regardless
+    closeLyriaSessionAndStream();
     res.json({success: true, message: 'Playback stopped and session closed.'});
   } else if (action === 'setPrompt') {
-    // Check if session is active and prompt is provided
     if (session && prompt) {
       try {
         await session.setWeightedPrompts({weightedPrompts: [{text: prompt, weight: 1.0}]});
@@ -189,7 +179,7 @@ app.post('/api/lyria/control', async (req: Request<{}, any, LyriaControlRequestB
   }
 });
 
-app.get('/api/lyria/stream', (req: Request, res: Response) => {
+app.get('/api/lyria/stream', (req: express.Request, res: express.Response) => {
   if (clientResponse) {
     clientResponse.end();
     console.log("Replaced existing SSE client with new one.");
@@ -203,7 +193,6 @@ app.get('/api/lyria/stream', (req: Request, res: Response) => {
   });
   console.log('Client connected for SSE audio stream.');
 
-  // Check if session is active
   if (session) {
      sendSseMessage({ type: 'playbackState', state: 'loading', message: 'Connected to active Lyria stream.' });
   } else {
@@ -212,7 +201,6 @@ app.get('/api/lyria/stream', (req: Request, res: Response) => {
 
   req.on('close', () => {
     console.log('SSE client disconnected.');
-    // Only clear clientResponse if it's the one that disconnected
     if (clientResponse === res) {
         clientResponse = undefined;
     }
@@ -220,7 +208,7 @@ app.get('/api/lyria/stream', (req: Request, res: Response) => {
 });
 
 // Fallback to index.html for SPA routing
-app.get('*', (req: Request, res: Response) => {
+app.get('*', (req: express.Request, res: express.Response) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
