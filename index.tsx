@@ -1,4 +1,3 @@
-
 /**
  * @fileoverview Control real time music with text prompts - Minimal Demo
  * @license
@@ -340,7 +339,7 @@ class IconButton extends LitElement {
       display: flex;
       align-items: center;
       justify-content: center;
-      pointer-events: none;
+      pointer-events: none; /* Host itself doesn't receive clicks */
     }
     :host(:hover) svg {
       transform: scale(1.2);
@@ -356,15 +355,16 @@ class IconButton extends LitElement {
       transition: transform 0.2s cubic-bezier(0.25, 1.56, 0.32, 0.99), filter 0.2s ease-out;
     }
     .hitbox {
-      pointer-events: all;
+      pointer-events: all; /* Hitbox receives clicks */
       position: absolute;
-      width: 65%;
+      width: 65%; /* Adjust as needed for comfortable click area */
       aspect-ratio: 1;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
       border-radius: 50%;
       cursor: pointer;
+      -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
     }
   ` as CSSResultGroup;
 
@@ -489,6 +489,33 @@ export class SettingsButton extends IconButton {
   }
 }
 
+
+// HelpButton component
+@customElement('help-button')
+export class HelpButton extends IconButton {
+  static override styles = [
+    IconButton.styles,
+    css`
+      .icon-path {
+        fill: #FEFEFE;
+        stroke: #FEFEFE; /* For paths that are strokes */
+        stroke-width: 5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+    `
+  ];
+  // Simple question mark icon
+  private renderHelpIcon() {
+    return svg`
+      <path class="icon-path" d="M40 30 Q50 20 60 30 Q50 40 50 50 V55" fill="none"/>
+      <circle class="icon-path" cx="50" cy="70" r="5" fill="#FEFEFE" stroke="none"/>
+    `;
+  }
+  override renderIcon() {
+    return this.renderHelpIcon();
+  }
+}
 
 // Toast Message component
 @customElement('toast-message')
@@ -731,6 +758,179 @@ class PromptController extends LitElement {
         .sliderColor=${this.sliderColor}
         @input=${this.updateWeight}></weight-slider>
     </div>`;
+  }
+}
+
+@customElement('help-guide-panel')
+class HelpGuidePanel extends LitElement {
+  @property({type: Boolean, reflect: true}) isOpen = false;
+
+  static override styles = css`
+    :host {
+      display: block;
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1050; /* Above most content, below modals if any */
+      pointer-events: none; /* Allow clicks through overlay if panel not open */
+      transition: background-color 0.3s ease-in-out;
+    }
+    :host([isOpen]) {
+      pointer-events: auto; /* Enable interaction when open */
+      background-color: rgba(0, 0, 0, 0.5); /* Dim overlay */
+    }
+    .panel {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: clamp(300px, 40vw, 500px); /* Responsive width */
+      height: 100%;
+      background-color: #282828; /* Dark background for the panel */
+      color: #e0e0e0;
+      box-shadow: -5px 0 15px rgba(0,0,0,0.3);
+      transform: translateX(100%);
+      transition: transform 0.3s ease-in-out;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    :host([isOpen]) .panel {
+      transform: translateX(0);
+    }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 20px;
+      background-color: #333;
+      border-bottom: 1px solid #444;
+      flex-shrink: 0;
+    }
+    .panel-header h2 {
+      margin: 0;
+      font-size: 1.4em;
+      font-weight: 500;
+    }
+    .close-button {
+      background: none;
+      border: none;
+      color: #e0e0e0;
+      font-size: 1.8em;
+      font-weight: bold;
+      cursor: pointer;
+      padding: 0 5px;
+      line-height: 1;
+    }
+    .close-button:hover {
+      color: #fff;
+    }
+    .panel-content {
+      padding: 20px;
+      overflow-y: auto;
+      flex-grow: 1;
+      scrollbar-width: thin;
+      scrollbar-color: #555 #282828;
+    }
+    .panel-content::-webkit-scrollbar { width: 8px; }
+    .panel-content::-webkit-scrollbar-track { background: #282828; }
+    .panel-content::-webkit-scrollbar-thumb { background-color: #555; border-radius: 4px; }
+    
+    .panel-content h3 {
+      color: #fff;
+      margin-top: 1.5em;
+      margin-bottom: 0.5em;
+      font-weight: 500;
+      border-bottom: 1px solid #444;
+      padding-bottom: 0.3em;
+    }
+    .panel-content h3:first-child {
+      margin-top: 0;
+    }
+    .panel-content h4 {
+      color: #ddd;
+      margin-top: 1em;
+      margin-bottom: 0.3em;
+      font-weight: 500;
+    }
+    .panel-content p {
+      line-height: 1.6;
+      margin-bottom: 0.8em;
+    }
+    .panel-content strong {
+      color: #fff;
+      font-weight: 600;
+    }
+    .panel-content code {
+      background-color: #1e1e1e;
+      padding: 0.1em 0.4em;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+  `;
+
+  private _close() {
+    this.dispatchEvent(new CustomEvent('close-help', {bubbles: true, composed: true}));
+  }
+
+  override render() {
+    return html`
+      <div class="panel" role="dialog" aria-modal="true" aria-labelledby="help-panel-title" ?hidden=${!this.isOpen}>
+        <div class="panel-header">
+          <h2 id="help-panel-title">PromptDJ Help</h2>
+          <button class="close-button" @click=${this._close} aria-label="Close help panel">✕</button>
+        </div>
+        <div class="panel-content">
+          <section>
+            <h3>Willkommen bei PromptDJ!</h3>
+            <p>Diese App ermöglicht es dir, interaktiv Musik in Echtzeit mit Text-Prompts und MIDI-Controllern zu gestalten.</p>
+          </section>
+          <section>
+            <h3>Grundlagen</h3>
+            <h4>Tracks hinzufügen</h4>
+            <p>Klicke auf den <strong>+</strong> Button in der oberen Leiste, um einen neuen Track (Prompt-Zeile) hinzuzufügen.</p>
+            <h4>Prompts schreiben</h4>
+            <p>Klicke auf den Text (z.B. "Ambient Chill" oder "New Prompt") eines Tracks, um deinen eigenen Musik-Prompt einzugeben. Drücke <strong>Enter</strong>, um zu speichern. Die Musik-Engine versucht dann, diesen Prompt umzusetzen.</p>
+            <h4>Gewichtung anpassen (Ratio)</h4>
+            <p>Ziehe den farbigen Slider unter jedem Prompt, um dessen Einfluss (Gewichtung) auf die generierte Musik anzupassen. Werte reichen von 0 (kein Einfluss) bis 2 (starker Einfluss). Die aktuelle Ratio wird rechts neben dem Prompt-Text angezeigt.</p>
+            <h4>Musik starten/pausieren</h4>
+            <p>Verwende den Play/Pause-Button (▶️/⏸️) in der oberen Leiste. Beim ersten Start oder nach einer Unterbrechung kann es einen Moment dauern (Lade-Symbol), bis die Musik beginnt.</p>
+          </section>
+          <section>
+            <h3>MIDI-Steuerung</h3>
+            <p>Wähle dein MIDI-Gerät aus dem Dropdown-Menü oben links aus. Wenn kein Gerät erscheint, stelle sicher, dass es verbunden ist und dein Browser Zugriff auf MIDI-Geräte hat.</p>
+            <p>Die MIDI Control Change (CC) Nachrichten steuern die Gewichts-Slider der Tracks. CC1 steuert den ersten Track, CC2 den zweiten, und so weiter. Der CC-Wert (0-127) wird automatisch auf den Slider-Bereich (0-2) umgerechnet.</p>
+          </section>
+          <section>
+            <h3>Erweiterte Einstellungen (Zahnrad-Icon)</h3>
+            <p>Klicke auf das Zahnrad-Icon (⚙️) in der oberen Leiste, um die erweiterten Einstellungen ein- oder auszublenden.</p>
+            <h4>Temperature</h4>
+            <p>Regelt die Zufälligkeit und "Kreativität" der Musikgenerierung. Höhere Werte (bis 2.0) bedeuten mehr Variation und potentiell unerwartetere Ergebnisse. Niedrigere Werte (Richtung 0.0) führen zu deterministischeren Ergebnissen.</p>
+            <h4>Guidance Scale</h4>
+            <p>Bestimmt, wie stark sich die Musik an deinen eingegebenen Prompts orientiert. Höhere Werte (bis 20) zwingen die Engine stärker, den Prompts zu folgen. Niedrigere Werte (Richtung 1) geben der Engine mehr Freiheit.</p>
+          </section>
+          <section>
+            <h3>Tracks verwalten</h3>
+            <h4>Prompts bearbeiten</h4>
+            <p>Klicke einfach auf den Text des Prompts, bearbeite ihn und drücke <strong>Enter</strong>.</p>
+            <h4>Tracks entfernen</h4>
+            <p>Klicke auf das rote <strong>✕</strong>-Symbol rechts neben einem Track, um ihn zu entfernen.</p>
+          </section>
+          <section>
+            <h3>Tipps & Fehlerbehebung</h3>
+            <h4>"No MIDI Devices" / MIDI-Gerät nicht erkannt</h4>
+            <p>Stelle sicher, dass dein MIDI-Gerät korrekt angeschlossen und eingeschaltet ist, bevor du die Seite lädst. Manchmal hilft es, die Seite neu zu laden, nachdem das Gerät verbunden wurde. Überprüfe auch die Browser-Berechtigungen für MIDI.</p>
+            <h4>Ladeanzeige / Musik startet nicht sofort</h4>
+            <p>Es kann einen Moment dauern, bis die Verbindung zur Musik-Engine hergestellt und genügend Audio-Daten für eine stabile Wiedergabe gepuffert wurden.</p>
+            <h4>Verbindungsfehler / Musik stoppt</h4>
+            <p>Es kann zu Netzwerkproblemen oder serverseitigen Unterbrechungen kommen. Versuche, die Wiedergabe über den Play/Pause-Button neu zu starten. Eine Fehlermeldung gibt oft genauere Hinweise.</p>
+            <h4>"Filtered Prompt" Nachricht</h4>
+            <p>Manchmal werden Prompts aus Sicherheitsgründen oder aufgrund von Inhaltsrichtlinien gefiltert und nicht zur Musikgenerierung verwendet. In diesem Fall wird der entsprechende Prompt markiert und eine Nachricht angezeigt.</p>
+          </section>
+        </div>
+      </div>
+    `;
   }
 }
 
@@ -988,6 +1188,16 @@ class PromptDj extends LitElement {
       flex-shrink: 0;
       box-sizing: border-box;
     }
+    .help-button-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1000; /* Above most content */
+      width: 8vmin;
+      height: 8vmin;
+      max-width: 60px;
+      max-height: 60px;
+    }
   `;
 
   @property({
@@ -1019,6 +1229,8 @@ class PromptDj extends LitElement {
   @state() private showAdvancedSettings = false;
   @state() private temperature = 1.0; // Default, Min: 0, Max: 2, Step: 0.1
   @state() private guidanceScale = 7.0; // Default, Min: 1, Max: 20, Step: 0.1
+  @state() private showHelpPanel = false;
+
 
   constructor() {
     super();
@@ -1190,7 +1402,7 @@ class PromptDj extends LitElement {
     }
     const musicGenConfig: LiveMusicGenerationConfig = {
         temperature: this.temperature,
-        guidance_scale: this.guidanceScale,
+        guidanceScale: this.guidanceScale,
     };
     try {
         await this.session.setMusicGenerationConfig({ musicGenerationConfig: musicGenConfig });
@@ -1453,6 +1665,11 @@ class PromptDj extends LitElement {
     this.setGenerationConfiguration();
   }
 
+  private toggleHelpPanel() {
+    this.showHelpPanel = !this.showHelpPanel;
+  }
+
+
   override render() {
     const showSelectPlaceholder = this.availableMidiInputs.length > 0 && !this.availableMidiInputs.some(input => input.id === this.selectedMidiInputId);
 
@@ -1515,7 +1732,12 @@ class PromptDj extends LitElement {
           ${this.renderPrompts()}
         </div>
       </div>
-      <toast-message .message=${this.toastMessage?.message || ''} .showing=${this.toastMessage?.showing || false}></toast-message>`;
+      <toast-message .message=${this.toastMessage?.message || ''} .showing=${this.toastMessage?.showing || false}></toast-message>
+      <div class="help-button-container">
+        <help-button @click=${this.toggleHelpPanel} aria-label="Open help guide"></help-button>
+      </div>
+      <help-guide-panel .isOpen=${this.showHelpPanel} @close-help=${this.toggleHelpPanel}></help-guide-panel>
+      `;
   }
 
   private renderPrompts() {
@@ -1550,9 +1772,11 @@ declare global {
     'add-prompt-button': AddPromptButton;
     'settings-button': SettingsButton;
     'play-pause-button': PlayPauseButton;
+    'help-button': HelpButton;
     'weight-slider': WeightSlider;
     'parameter-slider': ParameterSlider;
     'toast-message': ToastMessage;
+    'help-guide-panel': HelpGuidePanel;
   }
 
   interface MidiInputInfo {
@@ -1563,5 +1787,6 @@ declare global {
   interface HTMLElementEventMap {
     'midi-cc-received': CustomEvent<{ ccNumber: number, value: number }>;
     'midi-inputs-changed': CustomEvent<{ inputs: MidiInputInfo[] }>;
+    'close-help': CustomEvent<void>;
   }
 }
