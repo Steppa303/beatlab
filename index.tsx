@@ -113,9 +113,16 @@ class WeightSlider extends LitElement {
   @state() private _isThumbPulsing = false;
   private _previousValueForPulse = this.value;
 
+  // Bound event handlers for robust removal
+  private boundHandlePointerMove: (e: PointerEvent) => void;
+  private boundHandlePointerUpOrCancel: (e: PointerEvent) => void;
+
 
   constructor() {
     super();
+    this.boundHandlePointerMove = this.handlePointerMove.bind(this);
+    this.boundHandlePointerUpOrCancel = this.handlePointerUpOrCancel.bind(this);
+
     this.addEventListener('pointerdown', this.handlePointerDown);
     this.addEventListener('wheel', this.handleWheel);
   }
@@ -128,9 +135,9 @@ class WeightSlider extends LitElement {
       } catch (error) {
         // console.warn("Error releasing pointer capture on disconnect:", error);
       }
-      this.removeEventListener('pointermove', this.handlePointerMove);
-      this.removeEventListener('pointerup', this.handlePointerUpOrCancel);
-      this.removeEventListener('pointercancel', this.handlePointerUpOrCancel);
+      document.body.removeEventListener('pointermove', this.boundHandlePointerMove);
+      document.body.removeEventListener('pointerup', this.boundHandlePointerUpOrCancel);
+      document.body.removeEventListener('pointercancel', this.boundHandlePointerUpOrCancel);
       document.body.classList.remove('dragging');
       this.activePointerId = null;
     }
@@ -156,26 +163,37 @@ class WeightSlider extends LitElement {
     if (this.activePointerId !== null) {
       return;
     }
-    e.preventDefault();
+    // e.preventDefault(); // Keep this commented unless issues arise with text selection etc. on desktop during drag
 
     this.activePointerId = e.pointerId;
-    this.setPointerCapture(e.pointerId);
+    try {
+      this.setPointerCapture(e.pointerId);
+    } catch(err) {
+        console.warn("Failed to capture pointer:", err);
+        // Proceed without capture if it fails, common on some browsers or specific scenarios
+    }
+
 
     this.containerBounds = this.sliderContainer.getBoundingClientRect();
     this.dragStartPos = e.clientX;
     this.dragStartValue = this.value;
     document.body.classList.add('dragging');
 
-    this.addEventListener('pointermove', this.handlePointerMove);
-    this.addEventListener('pointerup', this.handlePointerUpOrCancel);
-    this.addEventListener('pointercancel', this.handlePointerUpOrCancel);
+    document.body.addEventListener('pointermove', this.boundHandlePointerMove);
+    document.body.addEventListener('pointerup', this.boundHandlePointerUpOrCancel);
+    document.body.addEventListener('pointercancel', this.boundHandlePointerUpOrCancel);
 
+    // Update value on initial press down as well
     this.updateValueFromPosition(e.clientX);
   }
 
   private handlePointerMove(e: PointerEvent) {
     if (e.pointerId !== this.activePointerId) {
       return;
+    }
+    // Prevent default behavior (like scrolling) during drag on touch devices
+    if (e.pointerType === 'touch') {
+        e.preventDefault();
     }
     this.updateValueFromPosition(e.clientX);
   }
@@ -195,9 +213,9 @@ class WeightSlider extends LitElement {
     document.body.classList.remove('dragging');
     this.containerBounds = null;
 
-    this.removeEventListener('pointermove', this.handlePointerMove);
-    this.removeEventListener('pointerup', this.handlePointerUpOrCancel);
-    this.removeEventListener('pointercancel', this.handlePointerUpOrCancel);
+    document.body.removeEventListener('pointermove', this.boundHandlePointerMove);
+    document.body.removeEventListener('pointerup', this.boundHandlePointerUpOrCancel);
+    document.body.removeEventListener('pointercancel', this.boundHandlePointerUpOrCancel);
   }
 
   private handleWheel(e: WheelEvent) {
@@ -498,7 +516,7 @@ export class HelpButton extends IconButton {
     css`
       .icon-path-curve {
         stroke: #FEFEFE;
-        stroke-width: 8; /* Increased stroke width for curve */
+        stroke-width: 10; /* Made thicker */
         stroke-linecap: round;
         stroke-linejoin: round;
         fill: none;
@@ -511,9 +529,10 @@ export class HelpButton extends IconButton {
   ];
 
   private renderHelpIcon() {
+    // Adjusted path for a more solid, rounded question mark
     return svg`
-      <path class="icon-path-curve" d="M40 33 C40 18, 60 18, 60 33 C60 43, 50 38, 50 53 L50 58" />
-      <circle class="icon-path-dot" cx="50" cy="70" r="5" />
+      <path class="icon-path-curve" d="M38 35 Q38 20 50 20 Q62 20 62 35 C62 45 53 42 50 55 L50 60" />
+      <circle class="icon-path-dot" cx="50" cy="72" r="6" />
     `;
   }
   override renderIcon() {
@@ -1113,7 +1132,8 @@ class PromptDj extends LitElement {
     }
     .header-actions > add-prompt-button,
     .header-actions > play-pause-button,
-    .header-actions > settings-button {
+    .header-actions > settings-button,
+    .header-actions > help-button { /* Ensure help button in header scales similarly if moved */
       width: 7vmin; /* Adjusted size for more buttons */
       height: 7vmin;
       max-width: 55px; /* Adjusted max size */
