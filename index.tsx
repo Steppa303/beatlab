@@ -27,6 +27,13 @@ const ai = new GoogleGenAI({
 const model = 'lyria-realtime-exp';
 
 const TRACK_COLORS = ['#FF4081', '#40C4FF', '#00BFA5', '#FFC107', '#AB47BC', '#FF7043', '#26A69A'];
+const ORB_COLORS = [
+  'rgba(255, 64, 129, 0.2)', // Pink
+  'rgba(64, 196, 255, 0.2)', // Light Blue
+  'rgba(0, 191, 165, 0.2)',  // Teal
+  'rgba(255, 193, 7, 0.15)', // Amber
+  'rgba(171, 71, 188, 0.2)' // Purple
+];
 
 
 interface Prompt {
@@ -81,6 +88,15 @@ class WeightSlider extends LitElement {
       height: 100%;
       border-radius: 6px; /* Match container radius */
       box-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
+      transition: filter 0.3s ease-out, transform 0.3s ease-out; /* For pulse effect */
+    }
+    #thumb.pulse-effect {
+      animation: thumbPulseEffect 0.3s ease-out;
+    }
+    @keyframes thumbPulseEffect {
+      0% { filter: brightness(1.2) saturate(1.2); }
+      50% { filter: brightness(1.6) saturate(1.6); transform: scaleY(1.1); } /* Slightly scale Y for emphasis */
+      100% { filter: brightness(1.2) saturate(1.2); }
     }
   `;
 
@@ -88,11 +104,16 @@ class WeightSlider extends LitElement {
   @property({type: String}) sliderColor = '#5200ff'; // Default color if not provided
 
   @query('.slider-container') private sliderContainer!: HTMLDivElement;
+  @query('#thumb') private thumbElement!: HTMLDivElement;
+
 
   private dragStartPos = 0;
   private dragStartValue = 0;
   private containerBounds: DOMRect | null = null;
   private activePointerId: number | null = null;
+  @state() private _isThumbPulsing = false;
+  private _previousValueForPulse = this.value;
+
 
   constructor() {
     super();
@@ -118,13 +139,25 @@ class WeightSlider extends LitElement {
     this.removeEventListener('wheel', this.handleWheel);
   }
 
+  override updated(changedProperties: Map<string | number | symbol, unknown>) {
+    super.updated(changedProperties);
+    if (changedProperties.has('value') && this.value !== this._previousValueForPulse) {
+      this._previousValueForPulse = this.value;
+      if (this.value > 0.005 && this.thumbElement) { // Only pulse if thumb is visible
+          this.thumbElement.classList.add('pulse-effect');
+          setTimeout(() => {
+            if (this.thumbElement) this.thumbElement.classList.remove('pulse-effect');
+          }, 300); // Duration of the pulse animation
+      }
+    }
+  }
+
 
   private handlePointerDown(e: PointerEvent) {
     if (this.activePointerId !== null) {
-      // Already handling a pointer, ignore new pointerdown events.
       return;
     }
-    e.preventDefault(); // Prevent default actions like text selection or scrolling
+    e.preventDefault();
 
     this.activePointerId = e.pointerId;
     this.setPointerCapture(e.pointerId);
@@ -134,7 +167,6 @@ class WeightSlider extends LitElement {
     this.dragStartValue = this.value;
     document.body.classList.add('dragging');
 
-    // Add listeners to the element itself (due to pointer capture)
     this.addEventListener('pointermove', this.handlePointerMove);
     this.addEventListener('pointerup', this.handlePointerUpOrCancel);
     this.addEventListener('pointercancel', this.handlePointerUpOrCancel);
@@ -220,16 +252,19 @@ class IconButton extends LitElement {
       align-items: center;
       justify-content: center;
       pointer-events: none;
-      /* width and height will be set by inheriting classes based on vmin */
     }
     :host(:hover) svg {
       transform: scale(1.2);
-      filter: brightness(1.2); /* Added brightness on hover */
+      filter: brightness(1.2);
+    }
+    :host(:active) svg { /* Press down effect */
+      transform: scale(1.1);
+      filter: brightness(0.9);
     }
     svg {
       width: 100%;
       height: 100%;
-      transition: transform 0.3s cubic-bezier(0.25, 1.56, 0.32, 0.99), filter 0.3s ease-out; /* Adjusted timing */
+      transition: transform 0.2s cubic-bezier(0.25, 1.56, 0.32, 0.99), filter 0.2s ease-out;
     }
     .hitbox {
       pointer-events: all;
@@ -358,8 +393,9 @@ class ToastMessage extends LitElement {
       gap: 15px;
       min-width: 200px;
       max-width: 80vw;
-      transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+      transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.5s ease-out;
       z-index: 1100;
+      opacity: 1;
     }
     button {
       border-radius: 100px;
@@ -372,6 +408,7 @@ class ToastMessage extends LitElement {
     .toast:not(.showing) {
       transition-duration: 1s;
       transform: translate(-50%, 200%);
+      opacity: 0;
     }
   `;
 
@@ -402,11 +439,11 @@ class PromptController extends LitElement {
     @keyframes promptAppear {
       from {
         opacity: 0;
-        transform: translateY(-20px);
+        transform: translateY(-20px) scale(0.98);
       }
       to {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateY(0) scale(1);
       }
     }
     .prompt {
@@ -416,84 +453,91 @@ class PromptController extends LitElement {
       flex-direction: column;
       box-sizing: border-box;
       overflow: hidden;
-      background-color: #3E3E3E; /* Screenshot-like grey */
-      border-radius: 12px; /* Screenshot-like rounding */
-      padding: 0; /* Padding will be handled by inner elements */
-      animation: promptAppear 0.3s ease-out forwards;
+      background-color: #3E3E3E;
+      border-radius: 12px;
+      padding: 0;
+      animation: promptAppear 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+    }
+    .prompt:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
     }
     .prompt-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 10px 15px; /* Padding for header content */
-      gap: 10px; /* Spacing between header items */
+      padding: 10px 15px;
+      gap: 10px;
     }
     .remove-button {
-      background: #D32F2F; /* Red color from screenshot */
+      background: #D32F2F;
       color: #FFFFFF;
       border: none;
       border-radius: 50%;
-      width: 28px; /* Adjust size to match screenshot */
+      width: 28px;
       height: 28px;
-      font-size: 18px; /* Size of 'X' */
+      font-size: 18px;
       font-weight: bold;
       display: flex;
       align-items: center;
       justify-content: center;
-      line-height: 28px; /* Center 'X' vertically */
+      line-height: 28px;
       cursor: pointer;
       opacity: 0.8;
-      transition: opacity 0.15s, transform 0.15s; /* Quicker transition */
-      flex-shrink: 0; /* Prevent button from shrinking */
+      transition: opacity 0.15s, transform 0.15s, background-color 0.15s;
+      flex-shrink: 0;
     }
     .remove-button:hover {
       opacity: 1;
-      transform: scale(1.1);
+      transform: scale(1.15);
+      background-color: #E53935; /* Slightly brighter red on hover */
     }
     .ratio-display {
       color: #FFFFFF;
-      font-size: 3.2vmin; /* Doubled from 1.6vmin */
+      font-size: 3.2vmin;
       white-space: nowrap;
       font-weight: normal;
-      margin-left: auto; /* Pushes it to the right before the X button if text is short */
-      padding: 0 10px; /* Space around ratio text */
+      margin-left: auto;
+      padding: 0 10px;
       flex-shrink: 0;
     }
     weight-slider {
-      width: auto; /* Slider takes width from margin */
-      height: 20px; /* Height of the slider interaction area, matches WeightSlider :host height */
-      margin: 0 15px 12px 15px; /* Padding around slider, bottom margin */
+      width: auto;
+      height: 20px;
+      margin: 0 15px 12px 15px;
     }
     #text {
       font-family: 'Google Sans', sans-serif;
-      font-size: 3.6vmin; /* Doubled from 1.8vmin */
-      font-weight: 500; /* Bolder track name */
-      width: 100%; /* Take available space */
-      padding: 0; /* Remove padding, handled by parent */
+      font-size: 3.6vmin;
+      font-weight: 500;
+      width: 100%;
+      padding: 0;
       box-sizing: border-box;
-      text-align: left; /* Align track name to left */
+      text-align: left;
       word-wrap: break-word;
       border: none;
       outline: none;
       -webkit-font-smoothing: antialiased;
       color: #fff;
-      background-color: transparent; /* Transparent background */
+      background-color: transparent;
       border-radius: 3px;
-      overflow: hidden; /* Hide potential scrollbars if text overflows fixed height */
-      white-space: nowrap; /* Keep it on one line */
-      text-overflow: ellipsis; /* Add ellipsis if text is too long */
-      min-height: 1.2em; /* Ensure it has some height */
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      min-height: 1.2em;
       line-height: 1.2em;
-      flex-grow: 1; /* Allow text to take up space */
-      transition: box-shadow 0.2s ease-in-out; /* Animation for focus */
+      flex-grow: 1;
+      transition: box-shadow 0.2s ease-in-out;
     }
     #text:focus {
         overflow: visible;
         white-space: normal;
         text-overflow: clip;
-        box-shadow: 0 2px 0px -1px #66afe9; /* Subtle focus indicator */
+        box-shadow: 0 2px 0px -1px #66afe9;
     }
-    :host([filtered='true']) #text { /* Keep existing filter style */
+    :host([filtered='true']) #text {
       background: #da2000;
     }
   `;
@@ -501,7 +545,7 @@ class PromptController extends LitElement {
   @property({type: String, reflect: true}) promptId = '';
   @property({type: String}) text = '';
   @property({type: Number}) weight = 0;
-  @property({type: String}) sliderColor = '#5200ff'; // Default, will be overridden
+  @property({type: String}) sliderColor = '#5200ff';
 
   @query('weight-slider') private weightInput!: WeightSlider;
   @query('#text') private textInput!: HTMLSpanElement;
@@ -516,7 +560,7 @@ class PromptController extends LitElement {
 
   private dispatchPromptChange() {
     this.dispatchEvent(
-      new CustomEvent<Partial<Prompt>>('prompt-changed', { // Partial as color is not changed here
+      new CustomEvent<Partial<Prompt>>('prompt-changed', {
         detail: {
           promptId: this.promptId,
           text: this.text,
@@ -528,8 +572,8 @@ class PromptController extends LitElement {
 
   private updateText() {
     const newText = this.textInput.textContent?.trim();
-    if (newText === undefined || newText === this.text) { // If unchanged or empty attempt
-        if (newText === '') this.textInput.textContent = this.text; // Revert if cleared
+    if (newText === undefined || newText === this.text) {
+        if (newText === '') this.textInput.textContent = this.text;
         return;
     }
     this.text = newText;
@@ -586,57 +630,155 @@ class PromptDj extends LitElement {
       align-items: center;
       box-sizing: border-box;
       position: relative;
-      font-size: 1.8vmin; /* Base font size, others can scale from this */
-      background-color: #111;
+      font-size: 1.8vmin;
+      background: linear-gradient(45deg, #101010, #1a1a1a, #101010);
+      background-size: 400% 400%;
+      animation: subtleBgAnimation 25s ease infinite;
+      overflow: hidden; 
     }
+
+    @keyframes subtleBgAnimation {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .background-orbs-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      z-index: 0; /* Behind main content, above host background */
+      pointer-events: none; /* Orbs should not intercept mouse events */
+    }
+
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      will-change: transform, opacity;
+      opacity: 0; /* Start invisible, fade in with animation */
+    }
+
+    .orb1 {
+      width: 30vmax;
+      height: 30vmax;
+      background: radial-gradient(circle, ${unsafeCSS(ORB_COLORS[0])} 0%, transparent 70%);
+      animation: floatOrb1 35s infinite ease-in-out;
+      top: 10%; left: 5%;
+    }
+    @keyframes floatOrb1 {
+      0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.2; }
+      25% { transform: translate(20vw, 30vh) scale(1.3); opacity: 0.3; }
+      50% { transform: translate(-10vw, 50vh) scale(0.8); opacity: 0.15; }
+      75% { transform: translate(15vw, -10vh) scale(1.1); opacity: 0.25; }
+    }
+
+    .orb2 {
+      width: 45vmax;
+      height: 45vmax;
+      background: radial-gradient(circle, ${unsafeCSS(ORB_COLORS[1])} 0%, transparent 70%);
+      animation: floatOrb2 45s infinite ease-in-out 5s; /* 5s delay */
+      top: 40%; left: 60%;
+    }
+    @keyframes floatOrb2 {
+      0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.15; }
+      25% { transform: translate(-30vw, -25vh) scale(0.7); opacity: 0.25; }
+      50% { transform: translate(15vw, 20vh) scale(1.2); opacity: 0.1; }
+      75% { transform: translate(-10vw, -15vh) scale(0.9); opacity: 0.2; }
+    }
+    
+    .orb3 {
+      width: 25vmax;
+      height: 25vmax;
+      background: radial-gradient(circle, ${unsafeCSS(ORB_COLORS[2])} 0%, transparent 65%);
+      animation: floatOrb3 30s infinite ease-in-out 2s; /* 2s delay */
+      top: 70%; left: 20%;
+    }
+    @keyframes floatOrb3 {
+      0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.25; }
+      33% { transform: translate(25vw, -30vh) scale(1.4); opacity: 0.35; }
+      66% { transform: translate(-15vw, 10vh) scale(0.7); opacity: 0.15; }
+    }
+    
+    .orb4 { /* A smaller, faster, or more subtle orb for variety */
+      width: 15vmax;
+      height: 15vmax;
+      background: radial-gradient(circle, ${unsafeCSS(ORB_COLORS[3])} 0%, transparent 75%);
+      animation: floatOrb4 55s infinite ease-in-out 8s; /* 8s delay */
+      top: 5%; left: 80%;
+    }
+    @keyframes floatOrb4 {
+      0%, 100% { transform: translate(0, 0) scale(1.2); opacity: 0.1; }
+      25% { transform: translate(-10vw, 15vh) scale(0.9); opacity: 0.15; }
+      50% { transform: translate(5vw, -20vh) scale(1.3); opacity: 0.05; }
+      75% { transform: translate(-15vw, 5vh) scale(1); opacity: 0.12; }
+    }
+
+
     .header-bar {
       width: 100%;
-      padding: 2vmin 3vmin; /* Increased padding for more height */
-      background-color: #1c1c1c;
+      padding: 2vmin 3vmin;
+      background: linear-gradient(90deg, #1f1f1f, #2a2a2a, #1f1f1f); /* Animated header gradient */
+      background-size: 300% 100%;
+      animation: animatedHeaderGradient 15s ease infinite;
       display: flex;
       justify-content: space-between;
       align-items: center;
       box-sizing: border-box;
       flex-shrink: 0;
-      border-bottom: 1px solid #2a2a2a;
-      z-index: 100;
+      border-bottom: 1px solid #383838; /* Slightly lighter border */
+      z-index: 100; /* Ensure header is above orbs */
+      position: relative; /* Needed for z-index to work against absolute positioned orbs */
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
     }
+
+    @keyframes animatedHeaderGradient {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
     .midi-selector {
       background-color: #333;
       color: #fff;
       border: 1px solid #555;
-      padding: 0.8em 1em; /* Increased padding */
-      border-radius: 6px; /* Slightly larger radius */
-      font-size: 2vmin; /* Increased font size */
-      min-width: 200px; /* Adjusted min-width */
+      padding: 0.8em 1em;
+      border-radius: 6px;
+      font-size: 2vmin;
+      min-width: 200px;
       max-width: 320px;
       box-sizing: border-box;
-      transition: border-color 0.2s ease-in-out;
+      transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
     }
     .midi-selector:hover {
       border-color: #777;
+      box-shadow: 0 0 5px rgba(120,120,120,0.5);
     }
     .midi-selector:focus {
       border-color: #66afe9;
       outline: none;
+      box-shadow: 0 0 8px rgba(102,175,233,0.6);
     }
     .midi-selector:disabled {
       background-color: #222;
       color: #777;
       cursor: not-allowed;
       border-color: #444;
+      box-shadow: none;
     }
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 2vmin; /* Increased gap */
+      gap: 2vmin;
     }
     .header-actions > add-prompt-button,
     .header-actions > play-pause-button {
-      width: 8vmin; /* Increased size */
-      height: 8vmin; /* Increased size */
-      max-width: 65px; /* Adjusted max */
-      max-height: 65px; /* Adjusted max */
+      width: 8vmin;
+      height: 8vmin;
+      max-width: 65px;
+      max-height: 65px;
     }
 
     .content-area {
@@ -650,6 +792,8 @@ class PromptDj extends LitElement {
       overflow: hidden;
       padding: 2vmin;
       box-sizing: border-box;
+      z-index: 10; /* Ensure content is above orbs */
+      position: relative; /* Needed for z-index */
     }
     #prompts-container {
       display: flex;
@@ -663,18 +807,20 @@ class PromptDj extends LitElement {
       scrollbar-width: thin;
       scrollbar-color: #666 #1a1a1a;
       box-sizing: border-box;
-      padding-right: 5px; /* Space for scrollbar to not overlap content */
+      padding-right: 8px; /* More space for scrollbar */
+      padding-left: 3px; /* Balance padding */
     }
     #prompts-container::-webkit-scrollbar {
-      width: 8px;
+      width: 10px; /* Slightly thicker scrollbar */
     }
     #prompts-container::-webkit-scrollbar-track {
-      background: #111;
-      border-radius: 4px;
+      background: #181818; /* Darker track */
+      border-radius: 5px;
     }
     #prompts-container::-webkit-scrollbar-thumb {
-      background-color: #666;
-      border-radius: 4px;
+      background-color: #555; /* Darker thumb */
+      border-radius: 5px;
+      border: 2px solid #181818; /* Creates padding around thumb */
     }
     #prompts-container::-webkit-scrollbar-thumb:hover {
       background-color: #777;
@@ -728,14 +874,7 @@ class PromptDj extends LitElement {
   }
 
   override async firstUpdated() {
-    await this.connectToSession(); // Attempt initial connection without changing playbackState to 'loading'
-    // If connectToSession failed, connectionError will be true, and playbackState remains 'stopped'.
-    // If it succeeded, session is established.
-    // setSessionPrompts is not strictly needed here if connectToSession doesn't auto-play.
-    // if (!this.connectionError) {
-    //    this.setSessionPrompts(); // Only set if connection was okay.
-    // }
-
+    await this.connectToSession();
     this.midiController.initialize();
     this.addEventListener('midi-cc-received', this.handleMidiCcReceived as EventListener);
     this.midiController.addEventListener('midi-inputs-changed', this.handleMidiInputsChanged as EventListener);
@@ -806,8 +945,6 @@ class PromptDj extends LitElement {
     }
     this.isConnecting = true;
     try {
-        // DO NOT set this.playbackState = 'loading' here for initial connection.
-        // It will be set by handlePlayPause when user clicks play.
         this.session = await ai.live.music.connect({
         model: model,
         callbacks: {
@@ -827,7 +964,7 @@ class PromptDj extends LitElement {
                 if (
                 this.playbackState === 'paused' ||
                 this.playbackState === 'stopped'
-                ) // Also check for stopped, though usually it would be loading/playing here
+                )
                 return;
 
                 const audioBuffer = await decodeAudioData(
@@ -849,7 +986,7 @@ class PromptDj extends LitElement {
 
                 if (this.nextStartTime < this.audioContext.currentTime) {
                   console.log('Audio under run');
-                  this.playbackState = 'loading'; // Re-buffer if under run occurs
+                  this.playbackState = 'loading';
                   this.nextStartTime = this.audioContext.currentTime + this.bufferTime;
                   return;
                 }
@@ -860,23 +997,23 @@ class PromptDj extends LitElement {
             onerror: (e: ErrorEvent) => {
             console.error('Error occurred during session:', e);
             this.connectionError = true;
-            this.stopAudio(); // This sets playbackState to 'stopped'
+            this.stopAudio();
             this.toastMessage.show(`Connection error: ${e.message}. Please try again.`);
             },
             onclose: (e: CloseEvent) => {
             console.log('Connection closed.');
             this.connectionError = true;
-            this.stopAudio(); // This sets playbackState to 'stopped'
+            this.stopAudio();
             this.toastMessage.show('Connection closed. Please restart audio.');
             },
         },
         });
-        this.connectionError = false; // Connection successful
+        this.connectionError = false;
         console.log("Session connected successfully.");
     } catch (error: any) {
         console.error("Failed to connect to session:", error);
         this.connectionError = true;
-        this.playbackState = 'stopped'; // Ensure stopped on connection failure
+        this.playbackState = 'stopped';
         this.toastMessage.show(`Failed to connect: ${error.message}`);
     } finally {
         this.isConnecting = false;
@@ -893,8 +1030,6 @@ class PromptDj extends LitElement {
     }).map(p => ({ text: p.text, weight: p.weight }));
 
     if (promptsToSend.length === 0 && this.playbackState === 'playing') {
-        // Optionally pause if no prompts are active, or let it continue with silence/last state.
-        // For now, we allow sending empty prompts to potentially clear the model's context.
         console.log("Setting empty prompts list.");
     }
 
@@ -906,7 +1041,7 @@ class PromptDj extends LitElement {
       console.log("Prompts sent to session:", promptsToSend);
     } catch (e: any) {
       this.toastMessage.show(`Error setting prompts: ${e.message}`);
-      this.pauseAudio(); // Pause if setting prompts fails
+      this.pauseAudio();
     }
   }, 200);
 
@@ -934,7 +1069,7 @@ class PromptDj extends LitElement {
   private async handlePlayPause() {
     if (this.isConnecting && (this.playbackState === 'stopped' || this.playbackState === 'paused')) {
         this.toastMessage.show("Connecting... please wait.");
-        return; // Don't interfere if initial connection is still in progress
+        return;
     }
 
     if (this.playbackState === 'playing') {
@@ -943,13 +1078,11 @@ class PromptDj extends LitElement {
       this.playbackState === 'paused' ||
       this.playbackState === 'stopped'
     ) {
-      this.playbackState = 'loading'; // Set loading state for UI
+      this.playbackState = 'loading';
 
       if (this.connectionError || !this.session) {
         await this.connectToSession();
         if (this.connectionError) {
-            // connectToSession's catch block already sets playbackState to 'stopped'.
-            // If it was an early exit due to isConnecting, playbackState might still be loading.
             if(this.playbackState === 'loading') this.playbackState = 'stopped';
             return;
         }
@@ -957,12 +1090,10 @@ class PromptDj extends LitElement {
       if (this.audioContext.state === 'suspended') {
         await this.audioContext.resume().catch(err => console.error("Audio context resume failed:", err));
       }
-      // It's important to set prompts *before* calling play if it's a fresh start or state might be stale.
       await this.setSessionPrompts();
       this.loadAudio();
 
     } else if (this.playbackState === 'loading') {
-      // User clicked stop/pause while it was loading
       this.stopAudio();
     }
   }
@@ -993,9 +1124,6 @@ class PromptDj extends LitElement {
     if (this.session && !this.connectionError && (this.playbackState === 'loading' || this.playbackState === 'paused')) {
         try {
             this.session.play();
-            // DO NOT set playbackState = 'loading' here; it's already handled by handlePlayPause
-            // or is irrelevant if already playing/paused.
-            // The transition from 'loading' to 'playing' is handled by onmessage callback.
         } catch (e) {
             console.error("Error playing session:", e);
             this.toastMessage.show("Error trying to play. Session might be in an invalid state.");
@@ -1003,14 +1131,14 @@ class PromptDj extends LitElement {
             return;
         }
     } else if (!this.session || this.connectionError) {
-        if (this.playbackState === 'loading') { // If we were trying to load but can't
+        if (this.playbackState === 'loading') {
             this.playbackState = 'stopped';
         }
         this.toastMessage.show("Cannot play: Not connected or connection error.");
         return;
     }
-    this.outputNode.gain.setValueAtTime(this.outputNode.gain.value, this.audioContext.currentTime); // Use current gain if resuming
-    if (this.outputNode.gain.value === 0) { // Only ramp up if gain is 0 (e.g. after stop/pause)
+    this.outputNode.gain.setValueAtTime(this.outputNode.gain.value, this.audioContext.currentTime);
+    if (this.outputNode.gain.value === 0) {
         this.outputNode.gain.linearRampToValueAtTime(
         1,
         this.audioContext.currentTime + 0.1,
@@ -1021,12 +1149,11 @@ class PromptDj extends LitElement {
   private stopAudio() {
     if (this.session && (this.playbackState === 'playing' || this.playbackState === 'paused' || this.playbackState === 'loading')) {
         try {
-            if (!this.connectionError) { // Only try to call stop if no connection error
+            if (!this.connectionError) {
                  this.session.stop();
             }
         } catch (e) {
             console.error("Error stopping session:", e);
-            // Don't assume connectionError true here, might be other session error
         }
     }
     this.playbackState = 'stopped';
@@ -1038,11 +1165,6 @@ class PromptDj extends LitElement {
         );
     }
     this.nextStartTime = 0;
-    // Don't disconnect and recreate gain node on every stop, only if context needs reset or issues.
-    // Recreating it can cause clicks or issues if not handled carefully.
-    // this.outputNode.disconnect();
-    // this.outputNode = this.audioContext.createGain();
-    // this.outputNode.connect(this.audioContext.destination);
   }
 
 
@@ -1083,7 +1205,7 @@ class PromptDj extends LitElement {
           selection?.removeAllRanges();
           selection?.addRange(range);
         }
-      }, 100);
+      }, 100); // Delay ensures element is fully rendered and focusable
     }
   }
 
@@ -1091,15 +1213,29 @@ class PromptDj extends LitElement {
     e.stopPropagation();
     const promptIdToRemove = e.detail;
     if (this.prompts.has(promptIdToRemove)) {
-      const newPrompts = new Map(this.prompts);
-      newPrompts.delete(promptIdToRemove);
-      this.prompts = newPrompts;
-      this.setSessionPrompts();
+      // Add a class for "removing" animation (optional, for more complex exit anims)
+      // const promptElement = this.renderRoot.querySelector(`prompt-controller[promptId="${promptIdToRemove}"]`);
+      // if (promptElement) {
+      //   promptElement.classList.add('removing');
+      //   // Wait for animation to finish before actually removing
+      //   promptElement.addEventListener('animationend', () => {
+      //     this.actuallyRemovePrompt(promptIdToRemove);
+      //   }, { once: true });
+      // } else {
+        this.actuallyRemovePrompt(promptIdToRemove);
+      // }
     } else {
       console.warn(
         `Attempted to remove non-existent prompt ID: ${promptIdToRemove}`,
       );
     }
+  }
+
+  private actuallyRemovePrompt(promptIdToRemove: string) {
+    const newPrompts = new Map(this.prompts);
+    newPrompts.delete(promptIdToRemove);
+    this.prompts = newPrompts; // This will trigger a re-render
+    this.setSessionPrompts();
   }
 
 
@@ -1115,9 +1251,18 @@ class PromptDj extends LitElement {
         if (targetPrompt) {
             const existingPrompt = this.prompts.get(targetPrompt.promptId);
             if (existingPrompt) {
-                existingPrompt.weight = normalizedValue;
-                this.prompts = new Map(this.prompts);
+                existingPrompt.weight = normalizedValue; // This mutates the object in the map
+                // Trigger re-render for PromptController and WeightSlider to pick up new weight
+                this.prompts = new Map(this.prompts); // Forces Lit to see 'prompts' as changed
                 this.setSessionPrompts();
+
+                // Also, explicitly update the WeightSlider component if needed for animations
+                const sliderElement = this.renderRoot.querySelector<WeightSlider>(
+                    `prompt-controller[promptId="${targetPrompt.promptId}"] weight-slider`
+                );
+                if (sliderElement) {
+                    sliderElement.value = normalizedValue; // This will trigger its `updated` and thus animation
+                }
             }
         }
     }
@@ -1128,6 +1273,12 @@ class PromptDj extends LitElement {
     const showSelectPlaceholder = this.availableMidiInputs.length > 0 && !this.availableMidiInputs.some(input => input.id === this.selectedMidiInputId);
 
     return html`
+      <div class="background-orbs-container">
+        <div class="orb orb1"></div>
+        <div class="orb orb2"></div>
+        <div class="orb orb3"></div>
+        <div class="orb orb4"></div>
+      </div>
       <div class="header-bar">
         <select
           class="midi-selector"
