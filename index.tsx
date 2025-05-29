@@ -750,6 +750,11 @@ class PromptController extends LitElement {
     const newWeight = event.detail;
     if (this.weight !== newWeight) {
       this.weight = newWeight;
+      // Explicitly request an update. This can help ensure the component
+      // re-renders correctly, especially if Lit's automatic change detection
+      // for properties is behaving unexpectedly after certain DOM interactions
+      // (like contenteditable blur) on specific platforms (e.g., iOS).
+      this.requestUpdate();
     }
     this.dispatchPromptChange();
   }
