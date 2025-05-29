@@ -1,6 +1,7 @@
+
 {
-  "name": "evennode part2 Steppa's RealTimeJam",
-  "description": "Control music genres in real time with a MIDI controller.",
+  "name": "Minimal Lyria Player",
+  "description": "A minimal example to demonstrate real-time music generation with Lyria using a single text prompt.",
   "requestFramePermissions": [],
-  "prompt": ""
+  "prompt": "Create a simple web application that allows a user to input a text prompt and generate real-time music using the Lyria model. The UI should consist of a text input for the prompt and a play/pause button. The application should handle connecting to the Lyria service, sending the prompt, receiving audio data, and playing it back. Basic error handling and status messages should be included."
 }

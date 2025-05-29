@@ -1,25 +1,20 @@
-
 {
-  "name": "steppas-realtimejam",
-  "version": "1.0.0",
-  "description": "Control music genres in real time with a MIDI controller.",
-  "main": "dist/index.html",
+  "name": "minimal-lyria-player",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "start": "npm run build && echo \"Contents of dist directory:\" && ls -R ./dist && echo \"Starting server...\" && npx serve -s ./dist -l tcp://0.0.0.0:${PORT:-3000}",
-    "build": "npx tsc && cp index.html dist/ && cp index.css dist/"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "serve": "^14.2.3",
-    "typescript": "^5.0.0",
     "lit": "^3.3.0",
     "@google/genai": "^1.0.0"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "author": "Steppa",
-  "license": "Apache-2.0"
+    "@types/node": "^22.14.0",
+    "typescript": "~5.7.2",
+    "vite": "^6.2.0"
+  }
 }

@@ -1,22 +1,32 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
   <head>
+    <title>Minimal Lyria Player</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="index.css" />
-    <script type="importmap">
-      {
-        "imports": {
-          "@google/genai": "https://esm.sh/@google/genai@^1.0.0",
-          "lit/": "https://esm.sh/lit@^3.3.0/",
-          "lit": "https://esm.sh/lit@^3.3.0"
-        }
-      }
-    </script>
-  </head>
+    <link rel="stylesheet" href="index.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script type="importmap">
+{
+  "imports": {
+    "lit/": "https://esm.sh/lit@^3.3.0/",
+    "lit": "https://esm.sh/lit@^3.3.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.0.0"
+  }
+}
+</script>
+<script>
+  // Fallback for API key if not set via environment variables.
+  // IMPORTANT: This is for local development convenience ONLY.
+  // DO NOT expose your API key in client-side code in production.
+  // Use environment variables or a secure backend proxy.
+  // window.GEMINI_API_KEY = "YOUR_API_KEY_HERE"; // Replace if you must use this method
+</script>
+</head>
   <body>
-    <script src="./index.js" type="module"></script>
+    <script src="index.tsx" type="module"></script>
   </body>
-</html><link rel="stylesheet" href="index.css">
+</html>
+<link rel="stylesheet" href="index.css">
 <script src="index.tsx" type="module"></script>
