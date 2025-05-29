@@ -1,3 +1,4 @@
+
 /**
  * @fileoverview Control real time music with text prompts - Minimal Demo
  * @license
@@ -715,7 +716,6 @@ class PromptController extends LitElement {
   @property({type: String}) sliderColor = '#5200ff';
 
   @query('#text') private textInput!: HTMLSpanElement;
-  @query('.ratio-display') private ratioDisplayElement!: HTMLDivElement;
 
   private handleTextKeyDown(e: KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -749,10 +749,10 @@ class PromptController extends LitElement {
 
   private updateWeight(event: CustomEvent<number>) {
     const newWeight = event.detail;
-    if (this.weight !== newWeight) {
-      this.weight = newWeight;
-      this.requestUpdate('weight'); // Hint that 'weight' property changed
+    if (this.weight === newWeight) {
+      return;
     }
+    this.weight = newWeight;
     this.dispatchPromptChange();
   }
 
@@ -764,15 +764,6 @@ class PromptController extends LitElement {
         composed: true,
       }),
     );
-  }
-
-  override updated(changedProperties: Map<string | number | symbol, unknown>) {
-    super.updated(changedProperties);
-    if (changedProperties.has('weight')) {
-      if (this.ratioDisplayElement) {
-        this.ratioDisplayElement.textContent = `RATIO: ${this.weight.toFixed(1)}`;
-      }
-    }
   }
 
   override render() {
