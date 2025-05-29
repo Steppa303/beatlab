@@ -9,8 +9,8 @@
 // Local type definitions for Web MIDI API
 declare namespace WebMidi {
   interface MIDIAccess extends EventTarget {
-    inputs: Map<string, MIDIInput>;
-    outputs: Map<string, MIDIOutput>;
+    inputs: ReadonlyMap<string, MIDIInput>;
+    outputs: ReadonlyMap<string, MIDIOutput>;
     onstatechange: ((event: MIDIConnectionEvent) => void) | null;
     sysexEnabled: boolean;
   }

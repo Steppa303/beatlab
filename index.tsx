@@ -62,14 +62,11 @@ class WeightSlider extends LitElement {
       position: relative;
       width: 100%;
       display: flex;
-      /* justify-content: center; No longer needed as value display is removed */
-      /* flex-direction: column; No longer needed */
       align-items: center;
-      /* padding: 5px 0; Removed, parent will handle padding */
       box-sizing: border-box;
       height: 10px; /* Define height for the host, which contains the slider track */
+      touch-action: none; /* Prevent default touch actions like scrolling */
     }
-    /* .scroll-container removed, event handlers on :host */
     .slider-container {
       position: relative;
       height: 6px; /* Fixed height for the track */
@@ -84,80 +81,98 @@ class WeightSlider extends LitElement {
       height: 100%;
       border-radius: 3px; /* Match container radius */
       box-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
-      /* background-color will be set by sliderColor property */
     }
   `;
 
   @property({type: Number}) value = 0; // Range 0-2
   @property({type: String}) sliderColor = '#5200ff'; // Default color if not provided
 
-  // @query('.scroll-container') private scrollContainer!: HTMLDivElement; // No longer needed
   @query('.slider-container') private sliderContainer!: HTMLDivElement;
 
   private dragStartPos = 0;
   private dragStartValue = 0;
   private containerBounds: DOMRect | null = null;
+  private activePointerId: number | null = null;
 
   constructor() {
     super();
-    this.handlePointerDown = this.handlePointerDown.bind(this);
-    this.handlePointerMove = this.handlePointerMove.bind(this);
-    this.handleTouchMove = this.handleTouchMove.bind(this);
-    this.handlePointerUp = this.handlePointerUp.bind(this);
-    // Add event listeners to host itself
-    this.addEventListener('pointerdown', this.handlePointerDown as EventListener);
-    this.addEventListener('wheel', this.handleWheel as EventListener);
+    this.addEventListener('pointerdown', this.handlePointerDown);
+    this.addEventListener('wheel', this.handleWheel);
   }
 
   override disconnectedCallback(): void {
-      super.disconnectedCallback();
-      this.removeEventListener('pointerdown', this.handlePointerDown as EventListener);
-      this.removeEventListener('wheel', this.handleWheel as EventListener);
-      // Clean up global listeners if any were added during drag, though they should be cleaned in handlePointerUp
-      window.removeEventListener('pointermove', this.handlePointerMove);
-      window.removeEventListener('touchmove', this.handleTouchMove);
-      window.removeEventListener('pointerup', this.handlePointerUp);
+    super.disconnectedCallback();
+    if (this.activePointerId !== null) {
+      try {
+        this.releasePointerCapture(this.activePointerId);
+      } catch (error) {
+        // console.warn("Error releasing pointer capture on disconnect:", error);
+      }
+      this.removeEventListener('pointermove', this.handlePointerMove);
+      this.removeEventListener('pointerup', this.handlePointerUpOrCancel);
+      this.removeEventListener('pointercancel', this.handlePointerUpOrCancel);
       document.body.classList.remove('dragging');
+      this.activePointerId = null;
+    }
+    this.removeEventListener('pointerdown', this.handlePointerDown);
+    this.removeEventListener('wheel', this.handleWheel);
   }
 
 
   private handlePointerDown(e: PointerEvent) {
-    e.preventDefault();
-    // Use sliderContainer for bounds, as host might have padding from its parent
-    this.containerBounds = this.sliderContainer.getBoundingClientRect(); 
+    if (this.activePointerId !== null) {
+      // Already handling a pointer, ignore new pointerdown events.
+      return;
+    }
+    e.preventDefault(); // Prevent default actions like text selection or scrolling
+
+    this.activePointerId = e.pointerId;
+    this.setPointerCapture(e.pointerId);
+
+    this.containerBounds = this.sliderContainer.getBoundingClientRect();
     this.dragStartPos = e.clientX;
     this.dragStartValue = this.value;
     document.body.classList.add('dragging');
-    window.addEventListener('pointermove', this.handlePointerMove);
-    window.addEventListener('touchmove', this.handleTouchMove, {
-      passive: false,
-    });
-    window.addEventListener('pointerup', this.handlePointerUp, {once: true});
+
+    // Add listeners to the element itself (due to pointer capture)
+    this.addEventListener('pointermove', this.handlePointerMove);
+    this.addEventListener('pointerup', this.handlePointerUpOrCancel);
+    this.addEventListener('pointercancel', this.handlePointerUpOrCancel);
+
     this.updateValueFromPosition(e.clientX);
   }
 
   private handlePointerMove(e: PointerEvent) {
+    if (e.pointerId !== this.activePointerId) {
+      return;
+    }
     this.updateValueFromPosition(e.clientX);
   }
 
-  private handleTouchMove(e: TouchEvent) {
-    e.preventDefault();
-    if (e.touches.length > 0) {
-      this.updateValueFromPosition(e.touches[0].clientX);
+  private handlePointerUpOrCancel(e: PointerEvent) {
+    if (e.pointerId !== this.activePointerId) {
+      return;
     }
-  }
 
-  private handlePointerUp() {
-    window.removeEventListener('pointermove', this.handlePointerMove);
-    window.removeEventListener('touchmove', this.handleTouchMove);
+    try {
+        this.releasePointerCapture(e.pointerId);
+    } catch (error) {
+        // console.warn("Error releasing pointer capture:", error);
+    }
+    this.activePointerId = null;
+
     document.body.classList.remove('dragging');
     this.containerBounds = null;
+
+    this.removeEventListener('pointermove', this.handlePointerMove);
+    this.removeEventListener('pointerup', this.handlePointerUpOrCancel);
+    this.removeEventListener('pointercancel', this.handlePointerUpOrCancel);
   }
 
   private handleWheel(e: WheelEvent) {
     e.preventDefault();
     const delta = e.deltaY;
-    this.value = this.value + delta * -0.005; 
+    this.value = this.value + delta * -0.005;
     this.value = Math.max(0, Math.min(2, this.value));
     this.dispatchInputEvent();
   }
@@ -165,7 +180,7 @@ class WeightSlider extends LitElement {
   private updateValueFromPosition(clientX: number) {
     if (!this.containerBounds) return;
 
-    const trackWidth = this.containerBounds.width; // Use bounds of slider-container
+    const trackWidth = this.containerBounds.width;
     const trackLeft = this.containerBounds.left;
 
     const relativeX = clientX - trackLeft;
@@ -184,7 +199,7 @@ class WeightSlider extends LitElement {
     const thumbWidthPercent = (this.value / 2) * 100;
     const thumbStyle = styleMap({
       width: `${thumbWidthPercent}%`,
-      display: this.value > 0.005 ? 'block' : 'none', // Hide if very close to 0
+      display: this.value > 0.005 ? 'block' : 'none',
       backgroundColor: this.sliderColor,
     });
 
@@ -219,9 +234,9 @@ class IconButton extends LitElement {
     .hitbox {
       pointer-events: all;
       position: absolute;
-      width: 65%; 
+      width: 65%;
       aspect-ratio: 1;
-      top: 50%; 
+      top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
       border-radius: 50%;
@@ -235,7 +250,7 @@ class IconButton extends LitElement {
 
   private renderSVG() {
     return html` <svg
-      viewBox="0 0 100 100" 
+      viewBox="0 0 100 100"
       fill="none"
       xmlns="http://www.w3.org/2000/svg">
       <circle cx="50" cy="50" r="45" fill="rgba(255,255,255,0.05)" />
@@ -259,7 +274,7 @@ export class PlayPauseButton extends IconButton {
     css`
       .loader {
         stroke: #ffffff;
-        stroke-width: 8; 
+        stroke-width: 8;
         stroke-linecap: round;
         animation: spin linear 1s infinite;
         transform-origin: center;
@@ -330,7 +345,7 @@ class ToastMessage extends LitElement {
     .toast {
       line-height: 1.6;
       position: fixed;
-      bottom: 20px; 
+      bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
       background-color: #000;
@@ -344,7 +359,7 @@ class ToastMessage extends LitElement {
       min-width: 200px;
       max-width: 80vw;
       transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
-      z-index: 1100; 
+      z-index: 1100;
     }
     button {
       border-radius: 100px;
@@ -352,11 +367,11 @@ class ToastMessage extends LitElement {
       border: none;
       color: #000;
       cursor: pointer;
-      background-color: #fff; 
+      background-color: #fff;
     }
     .toast:not(.showing) {
       transition-duration: 1s;
-      transform: translate(-50%, 200%); 
+      transform: translate(-50%, 200%);
     }
   `;
 
@@ -386,9 +401,9 @@ class PromptController extends LitElement {
   static override styles = css`
     .prompt {
       position: relative;
-      width: 100%; 
+      width: 100%;
       display: flex;
-      flex-direction: column; 
+      flex-direction: column;
       box-sizing: border-box;
       overflow: hidden;
       background-color: #3E3E3E; /* Screenshot-like grey */
@@ -479,7 +494,7 @@ class PromptController extends LitElement {
   @query('#text') private textInput!: HTMLSpanElement;
 
   private handleTextKeyDown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) { 
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       this.updateText();
       (e.target as HTMLElement).blur();
@@ -532,7 +547,7 @@ class PromptController extends LitElement {
             contenteditable="plaintext-only"
             @keydown=${this.handleTextKeyDown}
             @blur=${this.updateText}
-            title=${this.text} 
+            title=${this.text}
             >${this.text}</span>
         <div class="ratio-display">RATIO: ${this.weight.toFixed(1)}</div>
         <button class="remove-button" @click=${this.dispatchPromptRemoved} aria-label="Remove prompt">✕</button>
@@ -558,31 +573,31 @@ class PromptDj extends LitElement {
       align-items: center;
       box-sizing: border-box;
       position: relative;
-      font-size: 1.8vmin; 
+      font-size: 1.8vmin;
       background-color: #111;
     }
     .header-bar {
       width: 100%;
       padding: 1vmin 2vmin;
-      background-color: #1c1c1c; 
+      background-color: #1c1c1c;
       display: flex;
       justify-content: space-between;
       align-items: center;
       box-sizing: border-box;
-      flex-shrink: 0; 
+      flex-shrink: 0;
       border-bottom: 1px solid #2a2a2a;
-      z-index: 100; 
+      z-index: 100;
     }
     .midi-selector {
       background-color: #333;
       color: #fff;
       border: 1px solid #555;
-      padding: 0.6em 0.8em; 
+      padding: 0.6em 0.8em;
       border-radius: 4px;
-      font-size: 1.6vmin; 
+      font-size: 1.6vmin;
       min-width: 180px;
       max-width: 300px;
-      height: 100%; 
+      height: 100%;
       box-sizing: border-box;
     }
     .midi-selector:disabled {
@@ -593,36 +608,36 @@ class PromptDj extends LitElement {
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 1.5vmin; 
+      gap: 1.5vmin;
     }
     .header-actions > add-prompt-button,
     .header-actions > play-pause-button {
-      width: 6vmin; 
+      width: 6vmin;
       height: 6vmin;
-      max-width: 50px; 
+      max-width: 50px;
       max-height: 50px;
     }
 
-    .content-area { 
+    .content-area {
       display: flex;
       flex-direction: column;
-      align-items: center; 
-      flex-grow: 1; 
+      align-items: center;
+      flex-grow: 1;
       width: 100%;
-      max-width: 800px; 
-      margin: 0 auto; 
-      overflow: hidden; 
-      padding: 2vmin; 
+      max-width: 800px;
+      margin: 0 auto;
+      overflow: hidden;
+      padding: 2vmin;
       box-sizing: border-box;
     }
     #prompts-container {
       display: flex;
-      flex-direction: column; 
-      align-items: stretch; 
+      flex-direction: column;
+      align-items: stretch;
       width: 100%;
-      flex-grow: 1; 
-      gap: 1.5vmin; 
-      overflow-y: auto; 
+      flex-grow: 1;
+      gap: 1.5vmin;
+      overflow-y: auto;
       overflow-x: hidden;
       scrollbar-width: thin;
       scrollbar-color: #666 #1a1a1a;
@@ -644,9 +659,9 @@ class PromptDj extends LitElement {
       background-color: #777;
     }
     prompt-controller {
-      width: 100%; 
+      width: 100%;
       /* min-height: 18vmin; Removed, height will be intrinsic */
-      flex-shrink: 0; 
+      flex-shrink: 0;
       box-sizing: border-box;
     }
   `;
@@ -670,7 +685,7 @@ class PromptDj extends LitElement {
   private filteredPrompts = new Set<string>();
   private connectionError = true;
   private midiController: MidiController;
-  private readonly midiCcBase = 1; 
+  private readonly midiCcBase = 1;
   private isConnecting = false;
 
 
@@ -732,11 +747,11 @@ class PromptDj extends LitElement {
         let newSelectedId = this.selectedMidiInputId;
 
         if (!currentSelectedStillExists) {
-            newSelectedId = newInputs[0].id; 
+            newSelectedId = newInputs[0].id;
         }
-        
+
         if (newSelectedId && newSelectedId !== this.selectedMidiInputId) {
-             this.selectedMidiInputId = newSelectedId; 
+             this.selectedMidiInputId = newSelectedId;
         } else if (!this.selectedMidiInputId && newInputs.length > 0) {
             this.selectedMidiInputId = newInputs[0].id;
         }
@@ -746,8 +761,8 @@ class PromptDj extends LitElement {
         }
 
     } else {
-        if (this.selectedMidiInputId) { 
-            this.midiController.selectMidiInput(''); 
+        if (this.selectedMidiInputId) {
+            this.midiController.selectMidiInput('');
         }
         this.selectedMidiInputId = null;
     }
@@ -755,11 +770,11 @@ class PromptDj extends LitElement {
 
   private handleMidiDeviceChange(event: Event) {
     const selectedId = (event.target as HTMLSelectElement).value;
-    this.selectedMidiInputId = selectedId || null; 
+    this.selectedMidiInputId = selectedId || null;
     if (this.selectedMidiInputId) {
         this.midiController.selectMidiInput(this.selectedMidiInputId);
     } else {
-        this.midiController.selectMidiInput(''); 
+        this.midiController.selectMidiInput('');
     }
   }
 
@@ -791,7 +806,7 @@ class PromptDj extends LitElement {
             if (e.serverContent?.audioChunks !== undefined) {
                 if (
                 this.playbackState === 'paused' ||
-                this.playbackState === 'stopped' 
+                this.playbackState === 'stopped'
                 ) // Also check for stopped, though usually it would be loading/playing here
                 return;
 
@@ -804,7 +819,7 @@ class PromptDj extends LitElement {
                 const source = this.audioContext.createBufferSource();
                 source.buffer = audioBuffer;
                 source.connect(this.outputNode);
-                if (this.nextStartTime === 0) { 
+                if (this.nextStartTime === 0) {
                   this.nextStartTime =
                       this.audioContext.currentTime + this.bufferTime;
                   setTimeout(() => {
@@ -855,7 +870,7 @@ class PromptDj extends LitElement {
     }
     const promptsToSend = Array.from(this.prompts.values()).filter((p) => {
       return !this.filteredPrompts.has(p.text) && p.weight > 0;
-    }).map(p => ({ text: p.text, weight: p.weight })); 
+    }).map(p => ({ text: p.text, weight: p.weight }));
 
     if (promptsToSend.length === 0 && this.playbackState === 'playing') {
         // Optionally pause if no prompts are active, or let it continue with silence/last state.
@@ -878,7 +893,7 @@ class PromptDj extends LitElement {
 
   private handlePromptChanged(e: CustomEvent<Partial<Prompt>>) {
     const {promptId, text, weight} = e.detail;
-    
+
     if (!promptId) {
         console.error('Prompt ID missing in event detail');
         return;
@@ -892,7 +907,7 @@ class PromptDj extends LitElement {
 
     if (text !== undefined) prompt.text = text;
     if (weight !== undefined) prompt.weight = weight;
-    this.prompts = new Map(this.prompts); 
+    this.prompts = new Map(this.prompts);
     this.setSessionPrompts();
   }
 
@@ -911,8 +926,8 @@ class PromptDj extends LitElement {
       this.playbackState = 'loading'; // Set loading state for UI
 
       if (this.connectionError || !this.session) {
-        await this.connectToSession(); 
-        if (this.connectionError) { 
+        await this.connectToSession();
+        if (this.connectionError) {
             // connectToSession's catch block already sets playbackState to 'stopped'.
             // If it was an early exit due to isConnecting, playbackState might still be loading.
             if(this.playbackState === 'loading') this.playbackState = 'stopped';
@@ -923,12 +938,12 @@ class PromptDj extends LitElement {
         await this.audioContext.resume().catch(err => console.error("Audio context resume failed:", err));
       }
       // It's important to set prompts *before* calling play if it's a fresh start or state might be stale.
-      await this.setSessionPrompts(); 
+      await this.setSessionPrompts();
       this.loadAudio();
 
     } else if (this.playbackState === 'loading') {
       // User clicked stop/pause while it was loading
-      this.stopAudio(); 
+      this.stopAudio();
     }
   }
 
@@ -964,7 +979,7 @@ class PromptDj extends LitElement {
         } catch (e) {
             console.error("Error playing session:", e);
             this.toastMessage.show("Error trying to play. Session might be in an invalid state.");
-            this.playbackState = 'stopped'; 
+            this.playbackState = 'stopped';
             return;
         }
     } else if (!this.session || this.connectionError) {
@@ -978,7 +993,7 @@ class PromptDj extends LitElement {
     if (this.outputNode.gain.value === 0) { // Only ramp up if gain is 0 (e.g. after stop/pause)
         this.outputNode.gain.linearRampToValueAtTime(
         1,
-        this.audioContext.currentTime + 0.1, 
+        this.audioContext.currentTime + 0.1,
         );
     }
   }
@@ -1014,7 +1029,7 @@ class PromptDj extends LitElement {
   private async handleAddPrompt() {
     const newPromptId = `prompt-${this.nextPromptId}`;
     const newColor = TRACK_COLORS[this.nextPromptId % TRACK_COLORS.length];
-    this.nextPromptId++; 
+    this.nextPromptId++;
 
     const newPrompt: Prompt = {
       promptId: newPromptId,
@@ -1024,20 +1039,20 @@ class PromptDj extends LitElement {
     };
     const newPrompts = new Map(this.prompts);
     newPrompts.set(newPromptId, newPrompt);
-    this.prompts = newPrompts; 
+    this.prompts = newPrompts;
 
-    await this.updateComplete; 
+    await this.updateComplete;
 
     const promptsContainer = this.renderRoot.querySelector('#prompts-container');
     if (promptsContainer) {
-        promptsContainer.scrollTop = promptsContainer.scrollHeight; 
+        promptsContainer.scrollTop = promptsContainer.scrollHeight;
     }
 
     const newPromptElement = this.renderRoot.querySelector<PromptController>(
       `prompt-controller[promptId="${newPromptId}"]`,
     );
     if (newPromptElement) {
-      setTimeout(() => { 
+      setTimeout(() => {
         const textSpan =
           newPromptElement.shadowRoot?.querySelector<HTMLSpanElement>('#text');
         if (textSpan) {
@@ -1048,7 +1063,7 @@ class PromptDj extends LitElement {
           selection?.removeAllRanges();
           selection?.addRange(range);
         }
-      }, 100); 
+      }, 100);
     }
   }
 
@@ -1070,7 +1085,7 @@ class PromptDj extends LitElement {
 
   private handleMidiCcReceived(event: CustomEvent<{ ccNumber: number, value: number }>) {
     const receivedCc = event.detail.ccNumber;
-    const normalizedValue = event.detail.value; 
+    const normalizedValue = event.detail.value;
 
     const promptArray = Array.from(this.prompts.values());
     const promptIndex = receivedCc - this.midiCcBase;
@@ -1081,7 +1096,7 @@ class PromptDj extends LitElement {
             const existingPrompt = this.prompts.get(targetPrompt.promptId);
             if (existingPrompt) {
                 existingPrompt.weight = normalizedValue;
-                this.prompts = new Map(this.prompts); 
+                this.prompts = new Map(this.prompts);
                 this.setSessionPrompts();
             }
         }
@@ -1094,17 +1109,17 @@ class PromptDj extends LitElement {
 
     return html`
       <div class="header-bar">
-        <select 
-          class="midi-selector" 
-          @change=${this.handleMidiDeviceChange} 
+        <select
+          class="midi-selector"
+          @change=${this.handleMidiDeviceChange}
           .value=${this.selectedMidiInputId || ''}
           ?disabled=${this.availableMidiInputs.length === 0}
           aria-label="Select MIDI Input Device">
-          ${this.availableMidiInputs.length === 0 ? 
+          ${this.availableMidiInputs.length === 0 ?
             html`<option value="">No MIDI Devices</option>` :
             html`
               ${showSelectPlaceholder ? html`<option value="" disabled selected hidden>Select MIDI Device</option>` : ''}
-              ${this.availableMidiInputs.map(input => 
+              ${this.availableMidiInputs.map(input =>
                 html`<option .value=${input.id} ?selected=${input.id === this.selectedMidiInputId}>${input.name}</option>`
               )}
             `}
@@ -1160,7 +1175,7 @@ declare global {
     'weight-slider': WeightSlider;
     'toast-message': ToastMessage;
   }
-  
+
   interface MidiInputInfo {
     id: string;
     name: string;
