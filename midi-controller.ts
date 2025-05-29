@@ -1,58 +1,3 @@
-// Minimal local type definitions for Web MIDI API
-// to resolve TypeScript errors in environments without @types/webmidi.
-// For a real project, prefer installing `@types/webmidi`.
-declare global {
-  namespace WebMidi {
-    interface MIDIOptions {
-      sysex?: boolean;
-      software?: boolean;
-    }
-
-    interface MIDIPort extends EventTarget {
-      id: string;
-      manufacturer?: string;
-      name?: string;
-      type: 'input' | 'output';
-      version?: string;
-      state: 'connected' | 'disconnected';
-      connection: 'open' | 'closed' | 'pending';
-      // open(): Promise<MIDIPort>; // Not used in current code
-      // close(): Promise<MIDIPort>; // Not used in current code
-    }
-
-    interface MIDIInput extends MIDIPort {
-      type: 'input';
-      onmidimessage: ((event: MIDIMessageEvent) => void) | null;
-    }
-
-    interface MIDIOutput extends MIDIPort {
-      type: 'output';
-      // send(data: Uint8Array | number[], timestamp?: number): void; // Not used in current code
-      // clear(): void; // Not used in current code
-    }
-
-    interface MIDIMessageEvent extends Event {
-      data: Uint8Array;
-      // receivedTime: number; // Not directly used in current code
-    }
-
-    interface MIDIConnectionEvent extends Event {
-      port: MIDIPort;
-    }
-
-    interface MIDIAccess extends EventTarget {
-      inputs: Map<string, MIDIInput>;
-      outputs: Map<string, MIDIOutput>;
-      sysexEnabled: boolean;
-      onstatechange: ((event: MIDIConnectionEvent) => void) | null;
-    }
-  }
-
-  interface Navigator {
-    requestMIDIAccess(options?: WebMidi.MIDIOptions): Promise<WebMidi.MIDIAccess>;
-  }
-}
-
 
 /**
  * @fileoverview MIDI Controller for Web MIDI API interactions.
@@ -60,6 +5,11 @@ declare global {
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
+
+/// <reference types="webmidi" />
+
+// Die lokalen Typdefinitionen wurden entfernt, da @types/webmidi verwendet wird.
+// Stellen Sie sicher, dass @types/webmidi in package.json korrekt referenziert ist.
 
 export interface MidiInputInfo {
   id: string;
