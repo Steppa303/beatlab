@@ -1,0 +1,16 @@
+
+services:
+  - type: static
+    name: prompt-dj-minimal # You can change this name
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: API_KEY # IMPORTANT: Set this in the Render dashboard
+        sync: false # Prevents Render from trying to re-sync this from a .env file
+      - key: NODE_VERSION
+        value: "18" # Matches the engine requirement in your package.json
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

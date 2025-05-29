@@ -3,12 +3,13 @@
   "version": "1.0.0",
   "description": "Minimal PromptDJ application for Render deployment",
   "scripts": {
-    "build": "mkdir -p dist && cp index.html dist/index.html && cp index.css dist/index.css && esbuild index.tsx --bundle --outfile=dist/index.js --define:process.env.API_KEY='\"'$API_KEY'\"' --loader:.ts=tsx --platform=browser --external:lit --external:lit/* --external:@google/genai --format=esm",
+    "build": "mkdir -p dist && cp index.html dist/index.html && cp index.css dist/index.css && esbuild index.tsx midi-controller.ts utils.ts --bundle --outdir=dist --splitting --format=esm --define:process.env.API_KEY='\"'$API_KEY'\"' --loader:.ts=tsx --platform=browser --external:lit --external:lit/* --external:@google/genai",
     "start": "http-server dist -p ${PORT:-8080}"
   },
   "devDependencies": {
     "esbuild": "^0.20.2",
-    "http-server": "^14.1.1"
+    "http-server": "^14.1.1",
+    "@types/w3c-web-midi": "^1.4.9"
   },
   "engines": {
     "node": ">=18"

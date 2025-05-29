@@ -1,6 +1,6 @@
 {
-  "name": "PromptDJ",
-  "description": "Steer a continuous stream of music with text prompts",
+  "name": "V2 Beatjam Render-Deploy",
+  "description": "Steer a continuous stream of music with text prompts with midi",
   "requestFramePermissions": [],
   "prompt": ""
 }
