@@ -1137,12 +1137,12 @@ class HelpGuidePanel extends LitElement {
     return html`
       <div class="panel" role="dialog" aria-modal="true" aria-labelledby="help-panel-title" ?hidden=${!this.isOpen}>
         <div class="panel-header">
-          <h2 id="help-panel-title">PromptDJ Help</h2>
+          <h2 id="help-panel-title">Steppa's BeatLab Help</h2>
           <button class="close-button" @click=${this._close} aria-label="Close help panel">✕</button>
         </div>
         <div class="panel-content">
           <section>
-            <h3>Willkommen bei PromptDJ!</h3>
+            <h3>Willkommen bei Steppa's BeatLab!</h3>
             <p>Diese App ermöglicht es dir, interaktiv Musik in Echtzeit mit Text-Prompts und MIDI-Controllern zu gestalten.</p>
           </section>
           <section>
@@ -1161,7 +1161,7 @@ class HelpGuidePanel extends LitElement {
           <section>
             <h3>Konfiguration Teilen (via Link)</h3>
             <p>Klicke auf den <strong>Share-Button</strong> unten rechts. Dadurch wird ein spezieller Link in deine Zwischenablage kopiert.</p>
-            <p>Wenn jemand diesen Link öffnet, startet PromptDJ automatisch mit genau deiner aktuellen Konfiguration (Prompts, Gewichtungen, Temperatur).</p>
+            <p>Wenn jemand diesen Link öffnet, startet Steppa's BeatLab automatisch mit genau deiner aktuellen Konfiguration (Prompts, Gewichtungen, Temperatur).</p>
             <p>Ideal, um deine Kreationen schnell und einfach zu präsentieren oder gemeinsam an Klanglandschaften zu arbeiten!</p>
           </section>
           <section>
@@ -1212,7 +1212,7 @@ class HelpGuidePanel extends LitElement {
   }
 }
 
-/** Component for the PromptDJ UI. */
+/** Component for the Steppa's BeatLab UI. */
 @customElement('prompt-dj')
 class PromptDj extends LitElement {
   static override styles = css`
@@ -2149,7 +2149,7 @@ class PromptDj extends LitElement {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'promptdj_preset.json';
+    a.download = 'steppas_beatlab_preset.json'; // Updated filename
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
