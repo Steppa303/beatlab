@@ -1,21 +1,37 @@
 /**
- * @fileoverview Minimal example for real-time music generation with Lyria,
- * adapted for backend communication.
+ * @fileoverview Control real time music with text prompts - Minimal Demo
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {css, CSSResultGroup, html, LitElement, svg} from 'lit';
+import {css, unsafeCSS, CSSResultGroup, html, LitElement, svg} from 'lit';
 import {customElement, property, query, state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
+import {styleMap} from 'lit/directives/style-map.js';
 
-// Note: @google/genai types might be useful for structuring data exchanged with backend,
-// but the SDK itself is not used directly in the client anymore.
-// import type { LiveMusicServerMessage } from '@google/genai';
-
+import {
+  GoogleGenAI,
+  type LiveMusicServerMessage,
+  type LiveMusicSession,
+  type LiveMusicGenerationConfig, // Keep for potential minimal config
+} from '@google/genai';
 import {decode, decodeAudioData} from './utils';
 
-type PlaybackState = 'stopped' | 'playing' | 'loading' | 'paused' | 'error';
+// Use API_KEY as per guidelines
+const ai = new GoogleGenAI({
+  apiKey: process.env.API_KEY,
+  apiVersion: 'v1alpha',
+});
+const model = 'lyria-realtime-exp';
+
+interface Prompt {
+  readonly promptId: string;
+  // color property removed
+  text: string;
+  weight: number;
+}
+
+type PlaybackState = 'stopped' | 'playing' | 'loading' | 'paused';
 
 /** Throttles a callback to be called at most once per `freq` milliseconds. */
 function throttle(func: (...args: unknown[]) => void, delay: number) {
@@ -30,7 +46,150 @@ function throttle(func: (...args: unknown[]) => void, delay: number) {
   };
 }
 
-// Base class for icon buttons (unchanged)
+const FIXED_SLIDER_COLOR = '#5200ff'; // Fixed color for all sliders
+
+// WeightSlider component
+// -----------------------------------------------------------------------------
+/** A slider for adjusting and visualizing prompt weight. */
+@customElement('weight-slider')
+class WeightSlider extends LitElement {
+  static override styles = css`
+    :host {
+      cursor: ns-resize;
+      position: relative;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      flex-direction: column;
+      align-items: center;
+      padding: 5px;
+    }
+    .scroll-container {
+      width: 100%;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+    .value-display {
+      font-size: 1.3vmin;
+      color: #ccc;
+      margin: 0.5vmin 0;
+      user-select: none;
+      text-align: center;
+    }
+    .slider-container {
+      position: relative;
+      width: 10px;
+      height: 100%;
+      background-color: #0009;
+      border-radius: 4px;
+    }
+    #thumb {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      border-radius: 4px;
+      box-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
+      background-color: ${unsafeCSS(FIXED_SLIDER_COLOR)}; /* Use fixed color */
+    }
+  `;
+
+  @property({type: Number}) value = 0; // Range 0-2
+  // color property removed, using fixed color
+
+  @query('.scroll-container') private scrollContainer!: HTMLDivElement;
+
+  private dragStartPos = 0;
+  private dragStartValue = 0;
+  private containerBounds: DOMRect | null = null;
+
+  constructor() {
+    super();
+    this.handlePointerDown = this.handlePointerDown.bind(this);
+    this.handlePointerMove = this.handlePointerMove.bind(this);
+    this.handleTouchMove = this.handleTouchMove.bind(this);
+    this.handlePointerUp = this.handlePointerUp.bind(this);
+  }
+
+  private handlePointerDown(e: PointerEvent) {
+    e.preventDefault();
+    this.containerBounds = this.scrollContainer.getBoundingClientRect();
+    this.dragStartPos = e.clientY;
+    this.dragStartValue = this.value;
+    document.body.classList.add('dragging');
+    window.addEventListener('pointermove', this.handlePointerMove);
+    window.addEventListener('touchmove', this.handleTouchMove, {
+      passive: false,
+    });
+    window.addEventListener('pointerup', this.handlePointerUp, {once: true});
+    this.updateValueFromPosition(e.clientY);
+  }
+
+  private handlePointerMove(e: PointerEvent) {
+    this.updateValueFromPosition(e.clientY);
+  }
+
+  private handleTouchMove(e: TouchEvent) {
+    e.preventDefault();
+    this.updateValueFromPosition(e.touches[0].clientY);
+  }
+
+  private handlePointerUp(e: PointerEvent) {
+    window.removeEventListener('pointermove', this.handlePointerMove);
+    document.body.classList.remove('dragging');
+    this.containerBounds = null;
+  }
+
+  private handleWheel(e: WheelEvent) {
+    e.preventDefault();
+    const delta = e.deltaY;
+    this.value = this.value + delta * -0.005;
+    this.value = Math.max(0, Math.min(2, this.value));
+    this.dispatchInputEvent();
+  }
+
+  private updateValueFromPosition(clientY: number) {
+    if (!this.containerBounds) return;
+
+    const trackHeight = this.containerBounds.height;
+    const relativeY = clientY - this.containerBounds.top;
+    const normalizedValue =
+      1 - Math.max(0, Math.min(trackHeight, relativeY)) / trackHeight;
+    this.value = normalizedValue * 2;
+
+    this.dispatchInputEvent();
+  }
+
+  private dispatchInputEvent() {
+    this.dispatchEvent(new CustomEvent<number>('input', {detail: this.value}));
+  }
+
+  override render() {
+    const thumbHeightPercent = (this.value / 2) * 100;
+    const thumbStyle = styleMap({
+      height: `${thumbHeightPercent}%`,
+      display: this.value > 0.01 ? 'block' : 'none',
+    });
+    const displayValue = this.value.toFixed(2);
+
+    return html`
+      <div
+        class="scroll-container"
+        @pointerdown=${this.handlePointerDown}
+        @wheel=${this.handleWheel}>
+        <div class="slider-container">
+          <div id="thumb" style=${thumbStyle}></div>
+        </div>
+        <div class="value-display">${displayValue}</div>
+      </div>
+    `;
+  }
+}
+
+// Base class for icon buttons.
 class IconButton extends LitElement {
   static override styles = css`
     :host {
@@ -169,7 +328,7 @@ class IconButton extends LitElement {
   }
 }
 
-
+// PlayPauseButton
 @customElement('play-pause-button')
 export class PlayPauseButton extends IconButton {
   @property({type: String}) playbackState: PlaybackState = 'stopped';
@@ -223,6 +382,19 @@ export class PlayPauseButton extends IconButton {
   }
 }
 
+// AddPromptButton component
+@customElement('add-prompt-button')
+export class AddPromptButton extends IconButton {
+  private renderAddIcon() {
+    return svg`<path d="M67 40 H73 V52 H85 V58 H73 V70 H67 V58 H55 V52 H67 Z" fill="#FEFEFE" />`;
+  }
+
+  override renderIcon() {
+    return this.renderAddIcon();
+  }
+}
+
+// Toast Message component
 @customElement('toast-message')
 class ToastMessage extends LitElement {
   static override styles = css`
@@ -232,7 +404,7 @@ class ToastMessage extends LitElement {
       top: 20px;
       left: 50%;
       transform: translateX(-50%);
-      background-color: #333;
+      background-color: #000;
       color: white;
       padding: 15px;
       border-radius: 5px;
@@ -244,17 +416,13 @@ class ToastMessage extends LitElement {
       max-width: 80vw;
       transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
       z-index: 11;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     }
     button {
-      background: transparent;
       border-radius: 100px;
       aspect-ratio: 1;
       border: none;
-      color: #fff;
+      color: #000;
       cursor: pointer;
-      font-size: 1.2em;
-      padding: 0.2em 0.5em;
     }
     .toast:not(.showing) {
       transition-duration: 1s;
@@ -268,16 +436,13 @@ class ToastMessage extends LitElement {
   override render() {
     return html`<div class=${classMap({showing: this.showing, toast: true})}>
       <div class="message">${this.message}</div>
-      <button @click=${this.hide} aria-label="Dismiss message">✕</button>
+      <button @click=${this.hide}>✕</button>
     </div>`;
   }
 
-  show(message: string, duration = 5000) {
+  show(message: string) {
     this.showing = true;
     this.message = message;
-    setTimeout(() => {
-      this.hide();
-    }, duration);
   }
 
   hide() {
@@ -285,352 +450,636 @@ class ToastMessage extends LitElement {
   }
 }
 
+/** A single prompt input */
+@customElement('prompt-controller')
+class PromptController extends LitElement {
+  static override styles = css`
+    .prompt {
+      position: relative;
+      height: 100%;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-sizing: border-box;
+      overflow: hidden;
+      background-color: #2a2a2a;
+      border-radius: 5px;
+    }
+    .remove-button {
+      position: absolute;
+      top: 1.2vmin;
+      left: 1.2vmin;
+      background: #666;
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 2.8vmin;
+      height: 2.8vmin;
+      font-size: 1.8vmin;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 2.8vmin;
+      cursor: pointer;
+      opacity: 0.5;
+      transition: opacity 0.2s;
+      z-index: 10;
+    }
+    .remove-button:hover {
+      opacity: 1;
+    }
+    weight-slider {
+      max-height: calc(100% - 9vmin);
+      flex: 1;
+      min-height: 10vmin;
+      width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+      margin: 2vmin 0 1vmin;
+    }
+    .controls {
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      align-items: center;
+      gap: 0.2vmin;
+      width: 100%;
+      height: 8vmin;
+      padding: 0 0.5vmin;
+      box-sizing: border-box;
+      margin-bottom: 1vmin;
+    }
+    #text {
+      font-family: 'Google Sans', sans-serif;
+      font-size: 1.8vmin;
+      width: 100%;
+      flex-grow: 1;
+      max-height: 100%;
+      padding: 0.4vmin;
+      box-sizing: border-box;
+      text-align: center;
+      word-wrap: break-word;
+      overflow-y: auto;
+      border: none;
+      outline: none;
+      -webkit-font-smoothing: antialiased;
+      color: #fff;
+      scrollbar-width: thin;
+      scrollbar-color: #666 #1a1a1a;
+    }
+    #text::-webkit-scrollbar {
+      width: 6px;
+    }
+    #text::-webkit-scrollbar-track {
+      background: #0009;
+      border-radius: 3px;
+    }
+    #text::-webkit-scrollbar-thumb {
+      background-color: #666;
+      border-radius: 3px;
+    }
+    :host([filtered='true']) #text {
+      background: #da2000;
+    }
+  `;
 
-@customElement('minimal-lyria-player')
-class MinimalLyriaPlayer extends LitElement {
+  @property({type: String, reflect: true}) promptId = '';
+  @property({type: String}) text = '';
+  @property({type: Number}) weight = 0;
+  // color property removed
+
+  @query('weight-slider') private weightInput!: WeightSlider;
+  @query('#text') private textInput!: HTMLSpanElement;
+
+  private handleTextKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      this.updateText();
+      (e.target as HTMLElement).blur();
+    }
+  }
+
+  private dispatchPromptChange() {
+    this.dispatchEvent(
+      new CustomEvent<Prompt>('prompt-changed', {
+        detail: {
+          promptId: this.promptId,
+          text: this.text,
+          weight: this.weight,
+          // color removed
+        },
+      }),
+    );
+  }
+
+  private updateText() {
+    const newText = this.textInput.textContent?.trim();
+    if (newText === '' || newText === undefined) { // Ensure newText is not empty or undefined
+      this.textInput.textContent = this.text; // Reset to old text if new text is invalid
+      return;
+    }
+    this.text = newText;
+    this.dispatchPromptChange();
+  }
+
+  private updateWeight() {
+    this.weight = this.weightInput.value;
+    this.dispatchPromptChange();
+  }
+
+  private dispatchPromptRemoved() {
+    this.dispatchEvent(
+      new CustomEvent<string>('prompt-removed', {
+        detail: this.promptId,
+        bubbles: true,
+        composed: true,
+      }),
+    );
+  }
+
+  override render() {
+    return html`<div class="prompt">
+      <button class="remove-button" @click=${this.dispatchPromptRemoved}
+        >×</button
+      >
+      <weight-slider
+        id="weight"
+        .value=${this.weight}
+        @input=${this.updateWeight}></weight-slider>
+      <div class="controls">
+        <span
+          id="text"
+          spellcheck="false"
+          contenteditable="plaintext-only"
+          @keydown=${this.handleTextKeyDown}
+          @blur=${this.updateText}
+          >${this.text}</span
+        >
+      </div>
+    </div>`;
+  }
+}
+
+
+/** Component for the PromptDJ UI. */
+@customElement('prompt-dj')
+class PromptDj extends LitElement {
   static override styles = css`
     :host {
       height: 100%;
       width: 100%;
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      justify-content: space-around; /* Adjusted for better spacing without settings */
       align-items: center;
       box-sizing: border-box;
       padding: 2vmin;
       position: relative;
-      font-family: 'Google Sans', sans-serif;
-      background-color: #1e1e1e;
-      color: #e0e0e0;
-    }
-    .controls-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 20px;
-      padding: 20px;
-      background-color: #2a2a2a;
-      border-radius: 8px;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    }
-    #prompt-input {
-      font-family: 'Google Sans', sans-serif;
       font-size: 1.8vmin;
-      padding: 10px 15px;
-      border-radius: 5px;
-      border: 1px solid #555;
-      background-color: #333;
-      color: #e0e0e0;
-      width: 300px;
-      max-width: 80vw;
-      outline: none;
-      transition: border-color 0.3s;
+      background-color: #111; /* Simple background */
     }
-    #prompt-input:focus {
-      border-color: #7b1fa2; /* A purple accent color */
+    .prompts-area {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      flex-grow: 1; /* Allow prompts area to take more space */
+      width: 100%;
+      margin-top: 2vmin;
+      gap: 2vmin;
+      min-height: 250px; /* Ensure prompts area has some min height */
     }
-    play-pause-button {
-      width: 15vmin;
-      min-width: 80px;
-      max-width: 120px;
+    #prompts-container {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-end;
+      flex-shrink: 1;
+      height: 100%;
+      gap: 2vmin;
+      margin-left: 10vmin; /* Keep margin for add button */
+      padding: 1vmin;
+      overflow-x: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #666 #1a1a1a;
     }
-    .info-text {
-      font-size: 1.2vmin;
-      color: #aaa;
-      margin-top: 10px;
+    #prompts-container::-webkit-scrollbar {
+      height: 8px;
     }
-    .error-text {
-      font-size: 1.2vmin;
-      color: #ff8a80; /* Light red for errors */
-      margin-top: 10px;
+    #prompts-container::-webkit-scrollbar-track {
+      background: #111;
+      border-radius: 4px;
+    }
+    #prompts-container::-webkit-scrollbar-thumb {
+      background-color: #666;
+      border-radius: 4px;
+    }
+    #prompts-container::-webkit-scrollbar-thumb:hover {
+      background-color: #777;
+    }
+    #prompts-container::before,
+    #prompts-container::after {
+      content: '';
+      flex: 1;
+      min-width: 0.5vmin;
+    }
+    .add-prompt-button-container {
+      display: flex;
+      align-items: flex-end;
+      height: 100%;
+      flex-shrink: 0;
+    }
+    /* Settings container removed */
+    .playback-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-shrink: 0;
+      margin-top: 2vmin; /* Add some margin if settings is gone */
+      margin-bottom: 2vmin;
+    }
+    play-pause-button,
+    add-prompt-button { /* Reset button removed */
+      width: 12vmin;
+      flex-shrink: 0;
+    }
+    prompt-controller {
+      height: 100%;
+      max-height: 70vmin; /* Adjusted max-height */
+      min-width: 14vmin;
+      max-width: 16vmin;
+      flex: 1;
     }
   `;
 
-  @state() private currentPromptText = 'Ambient electronic soundscape';
-  private readonly sampleRate = 48000; // Should match Lyria's output
-  private audioContext!: AudioContext;
-  private outputNode!: GainNode;
+  @property({
+    type: Object,
+    attribute: false,
+  })
+  private prompts: Map<string, Prompt>;
+  private nextPromptId: number;
+  private session!: LiveMusicSession; // Initialized in connectToSession
+  private readonly sampleRate = 48000;
+  private audioContext = new (window.AudioContext || (window as any).webkitAudioContext)(
+    {sampleRate: this.sampleRate},
+  );
+  private outputNode: GainNode = this.audioContext.createGain();
   private nextStartTime = 0;
-  private readonly bufferTime = 2; // audio buffer
+  private readonly bufferTime = 2;
   @state() private playbackState: PlaybackState = 'stopped';
-  private eventSource?: EventSource;
+  @property({type: Object})
+  private filteredPrompts = new Set<string>();
+  private connectionError = true;
 
-  @query('#prompt-input') private promptInputEl!: HTMLInputElement;
+  @query('play-pause-button') private playPauseButton!: PlayPauseButton;
   @query('toast-message') private toastMessage!: ToastMessage;
+  // settingsController query removed
 
-  private async ensureAudioContext() {
-    if (!this.audioContext) {
-      this.audioContext = new (window.AudioContext ||
-        (window as any).webkitAudioContext)({sampleRate: this.sampleRate});
-      this.outputNode = this.audioContext.createGain();
-      this.outputNode.connect(this.audioContext.destination);
-    }
-    if (this.audioContext.state === 'suspended') {
-      await this.audioContext.resume();
+  constructor() {
+    super();
+    // Initialize with one default prompt, no local storage
+    this.prompts = new Map([
+      ['prompt-0', {promptId: 'prompt-0', text: 'Ambient Chill', weight: 1.0}],
+    ]);
+    this.nextPromptId = 1; // Start next ID after the initial one
+    this.outputNode.connect(this.audioContext.destination);
+  }
+
+  override async firstUpdated() {
+    await this.connectToSession();
+    // Optionally send initial prompts if session is ready
+    if (!this.connectionError) {
+       this.setSessionPrompts();
+       // Optionally set a default minimal config if needed
+       // await this.session.setMusicGenerationConfig({ musicGenerationConfig: { temperature: 1.0 } });
     }
   }
 
-  private async sendControlCommand(
-    action: 'play' | 'pause' | 'stop' | 'setPrompt',
-    prompt?: string,
-  ) {
+  private async connectToSession() {
     try {
-      const response = await fetch('/api/lyria/control', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({action, prompt: prompt || this.currentPromptText}),
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Server error: ${response.status}`);
-      }
-      const data = await response.json();
-      console.log('Backend response:', data);
-      if (data.message) {
-         // this.toastMessage.show(data.message); // Can be noisy
-      }
-      return data;
-    } catch (error) {
-      console.error('Error sending control command:', error);
-      this.toastMessage.show(
-        `Error: ${(error as Error).message}`,
-        7000,
-      );
-      this.playbackState = 'error';
-      this.disconnectFromStream(); // Disconnect on error
-      return {success: false, error: (error as Error).message};
-    }
-  }
-
-  private connectToStream() {
-    if (this.eventSource) {
-      this.eventSource.close();
-    }
-    this.eventSource = new EventSource('/api/lyria/stream');
-    this.playbackState = 'loading';
-
-    this.eventSource.onmessage = async (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('Received from SSE:', data.type);
-
-        if (data.type === 'audioChunk' && data.audioDataB64) {
-          if (this.playbackState === 'paused' || this.playbackState === 'stopped' || this.playbackState === 'error') {
-            return;
-          }
-          await this.ensureAudioContext();
-          const audioBytes = decode(data.audioDataB64);
-          const audioBuffer = await decodeAudioData(
-            audioBytes,
-            this.audioContext,
-            this.sampleRate,
-            2, // Assuming stereo
-          );
-          const source = this.audioContext.createBufferSource();
-          source.buffer = audioBuffer;
-          source.connect(this.outputNode);
-
-          const currentTime = this.audioContext.currentTime;
-          if (this.nextStartTime === 0 || this.playbackState === 'loading') { // Initial start or recovering
-            this.nextStartTime = currentTime + this.bufferTime;
-            this.playbackState = 'playing'; // Transition to playing once first chunk is scheduled
-             // Fade in gain if it was 0
-            if(this.outputNode.gain.value === 0) {
-                this.outputNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-                this.outputNode.gain.linearRampToValueAtTime(1, this.audioContext.currentTime + 0.1);
+        this.session = await ai.live.music.connect({
+        model: model,
+        callbacks: {
+            onmessage: async (e: LiveMusicServerMessage) => {
+            console.log('Received message from the server:', e);
+            if (e.setupComplete) {
+                this.connectionError = false;
             }
-          }
+            if (e.filteredPrompt) {
+                this.filteredPrompts = new Set([
+                ...this.filteredPrompts,
+                e.filteredPrompt.text,
+                ]);
+                this.toastMessage.show(e.filteredPrompt.filteredReason);
+            }
+            if (e.serverContent?.audioChunks !== undefined) {
+                if (
+                this.playbackState === 'paused' ||
+                this.playbackState === 'stopped'
+                )
+                return;
+                const audioBuffer = await decodeAudioData(
+                decode(e.serverContent?.audioChunks[0].data),
+                this.audioContext,
+                this.sampleRate, // Use this.sampleRate
+                2, // Assuming stereo, adjust if necessary
+                );
+                const source = this.audioContext.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(this.outputNode);
+                if (this.nextStartTime === 0) {
+                this.nextStartTime =
+                    this.audioContext.currentTime + this.bufferTime;
+                setTimeout(() => {
+                    if (this.playbackState === 'loading') this.playbackState = 'playing';
+                }, this.bufferTime * 1000);
+                }
 
-          if (this.nextStartTime < currentTime) {
-            console.warn('Audio underrun, resetting start time.');
-            this.playbackState = 'loading';
-            this.nextStartTime = currentTime + this.bufferTime / 2;
-            // No need to skip chunk, just adjust timing for future ones
-          }
-          source.start(this.nextStartTime);
-          this.nextStartTime += audioBuffer.duration;
-
-        } else if (data.type === 'playbackState') {
-           if (data.state === 'playing' && this.playbackState === 'loading') {
-             // Backend might confirm playing state earlier than first audio chunk
-             // this.playbackState = 'playing';
-           } else if (data.state === 'stopped' || data.state === 'paused' || data.state === 'error') {
-             this.playbackState = data.state;
-             if (data.state === 'stopped' || data.state === 'error') this.disconnectFromStream();
-           }
-           if(data.message) this.toastMessage.show(data.message);
-
-        } else if (data.type === 'error') {
-          console.error('Error from SSE:', data.message);
-          this.toastMessage.show(`Server error: ${data.message}`, 7000);
-          this.playbackState = 'error';
-          this.disconnectFromStream();
-        } else if (data.type === 'info' && data.message) {
-           this.toastMessage.show(data.message);
-        }
-      } catch (err) {
-        console.error('Error processing SSE message:', err);
-        // this.toastMessage.show('Error processing audio stream.');
-        // this.playbackState = 'error';
-      }
-    };
-
-    this.eventSource.onerror = (error) => {
-      console.error('EventSource failed:', error);
-      // Don't show toast if it was an intentional close from client changing state
-      if (this.playbackState !== 'stopped' && this.playbackState !== 'paused') {
-         this.toastMessage.show('Stream connection error.');
-      }
-      this.playbackState = 'error';
-      this.disconnectFromStream();
-    };
-  }
-
-  private disconnectFromStream() {
-    if (this.eventSource) {
-      this.eventSource.close();
-      this.eventSource = undefined;
+                if (this.nextStartTime < this.audioContext.currentTime) {
+                console.log('Audio under run');
+                this.playbackState = 'loading'; // Go back to loading to re-buffer
+                this.nextStartTime = this.audioContext.currentTime + this.bufferTime; // Reset start time
+                // Consider clearing buffered audio or resetting session if under-runs are frequent
+                return;
+                }
+                source.start(this.nextStartTime);
+                this.nextStartTime += audioBuffer.duration;
+            }
+            },
+            onerror: (e: ErrorEvent) => {
+            console.error('Error occurred:', e);
+            this.connectionError = true;
+            this.stopAudio(); // or pauseAudio()
+            this.toastMessage.show(`Connection error: ${e.message}. Please try again.`);
+            },
+            onclose: (e: CloseEvent) => {
+            console.log('Connection closed.');
+            this.connectionError = true;
+            this.stopAudio(); // or pauseAudio()
+            this.toastMessage.show('Connection closed. Please restart audio.');
+            },
+        },
+        });
+    } catch (error: any) {
+        console.error("Failed to connect to session:", error);
+        this.connectionError = true;
+        this.playbackState = 'stopped';
+        this.toastMessage.show(`Failed to connect: ${error.message}`);
     }
   }
 
-  private throttledSetPrompt = throttle(async () => {
-    if (this.playbackState === 'playing' || this.playbackState === 'loading') {
-      if (this.currentPromptText.trim() === '') {
-        this.toastMessage.show('Prompt cannot be empty while playing.');
-        this.promptInputEl.value = this.currentPromptText || 'Ambient electronic soundscape'; // Restore old or default
+  private setSessionPrompts = throttle(async () => {
+    if (!this.session || this.connectionError) {
+        console.warn("Attempted to set prompts but session is not available.");
+        // this.toastMessage.show("Cannot update prompts: Not connected.");
         return;
-      }
-      await this.sendControlCommand('setPrompt', this.currentPromptText);
     }
-  }, 700);
+    const promptsToSend = Array.from(this.prompts.values()).filter((p) => {
+      return !this.filteredPrompts.has(p.text) && p.weight > 0; // Ensure weight is greater than 0
+    });
+    try {
+      await this.session.setWeightedPrompts({
+        weightedPrompts: promptsToSend,
+      });
+    } catch (e: any) {
+      this.toastMessage.show(`Error setting prompts: ${e.message}`);
+      this.pauseAudio();
+    }
+  }, 200);
 
-  private handlePromptInputChange(e: Event) {
-    this.currentPromptText = (e.target as HTMLInputElement).value;
-    this.throttledSetPrompt();
+  // dispatchPromptsChange removed as local storage is gone
+
+  private handlePromptChanged(e: CustomEvent<Prompt>) {
+    const {promptId, text, weight} = e.detail;
+    const prompt = this.prompts.get(promptId);
+
+    if (!prompt) {
+      console.error('prompt not found', promptId);
+      return;
+    }
+
+    prompt.text = text;
+    prompt.weight = weight;
+
+    // No need to create new Map if we mutate, but for safety/consistency with original:
+    const newPrompts = new Map(this.prompts);
+    newPrompts.set(promptId, prompt);
+    this.prompts = newPrompts;
+
+    this.setSessionPrompts();
+    this.requestUpdate(); // Request update to re-render prompts
   }
+
+  // makeBackground removed
 
   private async handlePlayPause() {
-    await this.ensureAudioContext();
-
     if (this.playbackState === 'playing') {
-      await this.sendControlCommand('pause');
-      this.playbackState = 'paused'; // Optimistic UI update
-       if (this.audioContext && this.outputNode) {
-            this.outputNode.gain.setValueAtTime(
-                this.outputNode.gain.value, this.audioContext.currentTime);
-            this.outputNode.gain.linearRampToValueAtTime(
-                0,
-                this.audioContext.currentTime + 0.1,
-            );
+      this.pauseAudio();
+    } else if (
+      this.playbackState === 'paused' ||
+      this.playbackState === 'stopped'
+    ) {
+      if (this.connectionError || !this.session) {
+        this.playbackState = 'loading'; // Set to loading while attempting to connect
+        await this.connectToSession();
+        if (this.connectionError) { // If connection failed
+            this.playbackState = 'stopped'; // Go back to stopped
+            return;
         }
-    } else if (this.playbackState === 'paused') {
-      if (this.currentPromptText.trim() === '') {
-        this.toastMessage.show('Please enter a music prompt before playing.');
-        return;
       }
-      // Request backend to play, this will also re-establish SSE if needed by backend
-      const response = await this.sendControlCommand('play');
-      if (response?.success) { // Backend confirms play command
-        this.connectToStream(); // Re-connect or ensure connection
-        this.playbackState = 'loading'; // Expect audio soon
-         if (this.audioContext && this.outputNode) {
-            this.outputNode.gain.setValueAtTime(0, this.audioContext.currentTime); // Start muted, will fade in
-            this.outputNode.gain.linearRampToValueAtTime(
-              1,
-              this.audioContext.currentTime + 0.1,
-            );
-        }
-      } else {
-        this.playbackState = 'error'; // If command failed
-      }
-    } else if (this.playbackState === 'stopped' || this.playbackState === 'error') {
-      if (this.currentPromptText.trim() === '') {
-        this.toastMessage.show('Please enter a music prompt before playing.');
-        return;
-      }
-      const response = await this.sendControlCommand('play'); // This will also (re)start SSE from backend
-       if (response?.success) {
-        this.connectToStream();
-        this.playbackState = 'loading';
-         if (this.audioContext && this.outputNode) { // Ensure gain is up
-            this.outputNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-            this.outputNode.gain.linearRampToValueAtTime(1, this.audioContext.currentTime + 0.1);
-         }
-      } else {
-        this.playbackState = 'error';
-      }
+      // Ensure prompts are set before playing, especially after a reconnect
+      await this.setSessionPrompts();
+      this.loadAudio();
 
     } else if (this.playbackState === 'loading') {
-      // If loading, clicking again should stop/cancel
-      await this.stopAudio();
+      // If stuck in loading, user might click to stop/reset
+      this.stopAudio();
     }
   }
 
-  private async stopAudio() {
-    await this.sendControlCommand('stop');
-    this.disconnectFromStream();
-    this.playbackState = 'stopped';
-     if (this.audioContext && this.outputNode) {
-        this.outputNode.gain.setValueAtTime(
-            this.outputNode.gain.value, this.audioContext.currentTime);
+ private pauseAudio() {
+    if (this.session && !this.connectionError) {
+        this.session.pause();
+    }
+    this.playbackState = 'paused';
+    if (this.audioContext.state === 'running') {
+        this.outputNode.gain.setValueAtTime(this.outputNode.gain.value, this.audioContext.currentTime);
         this.outputNode.gain.linearRampToValueAtTime(
-            0,
-            this.audioContext.currentTime + 0.1,
+        0,
+        this.audioContext.currentTime + 0.1,
         );
     }
     this.nextStartTime = 0;
+    // Recreate GainNode to clear any scheduled audio an ensure clean state
+    this.outputNode.disconnect();
+    this.outputNode = this.audioContext.createGain();
+    this.outputNode.connect(this.audioContext.destination);
   }
 
+
+  private loadAudio() {
+    if (this.audioContext.state === 'suspended') {
+        this.audioContext.resume();
+    }
+    if (this.session && !this.connectionError) {
+        this.session.play();
+    } else {
+        this.toastMessage.show("Cannot play: Not connected.");
+        this.playbackState = 'stopped';
+        return;
+    }
+    this.playbackState = 'loading';
+    this.outputNode.gain.setValueAtTime(0, this.audioContext.currentTime); // Start silent
+    this.outputNode.gain.linearRampToValueAtTime(
+      1,
+      this.audioContext.currentTime + 0.1,
+    );
+  }
+
+  private stopAudio() {
+    if (this.session && !this.connectionError) {
+        this.session.stop();
+    }
+    this.playbackState = 'stopped';
+    if (this.audioContext.state === 'running') {
+        this.outputNode.gain.setValueAtTime(this.outputNode.gain.value, this.audioContext.currentTime);
+        this.outputNode.gain.linearRampToValueAtTime(
+        0, // Fade out quickly
+        this.audioContext.currentTime + 0.1,
+        );
+    }
+    this.nextStartTime = 0;
+    // Recreate GainNode
+    this.outputNode.disconnect();
+    this.outputNode = this.audioContext.createGain();
+    this.outputNode.connect(this.audioContext.destination);
+  }
+
+
+  private async handleAddPrompt() {
+    const newPromptId = `prompt-${this.nextPromptId++}`;
+    const newPrompt: Prompt = {
+      promptId: newPromptId,
+      text: 'New Genre', // Default text
+      weight: 0, // Start with 0 weight
+    };
+    const newPrompts = new Map(this.prompts);
+    newPrompts.set(newPromptId, newPrompt);
+    this.prompts = newPrompts;
+
+    // Prompts will be sent to session when weight changes or play starts
+    // this.setSessionPrompts(); // Optionally send immediately or wait for user interaction
+
+    await this.updateComplete;
+
+    const newPromptElement = this.renderRoot.querySelector<PromptController>(
+      `prompt-controller[promptId="${newPromptId}"]`,
+    );
+    if (newPromptElement) {
+      newPromptElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'end',
+      });
+      const textSpan =
+        newPromptElement.shadowRoot?.querySelector<HTMLSpanElement>('#text');
+      if (textSpan) {
+        textSpan.focus();
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(textSpan);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+      }
+    }
+     this.requestUpdate(); // To re-render the list of prompts
+  }
+
+  private handlePromptRemoved(e: CustomEvent<string>) {
+    e.stopPropagation();
+    const promptIdToRemove = e.detail;
+    if (this.prompts.has(promptIdToRemove)) {
+      this.prompts.delete(promptIdToRemove);
+      const newPrompts = new Map(this.prompts); // Create a new map to trigger Lit update
+      this.prompts = newPrompts;
+      this.setSessionPrompts();
+      this.requestUpdate(); // To re-render the list of prompts
+    } else {
+      console.warn(
+        `Attempted to remove non-existent prompt ID: ${promptIdToRemove}`,
+      );
+    }
+  }
+
+  private handlePromptsContainerWheel(e: WheelEvent) {
+    const container = e.currentTarget as HTMLElement;
+    if (e.deltaX !== 0) {
+      e.preventDefault();
+      container.scrollLeft += e.deltaX;
+    }
+  }
+
+  // updateSettings and handleReset removed
+
   override render() {
+    // Simple background, no dynamic gradient
     return html`
-      <div class="controls-container">
-        <input
-          type="text"
-          id="prompt-input"
-          .value=${this.currentPromptText}
-          @input=${this.handlePromptInputChange}
-          placeholder="Enter music prompt (e.g., funky bassline)"
-          aria-label="Music Prompt" />
+      <div class="prompts-area">
+        <div
+          id="prompts-container"
+          @prompt-removed=${this.handlePromptRemoved}
+          @wheel=${this.handlePromptsContainerWheel}>
+          ${this.renderPrompts()}
+        </div>
+        <div class="add-prompt-button-container">
+          <add-prompt-button @click=${this.handleAddPrompt}></add-prompt-button>
+        </div>
+      </div>
+      <!-- Settings container removed -->
+      <div class="playback-container">
         <play-pause-button
           @click=${this.handlePlayPause}
           .playbackState=${this.playbackState}></play-pause-button>
-
-        ${this.playbackState === 'loading' ? html`<div class="info-text">Loading audio...</div>` : ''}
-        ${this.playbackState === 'playing' ? html`<div class="info-text">Playing music...</div>` : ''}
-        ${this.playbackState === 'error' ? html`<div class="error-text">An error occurred. Please try again.</div>` : ''}
-        ${this.playbackState === 'paused' ? html`<div class="info-text">Paused.</div>` : ''}
-
+        <!-- Reset button removed -->
       </div>
-      <toast-message></toast-message>
-    `;
+      <toast-message .message=${this.toastMessage?.message || ''} .showing=${this.toastMessage?.showing || false}></toast-message>`;
   }
 
-  override disconnectedCallback() {
-    super.disconnectedCallback();
-    this.stopAudio(); // Ensure session is stopped on backend
-    this.disconnectFromStream();
-    if (this.audioContext && this.audioContext.state !== 'closed') {
-      this.audioContext.close();
-    }
+  private renderPrompts() {
+    return [...this.prompts.values()].map((prompt) => {
+      return html`<prompt-controller
+        .promptId=${prompt.promptId}
+        ?filtered=${this.filteredPrompts.has(prompt.text)}
+        .text=${prompt.text}
+        .weight=${prompt.weight}
+        @prompt-changed=${this.handlePromptChanged}>
+      </prompt-controller>`;
+    });
   }
 }
 
+// gen function simplified
+function gen(parent: HTMLElement) {
+  const pdj = new PromptDj(); // No initial prompts from storage
+  parent.appendChild(pdj);
+}
+
+// getStoredPrompts and setStoredPrompts removed
+
 function main(container: HTMLElement) {
-  const player = new MinimalLyriaPlayer();
-  container.appendChild(player);
+  gen(container);
 }
 
 main(document.body);
 
 declare global {
   interface HTMLElementTagNameMap {
-    'minimal-lyria-player': MinimalLyriaPlayer;
+    'prompt-dj': PromptDj;
+    'prompt-controller': PromptController;
+    // 'settings-controller' removed
+    'add-prompt-button': AddPromptButton;
     'play-pause-button': PlayPauseButton;
+    // 'reset-button' removed
+    'weight-slider': WeightSlider;
     'toast-message': ToastMessage;
-  }
-  interface Window {
-    webkitAudioContext: typeof AudioContext;
   }
 }

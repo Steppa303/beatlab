@@ -2,16 +2,9 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import {Blob} from '@google/genai'; // This type might not be directly used client-side anymore
+// Blob import removed as createBlob is removed
 
-function encode(bytes: Uint8Array): string {
-  let binary = '';
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
+// encode function removed
 
 function decode(base64: string): Uint8Array {
   const binaryString = atob(base64);
@@ -23,20 +16,7 @@ function decode(base64: string): Uint8Array {
   return bytes;
 }
 
-// createBlob might not be needed client-side if prompts are sent as text to backend
-function createBlob(data: Float32Array): Blob {
-  const l = data.length;
-  const int16 = new Int16Array(l);
-  for (let i = 0; i < l; i++) {
-    // convert float32 -1 to 1 to int16 -32768 to 32767
-    int16[i] = data[i] * 32768;
-  }
-
-  return {
-    data: encode(new Uint8Array(int16.buffer)),
-    mimeType: 'audio/pcm;rate=16000', // This specific Lyria format might change
-  };
-}
+// createBlob function removed
 
 async function decodeAudioData(
   data: Uint8Array,
@@ -44,35 +24,46 @@ async function decodeAudioData(
   sampleRate: number,
   numChannels: number,
 ): Promise<AudioBuffer> {
+  // Ensure sufficient data for the number of channels
+  if (data.length < numChannels * 2) { // Each sample is 2 bytes (Int16)
+    console.error("Insufficient data for the number of channels specified.");
+    // Create an empty buffer or throw an error
+    return ctx.createBuffer(numChannels, 0, sampleRate);
+  }
+
   const buffer = ctx.createBuffer(
     numChannels,
-    data.length / 2 / numChannels, // Assuming 16-bit PCM, so 2 bytes per sample
+    data.length / 2 / numChannels, // Each sample is 2 bytes (Int16)
     sampleRate,
   );
 
-  // Assuming data is Int16Array LE. Convert to Float32Array for AudioBuffer.
-  // DataView is safer for endianness but Int16Array usually works for PCM from web services.
-  const dataInt16 = new Int16Array(data.buffer, data.byteOffset, data.byteLength / 2);
+  const dataInt16 = new Int16Array(data.buffer, data.byteOffset, data.length / 2); // Ensure correct view for Int16
   const dataFloat32 = new Float32Array(dataInt16.length);
   for (let i = 0; i < dataInt16.length; i++) {
-    dataFloat32[i] = dataInt16[i] / 32768.0; // Convert to range -1.0 to 1.0
+    dataFloat32[i] = dataInt16[i] / 32768.0;
   }
 
-  // De-interleave if necessary (example assumes data is already in correct channel order or mono)
-  // For stereo interleaved PCM:
-  if (numChannels > 0 && dataFloat32.length >= numChannels) {
-    for (let c = 0; c < numChannels; c++) {
-      const channelData = buffer.getChannelData(c);
-      for (let i = 0, j = c; i < channelData.length; i++, j += numChannels) {
-        channelData[i] = dataFloat32[j];
+  if (numChannels === 0) { // Should not happen if we check data.length
+      console.warn("Number of channels is zero, copying data to mono.");
+      if (buffer.numberOfChannels > 0) {
+        buffer.copyToChannel(dataFloat32, 0);
+      }
+  } else if (numChannels === 1) { // Mono
+    if (buffer.numberOfChannels > 0) {
+        buffer.copyToChannel(dataFloat32, 0);
+    }
+  } else { // Stereo or more
+    for (let i = 0; i < numChannels; i++) {
+      if (buffer.numberOfChannels > i) { // Check if buffer has this channel
+        const channelData = new Float32Array(dataFloat32.length / numChannels);
+        for (let j = 0; j < channelData.length; j++) {
+          channelData[j] = dataFloat32[j * numChannels + i];
+        }
+        buffer.copyToChannel(channelData, i);
       }
     }
-  } else if (numChannels === 1) {
-     buffer.copyToChannel(dataFloat32, 0);
   }
-
-
   return buffer;
 }
 
-export {createBlob, decode, decodeAudioData, encode};
+export {decode, decodeAudioData};
