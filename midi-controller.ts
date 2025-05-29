@@ -6,10 +6,54 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/// <reference types="webmidi" />
+// Local type definitions for Web MIDI API
+declare namespace WebMidi {
+  interface MIDIAccess extends EventTarget {
+    inputs: Map<string, MIDIInput>;
+    outputs: Map<string, MIDIOutput>;
+    onstatechange: ((event: MIDIConnectionEvent) => void) | null;
+    sysexEnabled: boolean;
+  }
 
-// Die lokalen Typdefinitionen wurden entfernt, da @types/webmidi verwendet wird.
-// Stellen Sie sicher, dass @types/webmidi in package.json korrekt referenziert ist.
+  interface MIDIPort extends EventTarget {
+    id: string;
+    manufacturer?: string;
+    name?: string;
+    type: MIDIPortType;
+    version?: string;
+    state: MIDIPortDeviceState;
+    connection: MIDIPortConnectionState;
+    onstatechange: ((event: MIDIConnectionEvent) => void) | null;
+    open(): Promise<MIDIPort>;
+    close(): Promise<MIDIPort>;
+  }
+
+  interface MIDIInput extends MIDIPort {
+    type: "input";
+    onmidimessage: ((event: MIDIMessageEvent) => void) | null;
+  }
+
+  interface MIDIOutput extends MIDIPort {
+    type: "output";
+    send(data: Uint8Array | number[], timestamp?: number): void;
+    clear(): void;
+  }
+
+  type MIDIPortType = "input" | "output";
+  type MIDIPortDeviceState = "disconnected" | "connected";
+  type MIDIPortConnectionState = "open" | "closed" | "pending";
+
+  interface MIDIMessageEvent extends Event {
+    data: Uint8Array;
+    receivedTime: number; // DOMHighResTimeStamp
+  }
+
+  interface MIDIConnectionEvent extends Event {
+    port: MIDIPort;
+  }
+}
+
+// End of local type definitions
 
 export interface MidiInputInfo {
   id: string;
