@@ -715,6 +715,7 @@ class PromptController extends LitElement {
   @property({type: String}) sliderColor = '#5200ff';
 
   @query('#text') private textInput!: HTMLSpanElement;
+  @query('.ratio-display') private ratioDisplayElement!: HTMLDivElement;
 
   private handleTextKeyDown(e: KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -750,11 +751,7 @@ class PromptController extends LitElement {
     const newWeight = event.detail;
     if (this.weight !== newWeight) {
       this.weight = newWeight;
-      // Explicitly request an update. This can help ensure the component
-      // re-renders correctly, especially if Lit's automatic change detection
-      // for properties is behaving unexpectedly after certain DOM interactions
-      // (like contenteditable blur) on specific platforms (e.g., iOS).
-      this.requestUpdate();
+      this.requestUpdate('weight'); // Hint that 'weight' property changed
     }
     this.dispatchPromptChange();
   }
@@ -767,6 +764,15 @@ class PromptController extends LitElement {
         composed: true,
       }),
     );
+  }
+
+  override updated(changedProperties: Map<string | number | symbol, unknown>) {
+    super.updated(changedProperties);
+    if (changedProperties.has('weight')) {
+      if (this.ratioDisplayElement) {
+        this.ratioDisplayElement.textContent = `RATIO: ${this.weight.toFixed(1)}`;
+      }
+    }
   }
 
   override render() {
