@@ -14,7 +14,7 @@ import {
   GoogleGenAI,
   type LiveMusicServerMessage,
   type LiveMusicSession,
-  type LiveMusicGenerationConfig, // Keep for potential minimal config
+  type LiveMusicGenerationConfig,
 } from '@google/genai';
 import {decode, decodeAudioData} from './utils';
 import { MidiController } from './midi-controller';
@@ -243,6 +243,95 @@ class WeightSlider extends LitElement {
   }
 }
 
+
+/** A generic slider for parameters. */
+@customElement('parameter-slider')
+class ParameterSlider extends LitElement {
+  static override styles = css`
+    :host {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3em;
+      width: 100%;
+      font-size: 0.9em; /* Slightly smaller than main UI text */
+    }
+    .label-value-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #ccc; /* Lighter text for labels */
+    }
+    .label {
+      font-weight: 500;
+    }
+    .value-display {
+      font-variant-numeric: tabular-nums;
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 10px; /* Slightly thinner than prompt sliders */
+      background: #282828; /* Darker track */
+      border-radius: 5px;
+      outline: none;
+      cursor: ew-resize;
+      margin: 0;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px; /* Thumb size */
+      height: 18px;
+      background: #7e57c2; /* Purple thumb color like screenshot */
+      border-radius: 50%;
+      cursor: ew-resize;
+      border: 2px solid #fff; /* White border for contrast */
+      box-shadow: 0 0 3px rgba(0,0,0,0.5);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 16px; /* Adjusted for Firefox */
+      height: 16px;
+      background: #7e57c2;
+      border-radius: 50%;
+      cursor: ew-resize;
+      border: 2px solid #fff;
+      box-shadow: 0 0 3px rgba(0,0,0,0.5);
+    }
+  `;
+
+  @property({type: String}) label = '';
+  @property({type: Number}) value = 0;
+  @property({type: Number}) min = 0;
+  @property({type: Number}) max = 1;
+  @property({type: Number}) step = 0.01;
+
+  private handleInput(e: Event) {
+    const target = e.target as HTMLInputElement;
+    this.value = parseFloat(target.value);
+    this.dispatchEvent(new CustomEvent<number>('input', {detail: this.value}));
+  }
+
+  override render() {
+    return html`
+      <div class="label-value-container">
+        <span class="label">${this.label}</span>
+        <span class="value-display">${this.value.toFixed(this.step < 0.1 ? 2 : 1)}</span>
+      </div>
+      <input
+        type="range"
+        .min=${this.min}
+        .max=${this.max}
+        .step=${this.step}
+        .value=${this.value.toString()}
+        @input=${this.handleInput}
+        aria-label=${this.label}
+      />
+    `;
+  }
+}
+
+
 // Base class for icon buttons.
 class IconButton extends LitElement {
   static override styles = css`
@@ -372,6 +461,34 @@ export class AddPromptButton extends IconButton {
     return this.renderAddIcon();
   }
 }
+
+// SettingsButton component
+@customElement('settings-button')
+export class SettingsButton extends IconButton {
+  static override styles = [
+    IconButton.styles,
+    css`
+      .icon-path {
+        stroke: #FEFEFE;
+        stroke-width: 6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+    `
+  ];
+  // Simple gear icon
+  private renderSettingsIcon() {
+    return svg`
+      <path class="icon-path" d="M43.75 25V20.625C43.75 19.9179 44.3429 19.375 45.0804 19.375H54.9196C55.6571 19.375 56.25 19.9179 56.25 20.625V25M43.75 75V79.375C43.75 80.0821 44.3429 80.625 45.0804 80.625H54.9196C55.6571 80.625 56.25 80.0821 56.25 79.375V75M25 43.75H20.625C19.9179 43.75 19.375 44.3429 19.375 45.0804V54.9196C19.375 55.6571 19.9179 56.25 20.625 56.25H25M75 43.75H79.375C80.0821 43.75 80.625 44.3429 80.625 45.0804V54.9196C80.625 55.6571 80.0821 56.25 79.375 56.25H75" />
+      <circle class="icon-path" cx="50" cy="50" r="12.5" />
+      <path class="icon-path" d="M33.2375 33.2375L37.5 37.5M66.7625 66.7625L62.5 62.5M33.2375 66.7625L37.5 62.5M66.7625 33.2375L62.5 37.5" />
+    `;
+  }
+  override renderIcon() {
+    return this.renderSettingsIcon();
+  }
+}
+
 
 // Toast Message component
 @customElement('toast-message')
@@ -650,15 +767,15 @@ class PromptDj extends LitElement {
       width: 100%;
       height: 100%;
       overflow: hidden;
-      z-index: 0; /* Behind main content, above host background */
-      pointer-events: none; /* Orbs should not intercept mouse events */
+      z-index: 0; 
+      pointer-events: none; 
     }
 
     .orb {
       position: absolute;
       border-radius: 50%;
       will-change: transform, opacity;
-      opacity: 0; /* Start invisible, fade in with animation */
+      opacity: 0; 
     }
 
     .orb1 {
@@ -679,7 +796,7 @@ class PromptDj extends LitElement {
       width: 45vmax;
       height: 45vmax;
       background: radial-gradient(circle, ${unsafeCSS(ORB_COLORS[1])} 0%, transparent 70%);
-      animation: floatOrb2 45s infinite ease-in-out 5s; /* 5s delay */
+      animation: floatOrb2 45s infinite ease-in-out 5s; 
       top: 40%; left: 60%;
     }
     @keyframes floatOrb2 {
@@ -693,7 +810,7 @@ class PromptDj extends LitElement {
       width: 25vmax;
       height: 25vmax;
       background: radial-gradient(circle, ${unsafeCSS(ORB_COLORS[2])} 0%, transparent 65%);
-      animation: floatOrb3 30s infinite ease-in-out 2s; /* 2s delay */
+      animation: floatOrb3 30s infinite ease-in-out 2s; 
       top: 70%; left: 20%;
     }
     @keyframes floatOrb3 {
@@ -702,11 +819,11 @@ class PromptDj extends LitElement {
       66% { transform: translate(-15vw, 10vh) scale(0.7); opacity: 0.15; }
     }
     
-    .orb4 { /* A smaller, faster, or more subtle orb for variety */
+    .orb4 { 
       width: 15vmax;
       height: 15vmax;
       background: radial-gradient(circle, ${unsafeCSS(ORB_COLORS[3])} 0%, transparent 75%);
-      animation: floatOrb4 55s infinite ease-in-out 8s; /* 8s delay */
+      animation: floatOrb4 55s infinite ease-in-out 8s; 
       top: 5%; left: 80%;
     }
     @keyframes floatOrb4 {
@@ -720,7 +837,7 @@ class PromptDj extends LitElement {
     .header-bar {
       width: 100%;
       padding: 2vmin 3vmin;
-      background: linear-gradient(90deg, #1f1f1f, #2a2a2a, #1f1f1f); /* Animated header gradient */
+      background: linear-gradient(90deg, #1f1f1f, #2a2a2a, #1f1f1f);
       background-size: 300% 100%;
       animation: animatedHeaderGradient 15s ease infinite;
       display: flex;
@@ -728,9 +845,9 @@ class PromptDj extends LitElement {
       align-items: center;
       box-sizing: border-box;
       flex-shrink: 0;
-      border-bottom: 1px solid #383838; /* Slightly lighter border */
-      z-index: 100; /* Ensure header is above orbs */
-      position: relative; /* Needed for z-index to work against absolute positioned orbs */
+      border-bottom: 1px solid #383838; 
+      z-index: 100; 
+      position: relative; 
       box-shadow: 0 2px 10px rgba(0,0,0,0.3);
     }
 
@@ -747,10 +864,12 @@ class PromptDj extends LitElement {
       padding: 0.8em 1em;
       border-radius: 6px;
       font-size: 2vmin;
-      min-width: 200px;
-      max-width: 320px;
+      min-width: 180px; /* Adjusted min-width */
+      max-width: 280px; /* Adjusted max-width */
       box-sizing: border-box;
       transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+      flex-shrink: 1; /* Allow shrinking if space is tight */
+      margin-right: 1vmin;
     }
     .midi-selector:hover {
       border-color: #777;
@@ -771,15 +890,54 @@ class PromptDj extends LitElement {
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 2vmin;
+      gap: 1.5vmin; /* Slightly reduced gap */
     }
     .header-actions > add-prompt-button,
-    .header-actions > play-pause-button {
-      width: 8vmin;
-      height: 8vmin;
-      max-width: 65px;
-      max-height: 65px;
+    .header-actions > play-pause-button,
+    .header-actions > settings-button {
+      width: 7vmin; /* Adjusted size for more buttons */
+      height: 7vmin;
+      max-width: 55px; /* Adjusted max size */
+      max-height: 55px;
     }
+
+    .advanced-settings-panel {
+      background-color: #222; /* Slightly darker than header */
+      width: 100%;
+      padding: 0; /* Will be controlled by inner content or set explicitly */
+      box-sizing: border-box;
+      z-index: 99; /* Below header but above content if overlapping */
+      position: relative;
+      overflow: hidden;
+      max-height: 0;
+      opacity: 0;
+      transition: max-height 0.5s ease-in-out, opacity 0.5s ease-in-out, padding 0.5s ease-in-out;
+      border-bottom: 1px solid #383838;
+    }
+    .advanced-settings-panel.visible {
+      max-height: 500px; /* Adjust as needed for content */
+      opacity: 1;
+      padding: 2vmin 3vmin;
+    }
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 2vmin;
+      margin-bottom: 1.5vmin;
+    }
+    .hide-settings-link {
+      display: block;
+      text-align: center;
+      color: #aaa;
+      text-decoration: underline;
+      cursor: pointer;
+      padding-top: 1vmin;
+      font-size: 0.9em;
+    }
+    .hide-settings-link:hover {
+      color: #fff;
+    }
+
 
     .content-area {
       display: flex;
@@ -792,8 +950,8 @@ class PromptDj extends LitElement {
       overflow: hidden;
       padding: 2vmin;
       box-sizing: border-box;
-      z-index: 10; /* Ensure content is above orbs */
-      position: relative; /* Needed for z-index */
+      z-index: 10; 
+      position: relative; 
     }
     #prompts-container {
       display: flex;
@@ -807,20 +965,20 @@ class PromptDj extends LitElement {
       scrollbar-width: thin;
       scrollbar-color: #666 #1a1a1a;
       box-sizing: border-box;
-      padding-right: 8px; /* More space for scrollbar */
-      padding-left: 3px; /* Balance padding */
+      padding-right: 8px; 
+      padding-left: 3px; 
     }
     #prompts-container::-webkit-scrollbar {
-      width: 10px; /* Slightly thicker scrollbar */
+      width: 10px; 
     }
     #prompts-container::-webkit-scrollbar-track {
-      background: #181818; /* Darker track */
+      background: #181818; 
       border-radius: 5px;
     }
     #prompts-container::-webkit-scrollbar-thumb {
-      background-color: #555; /* Darker thumb */
+      background-color: #555; 
       border-radius: 5px;
-      border: 2px solid #181818; /* Creates padding around thumb */
+      border: 2px solid #181818; 
     }
     #prompts-container::-webkit-scrollbar-thumb:hover {
       background-color: #777;
@@ -854,11 +1012,13 @@ class PromptDj extends LitElement {
   private readonly midiCcBase = 1;
   private isConnecting = false;
 
-
   @query('toast-message') private toastMessage!: ToastMessage;
 
   @state() private availableMidiInputs: Array<{id: string, name: string}> = [];
   @state() private selectedMidiInputId: string | null = null;
+  @state() private showAdvancedSettings = false;
+  @state() private temperature = 1.0; // Default, Min: 0, Max: 2, Step: 0.1
+  @state() private guidanceScale = 7.0; // Default, Min: 1, Max: 20, Step: 0.1
 
   constructor() {
     super();
@@ -951,7 +1111,8 @@ class PromptDj extends LitElement {
             onmessage: async (e: LiveMusicServerMessage) => {
             console.log('Received message from the server:', e);
             if (e.setupComplete) {
-                // this.connectionError = false; // Already set after successful connect()
+                // Initial config set after setup is complete
+                this.setGenerationConfiguration();
             }
             if (e.filteredPrompt) {
                 this.filteredPrompts = new Set([
@@ -1010,6 +1171,8 @@ class PromptDj extends LitElement {
         });
         this.connectionError = false;
         console.log("Session connected successfully.");
+        // Set initial generation config once session is established
+        this.setGenerationConfiguration();
     } catch (error: any) {
         console.error("Failed to connect to session:", error);
         this.connectionError = true;
@@ -1019,6 +1182,24 @@ class PromptDj extends LitElement {
         this.isConnecting = false;
     }
   }
+
+  private setGenerationConfiguration = throttle(async () => {
+    if (!this.session || this.connectionError) {
+        console.warn("Cannot set generation config: No session or connection error.");
+        return;
+    }
+    const musicGenConfig: LiveMusicGenerationConfig = {
+        temperature: this.temperature,
+        guidance_scale: this.guidanceScale,
+    };
+    try {
+        await this.session.setMusicGenerationConfig({ musicGenerationConfig: musicGenConfig });
+        console.log("Generation config sent to session:", musicGenConfig);
+    } catch (e: any) {
+        this.toastMessage.show(`Error setting generation config: ${e.message}`);
+        // Optionally, pause audio or handle error further
+    }
+  }, 300); // Throttle to avoid spamming the API
 
   private setSessionPrompts = throttle(async () => {
     if (!this.session || this.connectionError) {
@@ -1032,7 +1213,6 @@ class PromptDj extends LitElement {
     if (promptsToSend.length === 0 && this.playbackState === 'playing') {
         console.log("Setting empty prompts list.");
     }
-
 
     try {
       await this.session.setWeightedPrompts({
@@ -1087,6 +1267,9 @@ class PromptDj extends LitElement {
             return;
         }
       }
+      // Ensure config is set before playing if it wasn't due to connection error
+      this.setGenerationConfiguration();
+
       if (this.audioContext.state === 'suspended') {
         await this.audioContext.resume().catch(err => console.error("Audio context resume failed:", err));
       }
@@ -1205,7 +1388,7 @@ class PromptDj extends LitElement {
           selection?.removeAllRanges();
           selection?.addRange(range);
         }
-      }, 100); // Delay ensures element is fully rendered and focusable
+      }, 100); 
     }
   }
 
@@ -1213,17 +1396,7 @@ class PromptDj extends LitElement {
     e.stopPropagation();
     const promptIdToRemove = e.detail;
     if (this.prompts.has(promptIdToRemove)) {
-      // Add a class for "removing" animation (optional, for more complex exit anims)
-      // const promptElement = this.renderRoot.querySelector(`prompt-controller[promptId="${promptIdToRemove}"]`);
-      // if (promptElement) {
-      //   promptElement.classList.add('removing');
-      //   // Wait for animation to finish before actually removing
-      //   promptElement.addEventListener('animationend', () => {
-      //     this.actuallyRemovePrompt(promptIdToRemove);
-      //   }, { once: true });
-      // } else {
         this.actuallyRemovePrompt(promptIdToRemove);
-      // }
     } else {
       console.warn(
         `Attempted to remove non-existent prompt ID: ${promptIdToRemove}`,
@@ -1234,7 +1407,7 @@ class PromptDj extends LitElement {
   private actuallyRemovePrompt(promptIdToRemove: string) {
     const newPrompts = new Map(this.prompts);
     newPrompts.delete(promptIdToRemove);
-    this.prompts = newPrompts; // This will trigger a re-render
+    this.prompts = newPrompts; 
     this.setSessionPrompts();
   }
 
@@ -1251,23 +1424,34 @@ class PromptDj extends LitElement {
         if (targetPrompt) {
             const existingPrompt = this.prompts.get(targetPrompt.promptId);
             if (existingPrompt) {
-                existingPrompt.weight = normalizedValue; // This mutates the object in the map
-                // Trigger re-render for PromptController and WeightSlider to pick up new weight
-                this.prompts = new Map(this.prompts); // Forces Lit to see 'prompts' as changed
+                existingPrompt.weight = normalizedValue; 
+                this.prompts = new Map(this.prompts); 
                 this.setSessionPrompts();
 
-                // Also, explicitly update the WeightSlider component if needed for animations
                 const sliderElement = this.renderRoot.querySelector<WeightSlider>(
                     `prompt-controller[promptId="${targetPrompt.promptId}"] weight-slider`
                 );
                 if (sliderElement) {
-                    sliderElement.value = normalizedValue; // This will trigger its `updated` and thus animation
+                    sliderElement.value = normalizedValue; 
                 }
             }
         }
     }
   }
 
+  private toggleAdvancedSettings() {
+    this.showAdvancedSettings = !this.showAdvancedSettings;
+  }
+
+  private handleTemperatureChange(e: CustomEvent<number>) {
+    this.temperature = e.detail;
+    this.setGenerationConfiguration();
+  }
+
+  private handleGuidanceScaleChange(e: CustomEvent<number>) {
+    this.guidanceScale = e.detail;
+    this.setGenerationConfiguration();
+  }
 
   override render() {
     const showSelectPlaceholder = this.availableMidiInputs.length > 0 && !this.availableMidiInputs.some(input => input.id === this.selectedMidiInputId);
@@ -1296,6 +1480,7 @@ class PromptDj extends LitElement {
             `}
         </select>
         <div class="header-actions">
+          <settings-button @click=${this.toggleAdvancedSettings} aria-label="Toggle advanced settings"></settings-button>
           <add-prompt-button @click=${this.handleAddPrompt} aria-label="Add new prompt"></add-prompt-button>
           <play-pause-button
             @click=${this.handlePlayPause}
@@ -1303,6 +1488,27 @@ class PromptDj extends LitElement {
             aria-label=${this.playbackState === 'playing' ? 'Pause audio' : 'Play audio'}
           ></play-pause-button>
         </div>
+      </div>
+      <div class="advanced-settings-panel ${classMap({visible: this.showAdvancedSettings})}">
+        <div class="settings-grid">
+            <parameter-slider
+            label="Temperature"
+            .value=${this.temperature}
+            min="0"
+            max="2"
+            step="0.1"
+            @input=${this.handleTemperatureChange}
+            ></parameter-slider>
+            <parameter-slider
+            label="Guidance Scale"
+            .value=${this.guidanceScale}
+            min="1"
+            max="20"
+            step="0.1"
+            @input=${this.handleGuidanceScaleChange}
+            ></parameter-slider>
+        </div>
+        <a class="hide-settings-link" @click=${this.toggleAdvancedSettings}>Hide Advanced Settings</a>
       </div>
       <div class="content-area">
         <div id="prompts-container" @prompt-removed=${this.handlePromptRemoved}>
@@ -1342,8 +1548,10 @@ declare global {
     'prompt-dj': PromptDj;
     'prompt-controller': PromptController;
     'add-prompt-button': AddPromptButton;
+    'settings-button': SettingsButton;
     'play-pause-button': PlayPauseButton;
     'weight-slider': WeightSlider;
+    'parameter-slider': ParameterSlider;
     'toast-message': ToastMessage;
   }
 
