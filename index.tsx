@@ -714,7 +714,6 @@ class PromptController extends LitElement {
   @property({type: Number}) weight = 0;
   @property({type: String}) sliderColor = '#5200ff';
 
-  @query('weight-slider') private weightInput!: WeightSlider;
   @query('#text') private textInput!: HTMLSpanElement;
 
   private handleTextKeyDown(e: KeyboardEvent) {
@@ -747,8 +746,11 @@ class PromptController extends LitElement {
     this.dispatchPromptChange();
   }
 
-  private updateWeight() {
-    this.weight = this.weightInput.value;
+  private updateWeight(event: CustomEvent<number>) {
+    const newWeight = event.detail;
+    if (this.weight !== newWeight) {
+      this.weight = newWeight;
+    }
     this.dispatchPromptChange();
   }
 
