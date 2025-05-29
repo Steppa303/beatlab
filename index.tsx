@@ -1372,8 +1372,10 @@ class PromptDj extends LitElement {
   );
   private outputNode: GainNode = this.audioContext.createGain();
   private nextStartTime = 0;
-  private readonly bufferTime = 2;
+  private readonly bufferTime = 2; // Target buffer duration in seconds
   @state() private playbackState: PlaybackState = 'stopped';
+  @state() private firstChunkReceivedTimestamp = 0; // Timestamp of the first chunk in current loading cycle
+
   @property({type: Object})
   private filteredPrompts = new Set<string>();
   private connectionError = true;
@@ -1401,6 +1403,7 @@ class PromptDj extends LitElement {
     this.midiController = new MidiController();
     this.handleMidiCcReceived = this.handleMidiCcReceived.bind(this);
     this.handleMidiInputsChanged = this.handleMidiInputsChanged.bind(this);
+    this.firstChunkReceivedTimestamp = 0;
   }
 
   override async firstUpdated() {
@@ -1479,9 +1482,8 @@ class PromptDj extends LitElement {
         model: model,
         callbacks: {
             onmessage: async (e: LiveMusicServerMessage) => {
-            console.log('Received message from the server:', e);
+            // console.log('Received message from the server:', e); // Log every message for debug if needed
             if (e.setupComplete) {
-                // Initial config set after setup is complete
                 this.setGenerationConfiguration();
             }
             if (e.filteredPrompt) {
@@ -1492,36 +1494,54 @@ class PromptDj extends LitElement {
                 this.toastMessage.show(e.filteredPrompt.filteredReason);
             }
             if (e.serverContent?.audioChunks !== undefined) {
-                if (
-                this.playbackState === 'paused' ||
-                this.playbackState === 'stopped'
-                )
-                return;
+                if (this.playbackState === 'paused' || this.playbackState === 'stopped') {
+                    return; // Ignore audio if not trying to play/load
+                }
 
                 const audioBuffer = await decodeAudioData(
-                decode(e.serverContent?.audioChunks[0].data),
-                this.audioContext,
-                this.sampleRate,
-                2,
+                    decode(e.serverContent?.audioChunks[0].data),
+                    this.audioContext,
+                    this.sampleRate,
+                    2,
                 );
                 const source = this.audioContext.createBufferSource();
                 source.buffer = audioBuffer;
                 source.connect(this.outputNode);
-                if (this.nextStartTime === 0) {
-                  this.nextStartTime =
-                      this.audioContext.currentTime + this.bufferTime;
-                  setTimeout(() => {
-                      if (this.playbackState === 'loading') this.playbackState = 'playing';
-                  }, this.bufferTime * 1000);
+
+                const currentTime = this.audioContext.currentTime;
+
+                if (this.playbackState === 'loading') {
+                    if (this.firstChunkReceivedTimestamp === 0) { // First chunk in this loading cycle
+                        this.firstChunkReceivedTimestamp = currentTime;
+                        // Set the target playout time for this very first chunk
+                        this.nextStartTime = currentTime + this.bufferTime;
+                        console.log(`Initial buffer: first chunk received, scheduling for ${this.nextStartTime.toFixed(2)}s`);
+                    }
                 }
 
-                if (this.nextStartTime < this.audioContext.currentTime) {
-                  console.log('Audio under run');
-                  this.playbackState = 'loading';
-                  this.nextStartTime = this.audioContext.currentTime + this.bufferTime;
-                  return;
+                // Handle underrun: if nextStartTime is in the past.
+                if (this.nextStartTime < currentTime) {
+                    console.warn(`Audio under run: nextStartTime ${this.nextStartTime.toFixed(2)}s < currentTime ${currentTime.toFixed(2)}s. Resetting playback target.`);
+                    this.playbackState = 'loading'; // Ensure we are in loading state
+                    this.firstChunkReceivedTimestamp = currentTime; // Restart buffering period
+                    // Schedule this current buffer to play after bufferTime from now.
+                    this.nextStartTime = currentTime + this.bufferTime;
                 }
+
                 source.start(this.nextStartTime);
+
+                // If we were loading, check if we can transition to 'playing'
+                if (this.playbackState === 'loading') {
+                    // Transition to playing if currentTime has caught up to when the first buffered chunk *should* start playing.
+                    // This means the initial bufferTime period has elapsed since receiving the first chunk for this loading cycle.
+                    if (this.firstChunkReceivedTimestamp > 0 && (currentTime >= this.firstChunkReceivedTimestamp + this.bufferTime - 0.1)) { // -0.1s for slight margin
+                        console.log("Buffer period elapsed, transitioning to playing state.");
+                        this.playbackState = 'playing';
+                        this.firstChunkReceivedTimestamp = 0; // Reset for next loading cycle
+                    }
+                }
+                
+                // Advance nextStartTime for the *next* buffer
                 this.nextStartTime += audioBuffer.duration;
             }
             },
@@ -1541,7 +1561,6 @@ class PromptDj extends LitElement {
         });
         this.connectionError = false;
         console.log("Session connected successfully.");
-        // Set initial generation config once session is established
         this.setGenerationConfiguration();
     } catch (error: any) {
         console.error("Failed to connect to session:", error);
@@ -1566,9 +1585,8 @@ class PromptDj extends LitElement {
         console.log("Generation config sent to session:", musicGenConfig);
     } catch (e: any) {
         this.toastMessage.show(`Error setting generation config: ${e.message}`);
-        // Optionally, pause audio or handle error further
     }
-  }, 300); // Throttle to avoid spamming the API
+  }, 300);
 
   private setSessionPrompts = throttle(async () => {
     if (!this.session || this.connectionError) {
@@ -1628,15 +1646,16 @@ class PromptDj extends LitElement {
       this.playbackState === 'stopped'
     ) {
       this.playbackState = 'loading';
+      this.firstChunkReceivedTimestamp = 0; // Reset for new loading cycle
 
       if (this.connectionError || !this.session) {
         await this.connectToSession();
         if (this.connectionError) {
             if(this.playbackState === 'loading') this.playbackState = 'stopped';
+            this.firstChunkReceivedTimestamp = 0; // Ensure reset on failure
             return;
         }
       }
-      // Ensure config is set before playing if it wasn't due to connection error
       this.setGenerationConfiguration();
 
       if (this.audioContext.state === 'suspended') {
@@ -1659,6 +1678,9 @@ class PromptDj extends LitElement {
         }
     }
     this.playbackState = 'paused';
+    this.nextStartTime = 0; // Reset for consistent re-buffering on resume
+    this.firstChunkReceivedTimestamp = 0; // Reset buffering state
+
     if (this.audioContext.state === 'running') {
         this.outputNode.gain.setValueAtTime(this.outputNode.gain.value, this.audioContext.currentTime);
         this.outputNode.gain.linearRampToValueAtTime(
@@ -1680,11 +1702,13 @@ class PromptDj extends LitElement {
             console.error("Error playing session:", e);
             this.toastMessage.show("Error trying to play. Session might be in an invalid state.");
             this.playbackState = 'stopped';
+            this.firstChunkReceivedTimestamp = 0;
             return;
         }
     } else if (!this.session || this.connectionError) {
         if (this.playbackState === 'loading') {
             this.playbackState = 'stopped';
+            this.firstChunkReceivedTimestamp = 0;
         }
         this.toastMessage.show("Cannot play: Not connected or connection error.");
         return;
@@ -1709,6 +1733,9 @@ class PromptDj extends LitElement {
         }
     }
     this.playbackState = 'stopped';
+    this.nextStartTime = 0;
+    this.firstChunkReceivedTimestamp = 0; // Reset buffering state
+
     if (this.audioContext.state === 'running') {
         this.outputNode.gain.setValueAtTime(this.outputNode.gain.value, this.audioContext.currentTime);
         this.outputNode.gain.linearRampToValueAtTime(
@@ -1716,7 +1743,6 @@ class PromptDj extends LitElement {
         this.audioContext.currentTime + 0.1,
         );
     }
-    this.nextStartTime = 0;
   }
 
 
@@ -1727,7 +1753,7 @@ class PromptDj extends LitElement {
 
     const newPrompt: Prompt = {
       promptId: newPromptId,
-      text: 'New Prompt', // This will trigger edit mode in PromptController
+      text: 'New Prompt', 
       weight: 0,
       color: newColor,
     };
@@ -1735,15 +1761,12 @@ class PromptDj extends LitElement {
     newPrompts.set(newPromptId, newPrompt);
     this.prompts = newPrompts;
 
-    // Wait for the new prompt controller to be rendered
     await this.updateComplete;
 
-    // Scroll to the new prompt
     const promptsContainer = this.renderRoot.querySelector('#prompts-container');
     if (promptsContainer) {
         promptsContainer.scrollTop = promptsContainer.scrollHeight;
     }
-    // PromptController will now handle its own focus when 'isEditingText' becomes true.
   }
 
   private handlePromptRemoved(e: CustomEvent<string>) {
