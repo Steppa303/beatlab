@@ -667,8 +667,8 @@ class PromptController extends LitElement {
       font-size: 3.2vmin;
       white-space: nowrap;
       font-weight: normal;
-      margin-left: auto;
-      padding: 0 10px;
+      margin-left: 5px; /* Reduced margin to make space for edit button */
+      padding: 0 5px; /* Reduced padding */
       flex-shrink: 0;
     }
     weight-slider {
@@ -676,12 +676,18 @@ class PromptController extends LitElement {
       height: 20px;
       margin: 0 15px 12px 15px;
     }
-    #text {
+    .text-container {
+      display: flex;
+      align-items: center;
+      flex-grow: 1;
+      overflow: hidden; /* Important for text ellipsis */
+      margin-right: 8px;
+    }
+    #text-input, #static-text {
       font-family: 'Google Sans', sans-serif;
       font-size: 3.6vmin;
       font-weight: 500;
-      width: 100%;
-      padding: 0;
+      padding: 2px 4px; /* Added some padding */
       box-sizing: border-box;
       text-align: left;
       word-wrap: break-word;
@@ -691,21 +697,52 @@ class PromptController extends LitElement {
       color: #fff;
       background-color: transparent;
       border-radius: 3px;
+      flex-grow: 1;
+      min-width: 0; /* Allows shrinking and ellipsis */
+    }
+    #static-text {
       overflow: hidden;
       white-space: nowrap;
       text-overflow: ellipsis;
       min-height: 1.2em;
       line-height: 1.2em;
-      flex-grow: 1;
-      transition: box-shadow 0.2s ease-in-out;
+      cursor: text; /* Indicate it can be interacted with */
     }
-    #text:focus {
-        overflow: visible;
-        white-space: normal;
-        text-overflow: clip;
-        box-shadow: 0 2px 0px -1px #66afe9;
+    #static-text:hover {
+      background-color: rgba(255,255,255,0.05);
     }
-    :host([filtered='true']) #text {
+    #text-input {
+      background-color: rgba(0,0,0,0.2); /* Slight background for input */
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1);
+    }
+    #text-input:focus {
+        box-shadow: 0 0 0 2px #66afe9;
+    }
+    .edit-save-button {
+      background: none;
+      border: none;
+      color: #ccc;
+      cursor: pointer;
+      padding: 4px;
+      margin-left: 8px; /* Space between text and button */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      flex-shrink: 0;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    .edit-save-button:hover {
+      background-color: rgba(255,255,255,0.1);
+      color: #fff;
+    }
+    .edit-save-button svg {
+      width: 20px; /* Adjust icon size */
+      height: 20px;
+      fill: currentColor;
+    }
+    :host([filtered='true']) #static-text,
+    :host([filtered='true']) #text-input {
       background: #da2000;
     }
   `;
@@ -715,13 +752,29 @@ class PromptController extends LitElement {
   @property({type: Number}) weight = 0;
   @property({type: String}) sliderColor = '#5200ff';
 
-  @query('#text') private textInput!: HTMLSpanElement;
+  @state() private isEditingText = false;
+  @query('#text-input') private textInputElement!: HTMLInputElement;
+  private _originalTextBeforeEdit = ''; // To revert on Escape
 
-  private handleTextKeyDown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      this.updateText();
-      (e.target as HTMLElement).blur();
+  override connectedCallback() {
+    super.connectedCallback();
+    // For new prompts, start in edit mode.
+    // !this.hasUpdated ensures this is only for the initial setup.
+    if (this.text === 'New Prompt' && !this.hasUpdated) {
+      this.isEditingText = true;
+      this._originalTextBeforeEdit = this.text;
+    }
+  }
+
+  override updated(changedProperties: Map<string | number | symbol, unknown>) {
+    super.updated(changedProperties);
+    if (changedProperties.has('isEditingText') && this.isEditingText) {
+      requestAnimationFrame(() => {
+        if (this.textInputElement) {
+          this.textInputElement.focus();
+          this.textInputElement.select();
+        }
+      });
     }
   }
 
@@ -737,15 +790,56 @@ class PromptController extends LitElement {
     );
   }
 
-  private updateText() {
-    const newText = this.textInput.textContent?.trim();
-    if (newText === undefined || newText === this.text) {
-        if (newText === '') this.textInput.textContent = this.text;
-        return;
+  private saveText() {
+    const newText = this.textInputElement.value.trim();
+    if (newText === this.text && this.text !== 'New Prompt') { // Check if text actually changed, unless it's the initial "New Prompt"
+      this.isEditingText = false;
+      return;
     }
-    this.text = newText;
+    this.text = newText === '' ? 'Untitled Prompt' : newText;
     this.dispatchPromptChange();
+    this.isEditingText = false;
   }
+
+  private handleToggleEditSave() {
+    if (this.isEditingText) {
+      // Currently editing, so save
+      this.saveText();
+    } else {
+      // Not editing, so start editing
+      this._originalTextBeforeEdit = this.text;
+      this.isEditingText = true;
+    }
+  }
+
+  private handleTextInputKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      this.saveText();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      this.text = this._originalTextBeforeEdit; // Revert to original text
+      // No need to dispatch if reverting, text prop itself will re-render if changed.
+      // If you want to ensure parent knows about revert:
+      // if (this.text !== this.textInputElement.value.trim()) this.dispatchPromptChange();
+      this.isEditingText = false;
+    }
+  }
+  
+  private handleTextInputBlur() {
+    // Save on blur if input is still visible (i.e., not already handled by Enter/Escape)
+    if (this.isEditingText) {
+        this.saveText();
+    }
+  }
+
+  private handleStaticTextDoubleClick() {
+    if (!this.isEditingText) {
+      this._originalTextBeforeEdit = this.text;
+      this.isEditingText = true;
+    }
+  }
+
 
   private updateWeight(event: CustomEvent<number>) {
     const newWeight = event.detail;
@@ -766,17 +860,39 @@ class PromptController extends LitElement {
     );
   }
 
+  private renderEditIcon() {
+    return svg`<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>`;
+  }
+
+  private renderSaveIcon() {
+    return svg`<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>`;
+  }
+
   override render() {
+    const textContent = this.isEditingText
+      ? html`<input
+            type="text"
+            id="text-input"
+            .value=${this.text === 'New Prompt' && this.isEditingText ? '' : this.text}
+            placeholder=${this.text === 'New Prompt' ? 'Enter prompt...' : this.text}
+            @keydown=${this.handleTextInputKeyDown}
+            @blur=${this.handleTextInputBlur}
+            spellcheck="false"
+          />`
+      : html`<span id="static-text" title=${this.text} @dblclick=${this.handleStaticTextDoubleClick}>${this.text}</span>`;
+
     return html`<div class="prompt">
       <div class="prompt-header">
-        <span
-            id="text"
-            spellcheck="false"
-            contenteditable="plaintext-only"
-            @keydown=${this.handleTextKeyDown}
-            @blur=${this.updateText}
-            title=${this.text}
-            >${this.text}</span>
+        <div class="text-container">
+            ${textContent}
+        </div>
+        <button 
+            class="edit-save-button" 
+            @click=${this.handleToggleEditSave} 
+            aria-label=${this.isEditingText ? 'Save prompt text' : 'Edit prompt text'}
+            title=${this.isEditingText ? 'Save (Enter)' : 'Edit (Double-click text)'} >
+            ${this.isEditingText ? this.renderSaveIcon() : this.renderEditIcon()}
+        </button>
         <div class="ratio-display">RATIO: ${this.weight.toFixed(1)}</div>
         <button class="remove-button" @click=${this.dispatchPromptRemoved} aria-label="Remove prompt">✕</button>
       </div>
@@ -924,7 +1040,7 @@ class HelpGuidePanel extends LitElement {
             <h4>Tracks hinzufügen</h4>
             <p>Klicke auf den <strong>+</strong> Button in der oberen Leiste, um einen neuen Track (Prompt-Zeile) hinzuzufügen.</p>
             <h4>Prompts schreiben</h4>
-            <p>Klicke auf den Text (z.B. "Ambient Chill" oder "New Prompt") eines Tracks, um deinen eigenen Musik-Prompt einzugeben. Drücke <strong>Enter</strong>, um zu speichern. Die Musik-Engine versucht dann, diesen Prompt umzusetzen.</p>
+            <p>Klicke auf den Text (z.B. "Ambient Chill" oder "New Prompt") eines Tracks oder den Bearbeiten-Button (Stift-Icon) daneben, um deinen eigenen Musik-Prompt einzugeben. Drücke <strong>Enter</strong> oder klicke den Speichern-Button (Haken-Icon), um zu speichern. Die Musik-Engine versucht dann, diesen Prompt umzusetzen.</p>
             <h4>Gewichtung anpassen (Ratio)</h4>
             <p>Ziehe den farbigen Slider unter jedem Prompt, um dessen Einfluss (Gewichtung) auf die generierte Musik anzupassen. Werte reichen von 0 (kein Einfluss) bis 2 (starker Einfluss). Die aktuelle Ratio wird rechts neben dem Prompt-Text angezeigt.</p>
             <h4>Musik starten/pausieren</h4>
@@ -944,7 +1060,7 @@ class HelpGuidePanel extends LitElement {
           <section>
             <h3>Tracks verwalten</h3>
             <h4>Prompts bearbeiten</h4>
-            <p>Klicke einfach auf den Text des Prompts, bearbeite ihn und drücke <strong>Enter</strong>.</p>
+            <p>Klicke auf den Text des Prompts (oder den Stift-Button), bearbeite ihn und drücke <strong>Enter</strong> (oder klicke den Haken-Button).</p>
             <h4>Tracks entfernen</h4>
             <p>Klicke auf das rote <strong>✕</strong>-Symbol rechts neben einem Track, um ihn zu entfernen.</p>
           </section>
@@ -1611,7 +1727,7 @@ class PromptDj extends LitElement {
 
     const newPrompt: Prompt = {
       promptId: newPromptId,
-      text: 'New Prompt',
+      text: 'New Prompt', // This will trigger edit mode in PromptController
       weight: 0,
       color: newColor,
     };
@@ -1619,30 +1735,15 @@ class PromptDj extends LitElement {
     newPrompts.set(newPromptId, newPrompt);
     this.prompts = newPrompts;
 
+    // Wait for the new prompt controller to be rendered
     await this.updateComplete;
 
+    // Scroll to the new prompt
     const promptsContainer = this.renderRoot.querySelector('#prompts-container');
     if (promptsContainer) {
         promptsContainer.scrollTop = promptsContainer.scrollHeight;
     }
-
-    const newPromptElement = this.renderRoot.querySelector<PromptController>(
-      `prompt-controller[promptId="${newPromptId}"]`,
-    );
-    if (newPromptElement) {
-      setTimeout(() => {
-        const textSpan =
-          newPromptElement.shadowRoot?.querySelector<HTMLSpanElement>('#text');
-        if (textSpan) {
-          textSpan.focus();
-          const selection = window.getSelection();
-          const range = document.createRange();
-          range.selectNodeContents(textSpan);
-          selection?.removeAllRanges();
-          selection?.addRange(range);
-        }
-      }, 100); 
-    }
+    // PromptController will now handle its own focus when 'isEditingText' becomes true.
   }
 
   private handlePromptRemoved(e: CustomEvent<string>) {
