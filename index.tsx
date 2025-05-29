@@ -1,4 +1,3 @@
-
 /**
  * @fileoverview Control real time music with text prompts - Minimal Demo
  * @license
@@ -57,6 +56,20 @@ function throttle(func: (...args: unknown[]) => void, delay: number) {
     }
   };
 }
+
+// Preset interfaces
+interface PresetPrompt {
+  text: string;
+  weight: number;
+}
+
+interface Preset {
+  version: string;
+  prompts: PresetPrompt[];
+  temperature: number;
+}
+const CURRENT_PRESET_VERSION = "1.0";
+
 
 // WeightSlider component
 // -----------------------------------------------------------------------------
@@ -540,6 +553,63 @@ export class HelpButton extends IconButton {
     return this.renderHelpIcon();
   }
 }
+
+// ShareButton component
+@customElement('share-button')
+export class ShareButton extends IconButton {
+  static override styles = [
+    IconButton.styles,
+    css`
+      .icon-path {
+        fill: #FEFEFE;
+        stroke: #FEFEFE; /* Some share icons might use stroke */
+        stroke-width: 4;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+    `
+  ];
+  // Icon: Box with an arrow pointing out/up (common for "share" or "export")
+  private renderShareIcon() {
+    return svg`
+      <path class="icon-path" d="M70 30 H55 V20 L80 40 L55 60 V50 H70 V65 H30 V30 H45 V20 L20 40 L45 60 V50 H30" fill="none" />
+      <path class="icon-path" d="M50 15 L50 55 M35 30 L50 15 L65 30" fill="none"/>
+    `;
+  }
+  override renderIcon() {
+    return this.renderShareIcon();
+  }
+}
+
+
+// SavePresetButton component
+@customElement('save-preset-button')
+export class SavePresetButton extends IconButton {
+  static override styles = [
+    IconButton.styles,
+    css` .icon-path { fill: #FEFEFE; } `
+  ];
+  // Download arrow icon
+  private renderSaveIcon() {
+    return svg`<path class="icon-path" d="M25 65 H75 V75 H25 Z M50 20 L70 45 H58 V20 H42 V45 H30 Z"/>`;
+  }
+  override renderIcon() { return this.renderSaveIcon(); }
+}
+
+// LoadPresetButton component
+@customElement('load-preset-button')
+export class LoadPresetButton extends IconButton {
+  static override styles = [
+    IconButton.styles,
+    css` .icon-path { fill: #FEFEFE; } `
+  ];
+  // Folder inspired icon
+  private renderLoadIcon() {
+    return svg`<path class="icon-path" d="M20 25 H40 L45 20 H70 L75 25 V30 H20 V25 Z M20 35 H80 V70 H20 V35 Z"/>`;
+  }
+  override renderIcon() { return this.renderLoadIcon(); }
+}
+
 
 // Toast Message component
 @customElement('toast-message')
@@ -1047,9 +1117,10 @@ class HelpGuidePanel extends LitElement {
             <p>Verwende den Play/Pause-Button (▶️/⏸️) in der oberen Leiste. Beim ersten Start oder nach einer Unterbrechung kann es einen Moment dauern (Lade-Symbol), bis die Musik beginnt.</p>
           </section>
           <section>
-            <h3>MIDI-Steuerung</h3>
-            <p>Wähle dein MIDI-Gerät aus dem Dropdown-Menü oben links aus. Wenn kein Gerät erscheint, stelle sicher, dass es verbunden ist und dein Browser Zugriff auf MIDI-Geräte hat.</p>
-            <p>Die MIDI Control Change (CC) Nachrichten steuern die Gewichts-Slider der Tracks. CC1 steuert den ersten Track, CC2 den zweiten, und so weiter. Der CC-Wert (0-127) wird automatisch auf den Slider-Bereich (0-2) umgerechnet.</p>
+            <h3>Konfiguration Teilen (via Link)</h3>
+            <p>Klicke auf den <strong>Teilen-Button (Icon: Kasten mit Pfeil nach oben 📤)</strong> unten rechts. Dadurch wird ein spezieller Link in deine Zwischenablage kopiert.</p>
+            <p>Wenn jemand diesen Link öffnet, startet PromptDJ automatisch mit genau deiner aktuellen Konfiguration (Prompts, Gewichtungen, Temperatur).</p>
+            <p>Ideal, um deine Kreationen schnell und einfach zu präsentieren oder gemeinsam an Klanglandschaften zu arbeiten!</p>
           </section>
           <section>
             <h3>Erweiterte Einstellungen (Zahnrad-Icon)</h3>
@@ -1063,6 +1134,11 @@ class HelpGuidePanel extends LitElement {
             <p>Klicke auf den Text des Prompts (oder den Stift-Button), bearbeite ihn und drücke <strong>Enter</strong> (oder klicke den Haken-Button).</p>
             <h4>Tracks entfernen</h4>
             <p>Klicke auf das rote <strong>✕</strong>-Symbol rechts neben einem Track, um ihn zu entfernen.</p>
+          </section>
+          <section>
+            <h3>MIDI-Steuerung</h3>
+            <p>Wähle dein MIDI-Gerät aus dem Dropdown-Menü oben links aus. Wenn kein Gerät erscheint, stelle sicher, dass es verbunden ist und dein Browser Zugriff auf MIDI-Geräte hat.</p>
+            <p>Die MIDI Control Change (CC) Nachrichten steuern die Gewichts-Slider der Tracks. CC1 steuert den ersten Track, CC2 den zweiten, und so weiter. Der CC-Wert (0-127) wird automatisch auf den Slider-Bereich (0-2) umgerechnet.</p>
           </section>
           <section>
             <h3>Inspirations-Ecke: Was kannst du Cooles machen?</h3>
@@ -1085,6 +1161,8 @@ class HelpGuidePanel extends LitElement {
             <p>Es kann zu Netzwerkproblemen oder serverseitigen Unterbrechungen kommen. Versuche, die Wiedergabe über den Play/Pause-Button neu zu starten. Eine Fehlermeldung gibt oft genauere Hinweise.</p>
             <h4>"Filtered Prompt" Nachricht</h4>
             <p>Manchmal werden Prompts aus Sicherheitsgründen oder aufgrund von Inhaltsrichtlinien gefiltert und nicht zur Musikgenerierung verwendet. In diesem Fall wird der entsprechende Prompt markiert und eine Nachricht angezeigt.</p>
+             <h4>Geteilter Link funktioniert nicht richtig</h4>
+            <p>Stelle sicher, dass der Link vollständig kopiert wurde. Sehr lange oder komplexe Prompts könnten in seltenen Fällen die maximale URL-Länge überschreiten, obwohl dies unwahrscheinlich ist.</p>
           </section>
         </div>
       </div>
@@ -1215,6 +1293,12 @@ class PromptDj extends LitElement {
       100% { background-position: 0% 50%; }
     }
 
+    .header-left-controls {
+      display: flex;
+      align-items: center;
+      gap: 1.5vmin;
+    }
+
     .midi-selector {
       background-color: #333;
       color: #fff;
@@ -1227,7 +1311,6 @@ class PromptDj extends LitElement {
       box-sizing: border-box;
       transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
       flex-shrink: 1; /* Allow shrinking if space is tight */
-      margin-right: 1vmin;
     }
     .midi-selector:hover {
       border-color: #777;
@@ -1252,13 +1335,21 @@ class PromptDj extends LitElement {
     }
     .header-actions > add-prompt-button,
     .header-actions > play-pause-button,
-    .header-actions > settings-button,
-    .header-actions > help-button { /* Ensure help button in header scales similarly if moved */
-      width: 7vmin; /* Adjusted size for more buttons */
+    .header-actions > settings-button {
+      width: 7vmin; 
       height: 7vmin;
-      max-width: 55px; /* Adjusted max size */
+      max-width: 55px; 
       max-height: 55px;
     }
+    .header-actions > save-preset-button,
+    .header-actions > load-preset-button {
+      /* Hidden by commenting out in render */
+      /* width: 3.7vmin; */
+      /* height: 3.7vmin; */
+      /* max-width: 29px; */
+      /* max-height: 29px; */
+    }
+
 
     .advanced-settings-panel {
       background-color: #222; /* Slightly darker than header */
@@ -1347,15 +1438,22 @@ class PromptDj extends LitElement {
       flex-shrink: 0;
       box-sizing: border-box;
     }
-    .help-button-container {
+    .utility-button-cluster {
       position: fixed;
       bottom: 20px;
       right: 20px;
       z-index: 1000; /* Above most content */
-      width: 8vmin;
-      height: 8vmin;
-      max-width: 60px;
-      max-height: 60px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px; /* Space between share and help buttons */
+    }
+
+    .utility-button-cluster > share-button,
+    .utility-button-cluster > help-button {
+      width: 7vmin; /* Smaller than header buttons */
+      height: 7vmin;
+      max-width: 50px; /* Max size for these utility buttons */
+      max-height: 50px;
     }
   `;
 
@@ -1384,6 +1482,8 @@ class PromptDj extends LitElement {
   private isConnecting = false;
 
   @query('toast-message') private toastMessage!: ToastMessage;
+  @query('#presetFileInput') private fileInputForPreset!: HTMLInputElement;
+
 
   @state() private availableMidiInputs: Array<{id: string, name: string}> = [];
   @state() private selectedMidiInputId: string | null = null;
@@ -1407,6 +1507,7 @@ class PromptDj extends LitElement {
   }
 
   override async firstUpdated() {
+    await this._loadStateFromUrl(); // Attempt to load shared state first
     await this.connectToSession();
     this.midiController.initialize();
     this.addEventListener('midi-cc-received', this.handleMidiCcReceived as EventListener);
@@ -1804,13 +1905,6 @@ class PromptDj extends LitElement {
                 existingPrompt.weight = normalizedValue; 
                 this.prompts = new Map(this.prompts); 
                 this.setSessionPrompts();
-
-                const sliderElement = this.renderRoot.querySelector<WeightSlider>(
-                    `prompt-controller[promptId="${targetPrompt.promptId}"] weight-slider`
-                );
-                if (sliderElement) {
-                    sliderElement.value = normalizedValue; 
-                }
             }
         }
     }
@@ -1829,6 +1923,168 @@ class PromptDj extends LitElement {
     this.showHelpPanel = !this.showHelpPanel;
   }
 
+  private _applyConfiguration(configData: Preset, source: 'preset' | 'share-link') {
+    // Basic validation
+    if (
+        configData.version !== CURRENT_PRESET_VERSION ||
+        !Array.isArray(configData.prompts) ||
+        typeof configData.temperature !== 'number' ||
+        !configData.prompts.every(p => typeof p.text === 'string' && typeof p.weight === 'number')
+    ) {
+        throw new Error('Invalid configuration data structure or version.');
+    }
+    
+    this.stopAudio(); // Ensure audio generation stops before changing everything
+    this.prompts.clear();
+    this.nextPromptId = 0;
+    this.filteredPrompts.clear(); // Clear any previously filtered prompts
+
+    const newPromptsMap = new Map<string, Prompt>();
+    configData.prompts.forEach((p) => { // No index needed here
+        const newPromptId = `prompt-${this.nextPromptId}`;
+        const newColor = TRACK_COLORS[this.nextPromptId % TRACK_COLORS.length];
+        this.nextPromptId++;
+        newPromptsMap.set(newPromptId, {
+        promptId: newPromptId,
+        text: p.text,
+        weight: p.weight,
+        color: newColor,
+        });
+    });
+    this.prompts = newPromptsMap;
+    this.temperature = configData.temperature;
+
+    // Update session and UI
+    this.setGenerationConfiguration(); // Apply new temperature
+    this.setSessionPrompts();          // Apply new prompts
+    
+    this.requestUpdate(); // Force UI update
+    
+    if (source === 'preset') {
+        this.toastMessage.show('Preset loaded successfully!');
+    } else if (source === 'share-link') {
+        this.toastMessage.show('Shared configuration loaded!');
+    }
+  }
+
+
+  private handleSavePreset() {
+    const presetPrompts: PresetPrompt[] = Array.from(this.prompts.values()).map(p => ({
+      text: p.text,
+      weight: p.weight,
+    }));
+
+    const presetData: Preset = {
+      version: CURRENT_PRESET_VERSION,
+      prompts: presetPrompts,
+      temperature: this.temperature,
+    };
+
+    const jsonString = JSON.stringify(presetData, null, 2);
+    const blob = new Blob([jsonString], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'promptdj_preset.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    this.toastMessage.show('Preset saved!');
+  }
+
+  private handleLoadPresetClick() {
+    if (this.fileInputForPreset) {
+      this.fileInputForPreset.click();
+    }
+  }
+
+  private handlePresetFileSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files || input.files.length === 0) {
+      return;
+    }
+    const file = input.files[0];
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      try {
+        const parsedPreset = JSON.parse(reader.result as string) as Preset;
+        this._applyConfiguration(parsedPreset, 'preset');
+      } catch (e: any) {
+        console.error('Error loading preset:', e);
+        this.toastMessage.show(`Error loading preset: ${e.message || 'Invalid file format.'}`);
+      } finally {
+        input.value = '';
+      }
+    };
+    reader.onerror = () => {
+      this.toastMessage.show('Error reading preset file.');
+       input.value = '';
+    };
+    reader.readAsText(file);
+  }
+
+  private async _loadStateFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const encodedSharedStateBase64 = params.get('share');
+
+    if (encodedSharedStateBase64) {
+        try {
+            const sharedStateBase64 = decodeURIComponent(encodedSharedStateBase64);
+            const jsonString = atob(sharedStateBase64);
+            const parsedConfig = JSON.parse(jsonString) as Preset;
+            this._applyConfiguration(parsedConfig, 'share-link');
+            // Clean the URL
+            history.replaceState(null, '', window.location.pathname);
+        } catch (e: any) {
+            console.error('Error loading shared state from URL:', e);
+            this.toastMessage.show(`Failed to load shared state: ${e.message || 'Invalid link'}`);
+            // Clean the URL even if loading failed to prevent re-attempt on refresh
+            history.replaceState(null, '', window.location.pathname);
+        }
+    }
+  }
+
+  private async handleShareClick() {
+    const currentPrompts: PresetPrompt[] = Array.from(this.prompts.values()).map(p => ({
+      text: p.text,
+      weight: p.weight,
+    }));
+
+    const shareableState: Preset = {
+      version: CURRENT_PRESET_VERSION,
+      prompts: currentPrompts,
+      temperature: this.temperature,
+    };
+
+    try {
+      const jsonString = JSON.stringify(shareableState);
+      const base64State = btoa(jsonString);
+      const encodedBase64State = encodeURIComponent(base64State);
+      
+      // Use the specified Render URL, or fallback to current origin for local dev
+      const baseUrl = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") 
+          ? window.location.origin + window.location.pathname
+          : 'https://steppas-beatlab.onrender.com/'; // Ensure trailing slash if it's a base path
+
+      const shareUrl = `${baseUrl}?share=${encodedBase64State}`;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        this.toastMessage.show('Share link copied to clipboard!');
+      } else {
+        // Fallback for older browsers or insecure contexts
+        this.toastMessage.show('Could not copy link. Please copy manually.');
+        console.warn('Share URL (copy manually):', shareUrl);
+         // Consider showing the URL in a modal or prompt for manual copying
+      }
+    } catch (e: any) {
+      console.error('Error creating share link:', e);
+      this.toastMessage.show('Error creating share link.');
+    }
+  }
+
 
   override render() {
     const showSelectPlaceholder = this.availableMidiInputs.length > 0 && !this.availableMidiInputs.some(input => input.id === this.selectedMidiInputId);
@@ -1841,21 +2097,27 @@ class PromptDj extends LitElement {
         <div class="orb orb4"></div>
       </div>
       <div class="header-bar">
-        <select
-          class="midi-selector"
-          @change=${this.handleMidiDeviceChange}
-          .value=${this.selectedMidiInputId || ''}
-          ?disabled=${this.availableMidiInputs.length === 0}
-          aria-label="Select MIDI Input Device">
-          ${this.availableMidiInputs.length === 0 ?
-            html`<option value="">No MIDI Devices</option>` :
-            html`
-              ${showSelectPlaceholder ? html`<option value="" disabled selected hidden>Select MIDI Device</option>` : ''}
-              ${this.availableMidiInputs.map(input =>
-                html`<option .value=${input.id} ?selected=${input.id === this.selectedMidiInputId}>${input.name}</option>`
-              )}
-            `}
-        </select>
+        <div class="header-left-controls">
+            <select
+            class="midi-selector"
+            @change=${this.handleMidiDeviceChange}
+            .value=${this.selectedMidiInputId || ''}
+            ?disabled=${this.availableMidiInputs.length === 0}
+            aria-label="Select MIDI Input Device">
+            ${this.availableMidiInputs.length === 0 ?
+                html`<option value="">No MIDI Devices</option>` :
+                html`
+                ${showSelectPlaceholder ? html`<option value="" disabled selected hidden>Select MIDI Device</option>` : ''}
+                ${this.availableMidiInputs.map(input =>
+                    html`<option .value=${input.id} ?selected=${input.id === this.selectedMidiInputId}>${input.name}</option>`
+                )}
+                `}
+            </select>
+            <!--
+            <save-preset-button @click=${this.handleSavePreset} aria-label="Save current preset"></save-preset-button>
+            <load-preset-button @click=${this.handleLoadPresetClick} aria-label="Load preset from file"></load-preset-button>
+            -->
+        </div>
         <div class="header-actions">
           <settings-button @click=${this.toggleAdvancedSettings} aria-label="Toggle advanced settings"></settings-button>
           <add-prompt-button @click=${this.handleAddPrompt} aria-label="Add new prompt"></add-prompt-button>
@@ -1885,10 +2147,12 @@ class PromptDj extends LitElement {
         </div>
       </div>
       <toast-message .message=${this.toastMessage?.message || ''} .showing=${this.toastMessage?.showing || false}></toast-message>
-      <div class="help-button-container">
+      <div class="utility-button-cluster">
+        <share-button @click=${this.handleShareClick} aria-label="Share current configuration via link"></share-button>
         <help-button @click=${this.toggleHelpPanel} aria-label="Open help guide"></help-button>
       </div>
       <help-guide-panel .isOpen=${this.showHelpPanel} @close-help=${this.toggleHelpPanel}></help-guide-panel>
+      <input type="file" id="presetFileInput" accept=".json" style="display: none;" @change=${this.handlePresetFileSelected}>
       `;
   }
 
@@ -1925,6 +2189,9 @@ declare global {
     'settings-button': SettingsButton;
     'play-pause-button': PlayPauseButton;
     'help-button': HelpButton;
+    'share-button': ShareButton;
+    'save-preset-button': SavePresetButton;
+    'load-preset-button': LoadPresetButton;
     'weight-slider': WeightSlider;
     'parameter-slider': ParameterSlider;
     'toast-message': ToastMessage;
