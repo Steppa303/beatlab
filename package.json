@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "Minimal PromptDJ application for Render deployment",
   "scripts": {
-    "build": "mkdir -p dist && cp index.html dist/index.html && cp index.css dist/index.css && esbuild index.tsx --bundle --outfile=dist/index.js --define:process.env.API_KEY='\"'$API_KEY'\"' --loader:.ts=tsx --platform=browser",
-    "start": "http-server dist -p 8080"
+    "build": "mkdir -p dist && cp index.html dist/index.html && cp index.css dist/index.css && esbuild index.tsx --bundle --outfile=dist/index.js --define:process.env.API_KEY='\"'$API_KEY'\"' --loader:.ts=tsx --platform=browser --external:lit --external:lit/* --external:@google/genai",
+    "start": "http-server dist -p ${PORT:-8080}"
   },
   "devDependencies": {
     "esbuild": "^0.20.2",
