@@ -7,7 +7,8 @@
 
 import {css, html, LitElement, svg} from 'lit';
 import {customElement, property, query, state} from 'lit/decorators.js';
-import type { Prompt, WeightSlider } from './index'; // Assuming Prompt and WeightSlider types are exported from index.tsx or a types file
+import type { Prompt } from './types.js'; 
+import { WeightSlider } from './components/weight-slider.js'; // Changed from type-only import
 
 @customElement('prompt-controller')
 class PromptController extends LitElement {
@@ -326,7 +327,7 @@ class PromptController extends LitElement {
 
     return html`
     <div class="prompt" @click=${this.dispatchPromptInteraction}>
-      <div class.prompt-header>
+      <div class="prompt-header">
         <div class="text-container">
             ${textContent}
         </div>
@@ -337,7 +338,7 @@ class PromptController extends LitElement {
             title=${this.isEditingText ? 'Save (Enter)' : 'Edit (Double-click text)'} >
             ${this.isEditingText ? this.renderSaveIcon() : this.renderEditIcon()}
         </button>
-        <div class="ratio-display">RATIO: ${this.weight.toFixed(1)}</div>
+        <div class="ratio-display">RATIO: ${(this.weight ?? 0).toFixed(1)}</div>
         <button class="remove-button" @click=${this.dispatchPromptRemoved} aria-label="Remove prompt">✕</button>
       </div>
       <weight-slider

@@ -66,4 +66,17 @@ async function decodeAudioData(
   return buffer;
 }
 
-export {decode, decodeAudioData};
+/** Throttles a callback to be called at most once per `freq` milliseconds. */
+function throttle(func: (...args: unknown[]) => void, delay: number) {
+  let lastCall = 0;
+  return (...args: unknown[]) => {
+    const now = Date.now();
+    const timeSinceLastCall = now - lastCall;
+    if (timeSinceLastCall >= delay) {
+      func(...args);
+      lastCall = now;
+    }
+  };
+}
+
+export {decode, decodeAudioData, throttle};

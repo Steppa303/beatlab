@@ -7,16 +7,36 @@
 import {css, unsafeCSS, CSSResultGroup, html, LitElement, svg} from 'lit';
 import {customElement, property, query, state} from 'lit/decorators.js';
 import {classMap} from 'lit/directives/class-map.js';
-import {styleMap} from 'lit/directives/style-map.js';
+// styleMap is imported by weight-slider.ts if needed there. Not directly used in this file anymore.
 
 import {
   GoogleGenAI,
   type LiveMusicServerMessage,
   type LiveMusicSession,
-  type LiveMusicGenerationConfig as GenAiLiveMusicGenerationConfig,
 } from '@google/genai';
-import {decode, decodeAudioData} from './utils';
-import { MidiController } from './midi-controller';
+import {decode, decodeAudioData, throttle} from './utils.js';
+import { MidiController } from './midi-controller.js';
+import type { Prompt, PlaybackState, AppLiveMusicGenerationConfig, PresetPrompt, Preset } from './types.js';
+import { TRACK_COLORS, ORB_COLORS, CURRENT_PRESET_VERSION, MIDI_LEARN_TARGET_DROP_BUTTON, MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON } from './constants.js';
+
+// Import components
+import './components/weight-slider.js'; // Ensure WeightSlider is registered
+import { WeightSlider } from './components/weight-slider.js'; // Import for type checking
+import './components/parameter-slider.js'; // Ensure ParameterSlider is registered
+import { ParameterSlider } from './components/parameter-slider.js'; // Import for type checking
+import './components/toggle-switch.js'; // Ensure ToggleSwitch is registered
+import { ToggleSwitch } from './components/toggle-switch.js'; // Import for type checking
+import { IconButton } from './components/icon-button.js'; // Base class, ensure it's available
+import './components/play-pause-button.js'; // Ensure PlayPauseButton is registered
+import { PlayPauseButton } from './components/play-pause-button.js'; // Import for type checking
+import './components/add-prompt-button.js'; // Ensure AddPromptButton is registered
+import { AddPromptButton } from './components/add-prompt-button.js'; // Import for type checking
+import './prompt-controller.js'; // Import PromptController to ensure it's registered
+
+// The following components are still defined in this file but slated for extraction:
+// SettingsButton, HelpButton, ShareButton, DropButton, SavePresetButton, LoadPresetButton,
+// ToastMessage, HelpGuidePanel, WelcomeOverlay.
+
 
 // Use API_KEY as per guidelines
 const ai = new GoogleGenAI({
@@ -25,614 +45,6 @@ const ai = new GoogleGenAI({
 });
 const model = 'lyria-realtime-exp';
 
-const TRACK_COLORS = ['#FF4081', '#40C4FF', '#00BFA5', '#FFC107', '#AB47BC', '#FF7043', '#26A69A'];
-const ORB_COLORS = [
-  'rgba(255, 64, 129, 0.2)', // Pink
-  'rgba(64, 196, 255, 0.2)', // Light Blue
-  'rgba(0, 191, 165, 0.2)',  // Teal
-  'rgba(255, 193, 7, 0.15)', // Amber
-  'rgba(171, 71, 188, 0.2)' // Purple
-];
-
-
-export interface Prompt {
-  readonly promptId: string;
-  text: string;
-  weight: number;
-  color: string;
-}
-
-type PlaybackState = 'stopped' | 'playing' | 'loading' | 'paused';
-
-// Extend LiveMusicGenerationConfig to include new parameters
-interface AppLiveMusicGenerationConfig extends GenAiLiveMusicGenerationConfig {
-  guidance?: number;
-  bpm?: number;
-  density?: number;
-  brightness?: number;
-  mute_bass?: boolean;
-  mute_drums?: boolean;
-  only_bass_and_drums?: boolean;
-  music_generation_mode?: 'QUALITY' | 'DIVERSITY';
-  systemInstruction?: string; // Added for system-level instructions
-}
-
-
-/** Throttles a callback to be called at most once per `freq` milliseconds. */
-function throttle(func: (...args: unknown[]) => void, delay: number) {
-  let lastCall = 0;
-  return (...args: unknown[]) => {
-    const now = Date.now();
-    const timeSinceLastCall = now - lastCall;
-    if (timeSinceLastCall >= delay) {
-      func(...args);
-      lastCall = now;
-    }
-  };
-}
-
-// Preset interfaces
-interface PresetPrompt {
-  text: string;
-  weight: number;
-}
-
-interface Preset {
-  version: string;
-  prompts: PresetPrompt[];
-  temperature: number;
-  guidance?: number;
-  bpm?: number;
-  density?: number;
-  brightness?: number;
-  muteBass?: boolean;
-  muteDrums?: boolean;
-  onlyBassAndDrums?: boolean;
-  musicGenerationMode?: 'QUALITY' | 'DIVERSITY';
-}
-const CURRENT_PRESET_VERSION = "1.1"; // Incremented version for new params
-
-const MIDI_LEARN_TARGET_DROP_BUTTON = 'global-drop-button';
-const MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON = 'global-play-pause-button';
-
-
-// WeightSlider component
-// -----------------------------------------------------------------------------
-/** A slider for adjusting and visualizing prompt weight. */
-@customElement('weight-slider')
-export class WeightSlider extends LitElement {
-  static override styles = css`
-    :host {
-      cursor: ew-resize; /* Horizontal resize cursor */
-      position: relative;
-      width: 100%;
-      display: flex;
-      align-items: center;
-      box-sizing: border-box;
-      height: 20px; /* Doubled height for the host */
-      touch-action: none; /* Prevent default touch actions like scrolling */
-    }
-    .slider-container {
-      position: relative;
-      height: 12px; /* Doubled height for the track */
-      width: 100%; /* Track takes full width of host */
-      background-color: #555; /* Darker track for better contrast */
-      border-radius: 6px; /* Adjusted radius */
-    }
-    #thumb {
-      position: absolute;
-      left: 0;
-      top: 0;
-      height: 100%;
-      border-radius: 6px; /* Match container radius */
-      box-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
-      transition: filter 0.3s ease-out, transform 0.3s ease-out; /* For pulse effect */
-    }
-    #thumb.pulse-effect {
-      animation: thumbPulseEffect 0.3s ease-out;
-    }
-    @keyframes thumbPulseEffect {
-      0% { filter: brightness(1.2) saturate(1.2); }
-      50% { filter: brightness(1.6) saturate(1.6); transform: scaleY(1.1); } /* Slightly scale Y for emphasis */
-      100% { filter: brightness(1.2) saturate(1.2); }
-    }
-  `;
-
-  @property({type: Number}) value = 0; // Range 0-2
-  @property({type: String}) sliderColor = '#5200ff'; // Default color if not provided
-
-  @query('.slider-container') private sliderContainer!: HTMLDivElement;
-  @query('#thumb') private thumbElement!: HTMLDivElement;
-
-
-  private dragStartPos = 0;
-  private dragStartValue = 0;
-  private containerBounds: DOMRect | null = null;
-  private activePointerId: number | null = null;
-  @state() private _isThumbPulsing = false;
-  private _previousValueForPulse = this.value;
-
-  // Bound event handlers for robust removal
-  private boundHandlePointerMove: (e: PointerEvent) => void;
-  private boundHandlePointerUpOrCancel: (e: PointerEvent) => void;
-
-
-  constructor() {
-    super();
-    this.boundHandlePointerMove = this.handlePointerMove.bind(this);
-    this.boundHandlePointerUpOrCancel = this.handlePointerUpOrCancel.bind(this);
-
-    this.addEventListener('pointerdown', this.handlePointerDown);
-    this.addEventListener('wheel', this.handleWheel);
-  }
-
-  override disconnectedCallback(): void {
-    super.disconnectedCallback();
-    if (this.activePointerId !== null) {
-      try {
-        this.releasePointerCapture(this.activePointerId);
-      } catch (error) {
-        // console.warn("Error releasing pointer capture on disconnect:", error);
-      }
-      document.body.removeEventListener('pointermove', this.boundHandlePointerMove);
-      document.body.removeEventListener('pointerup', this.boundHandlePointerUpOrCancel);
-      document.body.removeEventListener('pointercancel', this.boundHandlePointerUpOrCancel);
-      document.body.classList.remove('dragging');
-      this.activePointerId = null;
-    }
-    this.removeEventListener('pointerdown', this.handlePointerDown);
-    this.removeEventListener('wheel', this.handleWheel);
-  }
-
-  override updated(changedProperties: Map<string | number | symbol, unknown>) {
-    super.updated(changedProperties);
-    if (changedProperties.has('value') && this.value !== this._previousValueForPulse) {
-      this._previousValueForPulse = this.value;
-      if (this.value > 0.005 && this.thumbElement) { // Only pulse if thumb is visible
-          this.thumbElement.classList.add('pulse-effect');
-          setTimeout(() => {
-            if (this.thumbElement) this.thumbElement.classList.remove('pulse-effect');
-          }, 300); // Duration of the pulse animation
-      }
-    }
-  }
-
-
-  private handlePointerDown(e: PointerEvent) {
-    if (this.activePointerId !== null) {
-      return;
-    }
-    // e.preventDefault(); // Keep this commented unless issues arise with text selection etc. on desktop during drag
-
-    this.activePointerId = e.pointerId;
-    try {
-      this.setPointerCapture(e.pointerId);
-    } catch(err) {
-        console.warn("Failed to capture pointer:", err);
-        // Proceed without capture if it fails, common on some browsers or specific scenarios
-    }
-
-
-    this.containerBounds = this.sliderContainer.getBoundingClientRect();
-    this.dragStartPos = e.clientX;
-    this.dragStartValue = this.value;
-    document.body.classList.add('dragging');
-
-    document.body.addEventListener('pointermove', this.boundHandlePointerMove);
-    document.body.addEventListener('pointerup', this.boundHandlePointerUpOrCancel);
-    document.body.addEventListener('pointercancel', this.boundHandlePointerUpOrCancel);
-
-    // Update value on initial press down as well
-    this.updateValueFromPosition(e.clientX);
-  }
-
-  private handlePointerMove(e: PointerEvent) {
-    if (e.pointerId !== this.activePointerId) {
-      return;
-    }
-    // Prevent default behavior (like scrolling) during drag on touch devices
-    if (e.pointerType === 'touch') {
-        e.preventDefault();
-    }
-    this.updateValueFromPosition(e.clientX);
-  }
-
-  private handlePointerUpOrCancel(e: PointerEvent) {
-    if (e.pointerId !== this.activePointerId) {
-      return;
-    }
-
-    try {
-        this.releasePointerCapture(e.pointerId);
-    } catch (error) {
-        // console.warn("Error releasing pointer capture:", error);
-    }
-    this.activePointerId = null;
-
-    document.body.classList.remove('dragging');
-    this.containerBounds = null;
-
-    document.body.removeEventListener('pointermove', this.boundHandlePointerMove);
-    document.body.removeEventListener('pointerup', this.boundHandlePointerUpOrCancel);
-    document.body.removeEventListener('pointercancel', this.boundHandlePointerUpOrCancel);
-  }
-
-  private handleWheel(e: WheelEvent) {
-    e.preventDefault();
-    const delta = e.deltaY;
-    this.value = this.value + delta * -0.005;
-    this.value = Math.max(0, Math.min(2, this.value));
-    this.dispatchInputEvent();
-  }
-
-  private updateValueFromPosition(clientX: number) {
-    if (!this.containerBounds) return;
-
-    const trackWidth = this.containerBounds.width;
-    const trackLeft = this.containerBounds.left;
-
-    const relativeX = clientX - trackLeft;
-    const normalizedValue =
-      Math.max(0, Math.min(trackWidth, relativeX)) / trackWidth;
-    this.value = normalizedValue * 2;
-
-    this.dispatchInputEvent();
-  }
-
-  private dispatchInputEvent() {
-    this.dispatchEvent(new CustomEvent<number>('input', {detail: this.value}));
-  }
-
-  override render() {
-    const thumbWidthPercent = (this.value / 2) * 100;
-    const thumbStyle = styleMap({
-      width: `${thumbWidthPercent}%`,
-      display: this.value > 0.005 ? 'block' : 'none',
-      backgroundColor: this.sliderColor,
-    });
-
-    return html`
-      <div class="slider-container">
-        <div id="thumb" style=${thumbStyle}></div>
-      </div>
-    `;
-  }
-}
-
-
-/** A generic slider for parameters. */
-@customElement('parameter-slider')
-class ParameterSlider extends LitElement {
-  static override styles = css`
-    :host {
-      display: flex;
-      flex-direction: column;
-      gap: 0.3em;
-      width: 100%;
-      font-size: 0.9em; /* Slightly smaller than main UI text */
-    }
-    .label-value-container {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      color: #ccc; /* Lighter text for labels */
-    }
-    .label {
-      font-weight: 500;
-    }
-    .value-display {
-      font-variant-numeric: tabular-nums;
-    }
-    input[type="range"] {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 100%;
-      height: 10px; /* Slightly thinner than prompt sliders */
-      background: #282828; /* Darker track */
-      border-radius: 5px;
-      outline: none;
-      cursor: ew-resize;
-      margin: 0;
-    }
-    input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 18px; /* Thumb size */
-      height: 18px;
-      background: #7e57c2; /* Purple thumb color like screenshot */
-      border-radius: 50%;
-      cursor: ew-resize;
-      border: 2px solid #fff; /* White border for contrast */
-      box-shadow: 0 0 3px rgba(0,0,0,0.5);
-    }
-    input[type="range"]::-moz-range-thumb {
-      width: 16px; /* Adjusted for Firefox */
-      height: 16px;
-      background: #7e57c2;
-      border-radius: 50%;
-      cursor: ew-resize;
-      border: 2px solid #fff;
-      box-shadow: 0 0 3px rgba(0,0,0,0.5);
-    }
-     :host([disabled]) input[type="range"],
-     :host([disabled]) input[type="range"]::-webkit-slider-thumb,
-     :host([disabled]) input[type="range"]::-moz-range-thumb {
-        cursor: not-allowed;
-        opacity: 0.5;
-     }
-  `;
-
-  @property({type: String}) label = '';
-  @property({type: Number}) value = 0;
-  @property({type: Number}) min = 0;
-  @property({type: Number}) max = 1;
-  @property({type: Number}) step = 0.01;
-  @property({type: Boolean, reflect: true}) disabled = false;
-
-  private handleInput(e: Event) {
-    if (this.disabled) return;
-    const target = e.target as HTMLInputElement;
-    this.value = parseFloat(target.value);
-    this.dispatchEvent(new CustomEvent<number>('input', {detail: this.value, bubbles: true, composed: true}));
-  }
-
-  override render() {
-    return html`
-      <div class="label-value-container">
-        <span class="label">${this.label}</span>
-        <span class="value-display">${this.value.toFixed(this.step < 0.01 ? 3 : (this.step < 0.1 ? 2 : (this.step < 1 ? 1 : 0)))}</span>
-      </div>
-      <input
-        type="range"
-        .min=${this.min}
-        .max=${this.max}
-        .step=${this.step}
-        .value=${this.value.toString()}
-        @input=${this.handleInput}
-        ?disabled=${this.disabled}
-        aria-label=${this.label}
-      />
-    `;
-  }
-}
-
-/** A generic toggle switch. */
-@customElement('toggle-switch')
-class ToggleSwitch extends LitElement {
-  static override styles = css`
-    :host {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 0.9em;
-      color: #ccc;
-      cursor: pointer;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-    }
-    :host([disabled]) {
-        cursor: not-allowed;
-        opacity: 0.5;
-    }
-    .switch {
-      position: relative;
-      display: inline-block;
-      width: 44px; /* Slightly smaller */
-      height: 24px; /* Slightly smaller */
-    }
-    .switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: #4A4A4A; /* Darker grey for off state */
-      transition: .3s;
-      border-radius: 24px;
-    }
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 18px; /* Smaller knob */
-      width: 18px;  /* Smaller knob */
-      left: 3px;    /* Adjusted position */
-      bottom: 3px;  /* Adjusted position */
-      background-color: white;
-      transition: .3s;
-      border-radius: 50%;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    }
-    input:checked + .slider {
-      background-color: #7e57c2; /* Purple when on, matching param sliders */
-    }
-    input:focus + .slider {
-      box-shadow: 0 0 1px #7e57c2;
-    }
-    input:checked + .slider:before {
-      transform: translateX(20px); /* Adjusted travel distance */
-    }
-    :host([disabled]) .slider {
-        cursor: not-allowed;
-    }
-    .label {
-      font-weight: 500;
-    }
-  `;
-
-  @property({type: String}) label = '';
-  @property({type: Boolean, reflect: true}) checked = false;
-  @property({type: Boolean, reflect: true}) disabled = false;
-
-  private _onClick() {
-    if (this.disabled) return;
-    this.checked = !this.checked;
-    this.dispatchEvent(new CustomEvent('change', {
-      detail: { checked: this.checked },
-      bubbles: true,
-      composed: true,
-    }));
-  }
-
-  override render() {
-    return html`
-      <label class="label" @click=${this._onClick}>${this.label}</label>
-      <div class="switch" @click=${this._onClick}>
-        <input type="checkbox" .checked=${this.checked} ?disabled=${this.disabled} aria-label=${this.label}>
-        <span class="slider"></span>
-      </div>
-    `;
-  }
-}
-
-
-// Base class for icon buttons.
-class IconButton extends LitElement {
-  @property({type: Boolean, reflect: true}) isMidiLearnTarget = false;
-
-  static override styles = css`
-    :host {
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      pointer-events: none; /* Host itself doesn't receive clicks */
-      border-radius: 50%; /* Ensure border radius is circular for the host */
-      transition: box-shadow 0.2s ease-out, transform 0.2s ease-out;
-    }
-    :host(:hover) svg {
-      transform: scale(1.2);
-      filter: brightness(1.2);
-    }
-    :host(:active) svg { /* Press down effect */
-      transform: scale(1.1);
-      filter: brightness(0.9);
-    }
-    :host([isMidiLearnTarget]) {
-      box-shadow: 0 0 0 3px #FFD700, 0 0 10px #FFD700; /* Gold outline and glow */
-      transform: scale(1.05); /* Slightly larger when targeted */
-    }
-    svg {
-      width: 100%;
-      height: 100%;
-      transition: transform 0.2s cubic-bezier(0.25, 1.56, 0.32, 0.99), filter 0.2s ease-out;
-    }
-    .hitbox {
-      pointer-events: all; /* Hitbox receives clicks */
-      position: absolute;
-      width: 65%; /* Adjust as needed for comfortable click area */
-      aspect-ratio: 1;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      border-radius: 50%;
-      cursor: pointer;
-      -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
-    }
-  ` as CSSResultGroup;
-
-  protected renderIcon() {
-    return svg``;
-  }
-
-  private renderSVG() {
-    return html` <svg
-      viewBox="0 0 100 100"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg">
-      <circle cx="50" cy="50" r="45" fill="rgba(255,255,255,0.05)" />
-      <circle cx="50" cy="50" r="43.5" stroke="rgba(0,0,0,0.3)" stroke-width="3"/>
-      ${this.renderIcon()}
-    </svg>`;
-  }
-
-  override render() {
-    return html`${this.renderSVG()}<div class="hitbox"></div>`;
-  }
-}
-
-// PlayPauseButton
-@customElement('play-pause-button')
-export class PlayPauseButton extends IconButton {
-  @property({type: String}) playbackState: PlaybackState = 'stopped';
-
-  static override styles = [
-    IconButton.styles,
-    css`
-      .loader {
-        stroke: #ffffff;
-        stroke-width: 8;
-        stroke-linecap: round;
-        animation: spin linear 1s infinite;
-        transform-origin: center;
-        transform-box: fill-box;
-      }
-      @keyframes spin {
-        from {
-          transform: rotate(0deg);
-        }
-        to {
-          transform: rotate(359deg);
-        }
-      }
-      .icon-path {
-        fill: #FEFEFE;
-      }
-      .play-icon-path {
-        fill: #4CAF50; /* Green play icon */
-      }
-    `,
-  ];
-
-  private renderPause() {
-    return svg`<path class="icon-path" d="M35 25 H45 V75 H35 Z M55 25 H65 V75 H55 Z" />`;
-  }
-
-  private renderPlay() {
-    // Added play-icon-path class for specific styling
-    return svg`<path class="icon-path play-icon-path" d="M30 20 L75 50 L30 80 Z" />`;
-  }
-
-  private renderLoading() {
-    return svg`<circle class="loader" cx="50" cy="50" r="30" fill="none" stroke-dasharray="100 100" />`;
-  }
-
-  override renderIcon() {
-    if (this.playbackState === 'playing') {
-      return this.renderPause();
-    } else if (this.playbackState === 'loading') {
-      return this.renderLoading();
-    } else {
-      return this.renderPlay();
-    }
-  }
-}
-
-// AddPromptButton component
-@customElement('add-prompt-button')
-export class AddPromptButton extends IconButton {
-  static override styles = [
-    IconButton.styles,
-    css`
-      .icon-path {
-        fill: #FEFEFE;
-      }
-    `
-  ];
-
-  private renderAddIcon() {
-    return svg`<path class="icon-path" d="M45 20 H55 V45 H80 V55 H55 V80 H45 V55 H20 V45 H45 Z" />`;
-  }
-
-  override renderIcon() {
-    return this.renderAddIcon();
-  }
-}
 
 // SettingsButton component
 @customElement('settings-button')
@@ -844,345 +256,6 @@ class ToastMessage extends LitElement {
   }
 }
 
-/** A single prompt input */
-@customElement('prompt-controller')
-class PromptController extends LitElement {
-  static override styles = css`
-    @keyframes promptAppear {
-      from {
-        opacity: 0;
-        transform: translateY(-20px) scale(0.98);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
-    }
-    :host { /* Base style for the host */
-      display: block; /* Ensure it takes up block space */
-      transition: box-shadow 0.2s ease-out, transform 0.2s ease-out;
-      cursor: pointer; /* Indicate clickable for MIDI learn */
-    }
-    .prompt {
-      position: relative;
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      box-sizing: border-box;
-      overflow: hidden;
-      background-color: #3E3E3E;
-      border-radius: 12px;
-      padding: 0;
-      animation: promptAppear 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-      transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, border 0.2s ease-out; /* Added border transition */
-      border: 2px solid transparent; /* For learn target highlight */
-    }
-    :host([ismidilearntarget]) .prompt {
-      border: 2px solid #FFD700; /* Gold border */
-      box-shadow: 0 0 10px #FFD700, 0 5px 15px rgba(0,0,0,0.4); /* Gold glow and enhanced shadow */
-      transform: scale(1.01); /* Slightly larger when targeted */
-    }
-    .prompt:not([ismidilearntarget]):hover { /* Hover only if NOT learn target */
-      transform: translateY(-3px);
-      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    }
-    .prompt-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 15px;
-      gap: 10px;
-    }
-    .remove-button {
-      background: #D32F2F;
-      color: #FFFFFF;
-      border: none;
-      border-radius: 50%;
-      width: 28px;
-      height: 28px;
-      font-size: 18px;
-      font-weight: bold;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      line-height: 28px;
-      cursor: pointer;
-      opacity: 0.8;
-      transition: opacity 0.15s, transform 0.15s, background-color 0.15s;
-      flex-shrink: 0;
-    }
-    .remove-button:hover {
-      opacity: 1;
-      transform: scale(1.15);
-      background-color: #E53935; /* Slightly brighter red on hover */
-    }
-    .ratio-display {
-      color: #FFFFFF;
-      font-size: 3.2vmin;
-      white-space: nowrap;
-      font-weight: normal;
-      margin-left: 5px; /* Reduced margin to make space for edit button */
-      padding: 0 5px; /* Reduced padding */
-      flex-shrink: 0;
-    }
-    weight-slider {
-      width: auto;
-      height: 20px;
-      margin: 0 15px 12px 15px;
-      /* cursor: pointer; Already set on host, inherited */
-    }
-    .text-container {
-      display: flex;
-      align-items: center;
-      flex-grow: 1;
-      overflow: hidden; /* Important for text ellipsis */
-      margin-right: 8px;
-    }
-    #text-input, #static-text {
-      font-family: 'Google Sans', sans-serif;
-      font-size: 3.6vmin;
-      font-weight: 500;
-      padding: 2px 4px; /* Added some padding */
-      box-sizing: border-box;
-      text-align: left;
-      word-wrap: break-word;
-      border: none;
-      outline: none;
-      -webkit-font-smoothing: antialiased;
-      color: #fff;
-      background-color: transparent;
-      border-radius: 3px;
-      flex-grow: 1;
-      min-width: 0; /* Allows shrinking and ellipsis */
-    }
-    #static-text {
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      min-height: 1.2em;
-      line-height: 1.2em;
-      cursor: text; /* Indicate it can be interacted with */
-    }
-    #static-text:hover {
-      background-color: rgba(255,255,255,0.05);
-    }
-    #text-input {
-      background-color: rgba(0,0,0,0.2); /* Slight background for input */
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1);
-    }
-    #text-input:focus {
-        box-shadow: 0 0 0 2px #66afe9;
-    }
-    .edit-save-button {
-      background: none;
-      border: none;
-      color: #ccc;
-      cursor: pointer;
-      padding: 4px;
-      margin-left: 8px; /* Space between text and button */
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 4px;
-      flex-shrink: 0;
-      transition: background-color 0.2s, color 0.2s;
-    }
-    .edit-save-button:hover {
-      background-color: rgba(255,255,255,0.1);
-      color: #fff;
-    }
-    .edit-save-button svg {
-      width: 20px; /* Adjust icon size */
-      height: 20px;
-      fill: currentColor;
-    }
-    :host([filtered='true']) #static-text,
-    :host([filtered='true']) #text-input {
-      background: #da2000;
-    }
-  `;
-
-  @property({type: String, reflect: true}) promptId = '';
-  @property({type: String}) text = '';
-  @property({type: Number}) weight = 0;
-  @property({type: String}) sliderColor = '#5200ff';
-  @property({type: Boolean, reflect: true}) isMidiLearnTarget = false;
-  @property({type: Boolean, reflect: true}) filtered = false; // To pass down for styling if needed
-
-
-  @state() private isEditingText = false;
-  @query('#text-input') private textInputElement!: HTMLInputElement;
-  @query('weight-slider') private weightSliderElement!: WeightSlider;
-  private _originalTextBeforeEdit = ''; // To revert on Escape
-
-  override connectedCallback() {
-    super.connectedCallback();
-    if (this.text === 'New Prompt' && !this.hasUpdated) {
-      this.isEditingText = true;
-      this._originalTextBeforeEdit = this.text;
-    }
-  }
-
-  override firstUpdated() {
-    // The main .prompt div will handle clicks for learn target selection
-    // No need for specific listener on weight-slider for this anymore
-  }
-
-
-  override updated(changedProperties: Map<string | number | symbol, unknown>) {
-    super.updated(changedProperties);
-    if (changedProperties.has('isEditingText') && this.isEditingText) {
-      requestAnimationFrame(() => {
-        if (this.textInputElement) {
-          this.textInputElement.focus();
-          this.textInputElement.select();
-        }
-      });
-    }
-  }
-
-  private dispatchPromptInteraction(e: Event) {
-    // Check if the click was on the slider itself or the general prompt area.
-    // This distinction might not be strictly necessary if the parent handles it well.
-    // For now, any click on the .prompt div (which includes the slider) will trigger.
-    this.dispatchEvent(new CustomEvent('prompt-interaction', {
-        detail: { promptId: this.promptId, text: this.text },
-        bubbles: true,
-        composed: true
-      }));
-  }
-
-  private dispatchPromptChange() {
-    this.dispatchEvent(
-      new CustomEvent<Partial<Prompt>>('prompt-changed', {
-        detail: {
-          promptId: this.promptId,
-          text: this.text,
-          weight: this.weight,
-        },
-      }),
-    );
-  }
-
-  private saveText() {
-    const newText = this.textInputElement.value.trim();
-    if (newText === this.text && this.text !== 'New Prompt') { 
-      this.isEditingText = false;
-      return;
-    }
-    this.text = newText === '' ? 'Untitled Prompt' : newText;
-    this.dispatchPromptChange();
-    this.isEditingText = false;
-  }
-
-  private handleToggleEditSave(e: Event) {
-    e.stopPropagation(); // Prevent this click from also triggering prompt-interaction for learn mode
-    if (this.isEditingText) {
-      this.saveText();
-    } else {
-      this._originalTextBeforeEdit = this.text;
-      this.isEditingText = true;
-    }
-  }
-
-  private handleTextInputKeyDown(e: KeyboardEvent) {
-    e.stopPropagation(); // Keep text input focused
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      this.saveText();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      this.text = this._originalTextBeforeEdit; 
-      this.isEditingText = false;
-    }
-  }
-  
-  private handleTextInputBlur(e: FocusEvent) {
-    e.stopPropagation();
-    if (this.isEditingText) {
-        this.saveText();
-    }
-  }
-
-  private handleStaticTextDoubleClick(e: MouseEvent) {
-    e.stopPropagation(); // Prevent this click from also triggering prompt-interaction for learn mode
-    if (!this.isEditingText) {
-      this._originalTextBeforeEdit = this.text;
-      this.isEditingText = true;
-    }
-  }
-
-
-  private updateWeight(event: CustomEvent<number>) {
-    // Stop propagation if this event comes from the weight-slider directly,
-    // as the main div click is already handled for learn target selection.
-    // However, weight updates should always propagate.
-    // event.stopPropagation();
-    const newWeight = event.detail;
-    if (this.weight === newWeight) {
-      return;
-    }
-    this.weight = newWeight;
-    this.dispatchPromptChange();
-  }
-
-  private dispatchPromptRemoved(e: Event) {
-    e.stopPropagation(); // Prevent this click from also triggering prompt-interaction for learn mode
-    this.dispatchEvent(
-      new CustomEvent<string>('prompt-removed', {
-        detail: this.promptId,
-        bubbles: true,
-        composed: true,
-      }),
-    );
-  }
-
-  private renderEditIcon() {
-    return svg`<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>`;
-  }
-
-  private renderSaveIcon() {
-    return svg`<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>`;
-  }
-
-  override render() {
-    const textContent = this.isEditingText
-      ? html`<input
-            type="text"
-            id="text-input"
-            .value=${this.text === 'New Prompt' && this.isEditingText ? '' : this.text}
-            placeholder=${this.text === 'New Prompt' ? 'Enter prompt...' : this.text}
-            @click=${(e: Event) => e.stopPropagation()}
-            @keydown=${this.handleTextInputKeyDown}
-            @blur=${this.handleTextInputBlur}
-            spellcheck="false"
-          />`
-      : html`<span id="static-text" title=${this.text} @dblclick=${this.handleStaticTextDoubleClick}>${this.text}</span>`;
-
-    return html`
-    <div class="prompt" @click=${this.dispatchPromptInteraction}>
-      <div class="prompt-header">
-        <div class="text-container">
-            ${textContent}
-        </div>
-        <button 
-            class="edit-save-button" 
-            @click=${this.handleToggleEditSave} 
-            aria-label=${this.isEditingText ? 'Save prompt text' : 'Edit prompt text'}
-            title=${this.isEditingText ? 'Save (Enter)' : 'Edit (Double-click text)'} >
-            ${this.isEditingText ? this.renderSaveIcon() : this.renderEditIcon()}
-        </button>
-        <div class="ratio-display">RATIO: ${this.weight.toFixed(1)}</div>
-        <button class="remove-button" @click=${this.dispatchPromptRemoved} aria-label="Remove prompt">✕</button>
-      </div>
-      <weight-slider
-        .value=${this.weight}
-        .sliderColor=${this.sliderColor}
-        @input=${this.updateWeight}></weight-slider>
-    </div>`;
-  }
-}
 
 @customElement('help-guide-panel')
 class HelpGuidePanel extends LitElement {
@@ -1565,7 +638,7 @@ class WelcomeOverlay extends LitElement {
           <li>${svg`<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>`} <span><strong>Beschreibe deine Musik:</strong> Tippe Stimmungen, Genres oder Instrumente ein.</span></li>
           <li>${svg`<svg viewBox="0 0 24 24"><path d="M4 18h16v-2H4v2zm0-5h16v-2H4v2zm0-5h16V6H4v2z"/></svg>`} <span><strong>Mische deine Tracks:</strong> Passe die Slider an, um deine Sound-Ebenen zu mischen.</span></li>
           <li>${svg`<svg viewBox="0 0 24 24"><path d="M20 18H4V6h16v12zM6 8h2v2H6V8zm0 4h2v2H6v-2zm0 4h2v2H6v-2zm10-8h2v2h-2V8zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2zM10 8h2v2h-2V8zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2z"/></svg>`} <span><strong>MIDI-Steuerung:</strong> Verbinde deinen Controller für interaktives Mixen.</span></li>
-          <li>${svg`<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>`} <span><strong>Starte den Drop!:</strong> Entfessle dynamische musikalische Momente.</span></li>
+          <li>${svg`<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>`} <span><strong>Starte den Drop!:</strong> Entfessle dynamische musikalische Momente.</span></li>
         </ul>
 
         <div class="prompt-section">
@@ -1878,7 +951,7 @@ class PromptDj extends LitElement {
       width: 100%;
       max-width: 800px;
       margin: 0 auto;
-      overflow: hidden;
+      /* overflow: hidden; */ /* Removed for diagnostics and to prevent clipping */
       padding: 2vmin;
       box-sizing: border-box;
       z-index: 10; 
@@ -1898,8 +971,6 @@ class PromptDj extends LitElement {
       box-sizing: border-box;
       padding-right: 8px; 
       padding-left: 3px; 
-      /* Add padding at the bottom if add button is inside and absolutely positioned at bottom of container
-         padding-bottom: calc(21vmin + 4vmin); /* Approx button height + desired margin */
     }
     #prompts-container::-webkit-scrollbar {
       width: 10px; 
@@ -1924,13 +995,13 @@ class PromptDj extends LitElement {
     }
     
     .floating-add-button { /* Styles for the add-prompt-button when it's below prompts */
-      display: block; /* Or flex if content inside needs centering */
+      display: block; 
       width: 21vmin;
       height: 21vmin;
       max-width: 150px;
       max-height: 150px;
-      margin: 3vmin auto 1vmin auto; /* Top margin, Auto horizontal, Bottom margin */
-      flex-shrink: 0; /* Prevent shrinking if prompts-container is flex */
+      margin: 3vmin auto 1vmin auto; 
+      flex-shrink: 0; 
     }
 
     .bottom-left-utility-cluster {
@@ -2123,7 +1194,7 @@ class PromptDj extends LitElement {
     this.midiController.initialize(); 
     this.isMidiSupported = this.midiController.isMidiSupported();
     
-    this.addEventListener('midi-cc-received', this.handleMidiCcReceived as EventListener);
+    this.midiController.addEventListener('midi-cc-received', this.handleMidiCcReceived as EventListener);
     this.midiController.addEventListener('midi-inputs-changed', this.handleMidiInputsChanged as EventListener);
     this.addEventListener('prompt-interaction', this.handlePromptInteractionForLearn as EventListener);
     window.addEventListener('keydown', this.handleKeyDown);
@@ -2141,7 +1212,7 @@ class PromptDj extends LitElement {
         this.dropTimeoutId = null;
       }
       this.midiController.destroy();
-      this.removeEventListener('midi-cc-received', this.handleMidiCcReceived as EventListener);
+      this.midiController.removeEventListener('midi-cc-received', this.handleMidiCcReceived as EventListener);
       this.midiController.removeEventListener('midi-inputs-changed', this.handleMidiInputsChanged as EventListener);
       this.removeEventListener('prompt-interaction', this.handlePromptInteractionForLearn as EventListener);
       window.removeEventListener('keydown', this.handleKeyDown);
@@ -2307,11 +1378,14 @@ class PromptDj extends LitElement {
                     return; // Ignore audio if not trying to play/load
                 }
 
+                const audioChunk = e.serverContent.audioChunks[0];
+                if (!audioChunk) return; // Should not happen if audioChunks is defined and not empty
+
                 const audioBuffer = await decodeAudioData(
-                    decode(e.serverContent?.audioChunks[0].data),
+                    decode(audioChunk.data),
                     this.audioContext,
                     this.sampleRate,
-                    2,
+                    2, // Assume stereo (2 channels) as numChannels is not directly available on AudioChunk
                 );
                 const source = this.audioContext.createBufferSource();
                 source.buffer = audioBuffer;
@@ -2324,20 +1398,20 @@ class PromptDj extends LitElement {
                         this.firstChunkReceivedTimestamp = currentTime;
                         // Set the target playout time for this very first chunk
                         this.nextStartTime = currentTime + this.bufferTime;
-                        console.log(`Initial buffer: first chunk received, scheduling for ${this.nextStartTime.toFixed(2)}s`);
+                        console.log(`Initial buffer: first chunk received, scheduling for ${(this.nextStartTime ?? 0).toFixed(2)}s`);
                     }
                 }
 
                 // Handle underrun: if nextStartTime is in the past.
-                if (this.nextStartTime < currentTime) {
-                    console.warn(`Audio under run: nextStartTime ${this.nextStartTime.toFixed(2)}s < currentTime ${currentTime.toFixed(2)}s. Resetting playback target.`);
+                if ((this.nextStartTime ?? 0) < currentTime) {
+                    console.warn(`Audio under run: nextStartTime ${(this.nextStartTime ?? 0).toFixed(2)}s < currentTime ${currentTime.toFixed(2)}s. Resetting playback target.`);
                     this.playbackState = 'loading'; // Ensure we are in loading state
                     this.firstChunkReceivedTimestamp = currentTime; // Restart buffering period
                     // Schedule this current buffer to play after bufferTime from now.
                     this.nextStartTime = currentTime + this.bufferTime;
                 }
 
-                source.start(this.nextStartTime);
+                source.start(this.nextStartTime ?? 0);
 
                 // If we were loading, check if we can transition to 'playing'
                 if (this.playbackState === 'loading') {
@@ -2351,7 +1425,7 @@ class PromptDj extends LitElement {
                 }
                 
                 // Advance nextStartTime for the *next* buffer
-                this.nextStartTime += audioBuffer.duration;
+                this.nextStartTime = (this.nextStartTime ?? 0) + audioBuffer.duration;
             }
             },
             onerror: (e: ErrorEvent) => {
@@ -2855,8 +1929,9 @@ class PromptDj extends LitElement {
     if (
         typeof configData.version !== 'string' || 
         !Array.isArray(configData.prompts) ||
-        typeof configData.temperature !== 'number' ||
-        !configData.prompts.every(p => typeof p.text === 'string' && typeof p.weight === 'number')
+        // configData.temperature can be undefined if missing, so check its type only if present
+        (configData.temperature !== undefined && typeof configData.temperature !== 'number') ||
+        !configData.prompts.every(p => typeof p.text === 'string' && (p.weight === undefined || typeof p.weight === 'number'))
     ) {
         throw new Error('Invalid configuration data structure.');
     }
@@ -2874,14 +1949,14 @@ class PromptDj extends LitElement {
         newPromptsMap.set(newPromptId, {
         promptId: newPromptId,
         text: p.text,
-        weight: p.weight,
+        weight: p.weight ?? 0, // Default to 0 if weight is undefined
         color: newColor,
         });
     });
     this.prompts = newPromptsMap;
-    this.temperature = configData.temperature;
-
-    // Apply other settings from preset/share link, using defaults if not present
+    
+    // Apply other settings from preset/share link, using component defaults if not present in configData
+    this.temperature = configData.temperature ?? 1.0;
     this.guidance = configData.guidance ?? 4.0;
     this.bpm = configData.bpm ?? 120;
     this.density = configData.density ?? 0.5;
@@ -3249,14 +2324,14 @@ class PromptDj extends LitElement {
         <div class="content-area">
           <div id="prompts-container" @prompt-removed=${this.handlePromptRemoved}>
             ${this.renderPrompts()}
-            ${!this.showWelcomeScreen ? html`
-              <add-prompt-button 
-                class="floating-add-button"
-                @click=${this.handleAddPrompt} 
-                aria-label="Add new prompt track">
-              </add-prompt-button>
-            ` : ''}
           </div>
+          ${!this.showWelcomeScreen ? html`
+            <add-prompt-button 
+              class="floating-add-button"
+              @click=${this.handleAddPrompt} 
+              aria-label="Add new prompt track">
+            </add-prompt-button>
+          ` : ''}
         </div>
         <toast-message .message=${this.toastMessage?.message || ''} .showing=${this.toastMessage?.showing || false}></toast-message>
         
@@ -3316,6 +2391,19 @@ function main(container: HTMLElement) {
 }
 
 main(document.body);
+
+// Forward declarations for PromptController which is in its own file.
+// Actual class is imported in prompt-dj.ts if needed, or its definition ensures it's registered.
+declare class PromptController extends LitElement {
+  promptId: string;
+  text: string;
+  weight: number;
+  sliderColor: string;
+  isMidiLearnTarget: boolean;
+  filtered: boolean;
+  disabled: boolean;
+}
+
 
 declare global {
   interface HTMLElementTagNameMap {
