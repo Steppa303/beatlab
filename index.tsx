@@ -35,7 +35,7 @@ const ORB_COLORS = [
 ];
 
 
-interface Prompt {
+export interface Prompt {
   readonly promptId: string;
   text: string;
   weight: number;
@@ -92,12 +92,15 @@ interface Preset {
 }
 const CURRENT_PRESET_VERSION = "1.1"; // Incremented version for new params
 
+const MIDI_LEARN_TARGET_DROP_BUTTON = 'global-drop-button';
+const MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON = 'global-play-pause-button';
+
 
 // WeightSlider component
 // -----------------------------------------------------------------------------
 /** A slider for adjusting and visualizing prompt weight. */
 @customElement('weight-slider')
-class WeightSlider extends LitElement {
+export class WeightSlider extends LitElement {
   static override styles = css`
     :host {
       cursor: ew-resize; /* Horizontal resize cursor */
@@ -490,6 +493,8 @@ class ToggleSwitch extends LitElement {
 
 // Base class for icon buttons.
 class IconButton extends LitElement {
+  @property({type: Boolean, reflect: true}) isMidiLearnTarget = false;
+
   static override styles = css`
     :host {
       position: relative;
@@ -497,6 +502,8 @@ class IconButton extends LitElement {
       align-items: center;
       justify-content: center;
       pointer-events: none; /* Host itself doesn't receive clicks */
+      border-radius: 50%; /* Ensure border radius is circular for the host */
+      transition: box-shadow 0.2s ease-out, transform 0.2s ease-out;
     }
     :host(:hover) svg {
       transform: scale(1.2);
@@ -505,6 +512,10 @@ class IconButton extends LitElement {
     :host(:active) svg { /* Press down effect */
       transform: scale(1.1);
       filter: brightness(0.9);
+    }
+    :host([isMidiLearnTarget]) {
+      box-shadow: 0 0 0 3px #FFD700, 0 0 10px #FFD700; /* Gold outline and glow */
+      transform: scale(1.05); /* Slightly larger when targeted */
     }
     svg {
       width: 100%;
@@ -847,6 +858,11 @@ class PromptController extends LitElement {
         transform: translateY(0) scale(1);
       }
     }
+    :host { /* Base style for the host */
+      display: block; /* Ensure it takes up block space */
+      transition: box-shadow 0.2s ease-out, transform 0.2s ease-out;
+      cursor: pointer; /* Indicate clickable for MIDI learn */
+    }
     .prompt {
       position: relative;
       width: 100%;
@@ -859,9 +875,15 @@ class PromptController extends LitElement {
       padding: 0;
       animation: promptAppear 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
       box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-      transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+      transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, border 0.2s ease-out; /* Added border transition */
+      border: 2px solid transparent; /* For learn target highlight */
     }
-    .prompt:hover {
+    :host([ismidilearntarget]) .prompt {
+      border: 2px solid #FFD700; /* Gold border */
+      box-shadow: 0 0 10px #FFD700, 0 5px 15px rgba(0,0,0,0.4); /* Gold glow and enhanced shadow */
+      transform: scale(1.01); /* Slightly larger when targeted */
+    }
+    .prompt:not([ismidilearntarget]):hover { /* Hover only if NOT learn target */
       transform: translateY(-3px);
       box-shadow: 0 5px 15px rgba(0,0,0,0.3);
     }
@@ -908,6 +930,7 @@ class PromptController extends LitElement {
       width: auto;
       height: 20px;
       margin: 0 15px 12px 15px;
+      /* cursor: pointer; Already set on host, inherited */
     }
     .text-container {
       display: flex;
@@ -984,20 +1007,28 @@ class PromptController extends LitElement {
   @property({type: String}) text = '';
   @property({type: Number}) weight = 0;
   @property({type: String}) sliderColor = '#5200ff';
+  @property({type: Boolean, reflect: true}) isMidiLearnTarget = false;
+  @property({type: Boolean, reflect: true}) filtered = false; // To pass down for styling if needed
+
 
   @state() private isEditingText = false;
   @query('#text-input') private textInputElement!: HTMLInputElement;
+  @query('weight-slider') private weightSliderElement!: WeightSlider;
   private _originalTextBeforeEdit = ''; // To revert on Escape
 
   override connectedCallback() {
     super.connectedCallback();
-    // For new prompts, start in edit mode.
-    // !this.hasUpdated ensures this is only for the initial setup.
     if (this.text === 'New Prompt' && !this.hasUpdated) {
       this.isEditingText = true;
       this._originalTextBeforeEdit = this.text;
     }
   }
+
+  override firstUpdated() {
+    // The main .prompt div will handle clicks for learn target selection
+    // No need for specific listener on weight-slider for this anymore
+  }
+
 
   override updated(changedProperties: Map<string | number | symbol, unknown>) {
     super.updated(changedProperties);
@@ -1009,6 +1040,17 @@ class PromptController extends LitElement {
         }
       });
     }
+  }
+
+  private dispatchPromptInteraction(e: Event) {
+    // Check if the click was on the slider itself or the general prompt area.
+    // This distinction might not be strictly necessary if the parent handles it well.
+    // For now, any click on the .prompt div (which includes the slider) will trigger.
+    this.dispatchEvent(new CustomEvent('prompt-interaction', {
+        detail: { promptId: this.promptId, text: this.text },
+        bubbles: true,
+        composed: true
+      }));
   }
 
   private dispatchPromptChange() {
@@ -1025,7 +1067,7 @@ class PromptController extends LitElement {
 
   private saveText() {
     const newText = this.textInputElement.value.trim();
-    if (newText === this.text && this.text !== 'New Prompt') { // Check if text actually changed, unless it's the initial "New Prompt"
+    if (newText === this.text && this.text !== 'New Prompt') { 
       this.isEditingText = false;
       return;
     }
@@ -1034,39 +1076,37 @@ class PromptController extends LitElement {
     this.isEditingText = false;
   }
 
-  private handleToggleEditSave() {
+  private handleToggleEditSave(e: Event) {
+    e.stopPropagation(); // Prevent this click from also triggering prompt-interaction for learn mode
     if (this.isEditingText) {
-      // Currently editing, so save
       this.saveText();
     } else {
-      // Not editing, so start editing
       this._originalTextBeforeEdit = this.text;
       this.isEditingText = true;
     }
   }
 
   private handleTextInputKeyDown(e: KeyboardEvent) {
+    e.stopPropagation(); // Keep text input focused
     if (e.key === 'Enter') {
       e.preventDefault();
       this.saveText();
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      this.text = this._originalTextBeforeEdit; // Revert to original text
-      // No need to dispatch if reverting, text prop itself will re-render if changed.
-      // If you want to ensure parent knows about revert:
-      // if (this.text !== this.textInputElement.value.trim()) this.dispatchPromptChange();
+      this.text = this._originalTextBeforeEdit; 
       this.isEditingText = false;
     }
   }
   
-  private handleTextInputBlur() {
-    // Save on blur if input is still visible (i.e., not already handled by Enter/Escape)
+  private handleTextInputBlur(e: FocusEvent) {
+    e.stopPropagation();
     if (this.isEditingText) {
         this.saveText();
     }
   }
 
-  private handleStaticTextDoubleClick() {
+  private handleStaticTextDoubleClick(e: MouseEvent) {
+    e.stopPropagation(); // Prevent this click from also triggering prompt-interaction for learn mode
     if (!this.isEditingText) {
       this._originalTextBeforeEdit = this.text;
       this.isEditingText = true;
@@ -1075,6 +1115,10 @@ class PromptController extends LitElement {
 
 
   private updateWeight(event: CustomEvent<number>) {
+    // Stop propagation if this event comes from the weight-slider directly,
+    // as the main div click is already handled for learn target selection.
+    // However, weight updates should always propagate.
+    // event.stopPropagation();
     const newWeight = event.detail;
     if (this.weight === newWeight) {
       return;
@@ -1083,7 +1127,8 @@ class PromptController extends LitElement {
     this.dispatchPromptChange();
   }
 
-  private dispatchPromptRemoved() {
+  private dispatchPromptRemoved(e: Event) {
+    e.stopPropagation(); // Prevent this click from also triggering prompt-interaction for learn mode
     this.dispatchEvent(
       new CustomEvent<string>('prompt-removed', {
         detail: this.promptId,
@@ -1108,13 +1153,15 @@ class PromptController extends LitElement {
             id="text-input"
             .value=${this.text === 'New Prompt' && this.isEditingText ? '' : this.text}
             placeholder=${this.text === 'New Prompt' ? 'Enter prompt...' : this.text}
+            @click=${(e: Event) => e.stopPropagation()}
             @keydown=${this.handleTextInputKeyDown}
             @blur=${this.handleTextInputBlur}
             spellcheck="false"
           />`
       : html`<span id="static-text" title=${this.text} @dblclick=${this.handleStaticTextDoubleClick}>${this.text}</span>`;
 
-    return html`<div class="prompt">
+    return html`
+    <div class="prompt" @click=${this.dispatchPromptInteraction}>
       <div class="prompt-header">
         <div class="text-container">
             ${textContent}
@@ -1275,11 +1322,11 @@ class HelpGuidePanel extends LitElement {
             <h4>Prompts schreiben</h4>
             <p>Klicke auf den Text (z.B. "Ambient Chill" oder "New Prompt") eines Tracks oder den Bearbeiten-Button (Stift-Icon) daneben, um deinen eigenen Musik-Prompt einzugeben. Drücke <strong>Enter</strong> oder klicke den Speichern-Button (Haken-Icon), um zu speichern. Die Musik-Engine versucht dann, diesen Prompt umzusetzen.</p>
             <h4>Gewichtung anpassen (Ratio)</h4>
-            <p>Ziehe den farbigen Slider unter jedem Prompt, um dessen Einfluss (Gewichtung) auf die generierte Musik anzupassen. Werte reichen von 0 (kein Einfluss) bis 2 (starker Einfluss). Die aktuelle Ratio wird rechts neben dem Prompt-Text angezeigt.</p>
+            <p>Ziehe den farbigen Slider unter jedem Prompt, um dessen Einfluss (Gewichtung) auf die generierte Musik anzupassen. Werte reichen von 0 (kein Einfluss) bis 2 (starker Einfluss). Die aktuelle Ratio wird rechts neben dem Prompt-Text angezeigt. Dies ist auch per MIDI CC steuerbar (siehe MIDI-Sektion).</p>
             <h4>Musik starten/pausieren</h4>
-            <p>Verwende den großen <strong>Play/Pause-Button (▶️/⏸️ unten links)</strong>. Beim ersten Start oder nach einer Unterbrechung kann es einen Moment dauern (Lade-Symbol), bis die Musik beginnt.</p>
+            <p>Verwende den großen <strong>Play/Pause-Button (▶️/⏸️ unten links)</strong>. Beim ersten Start oder nach einer Unterbrechung kann es einen Moment dauern (Lade-Symbol), bis die Musik beginnt. Auch dieser Button ist per MIDI CC steuerbar.</p>
             <h4>"Drop!"-Effekt</h4>
-            <p>Klicke den <strong>Drop!-Button ( unten rechts)</strong> für einen Überraschungseffekt! Die Musik baut Spannung auf und entlädt sich dann – perfekt für Übergänge oder um Energie freizusetzen. Der Drop versucht, sich an den aktuell gespielten Musikstil anzupassen.</p>
+            <p>Klicke den <strong>Drop!-Button ( unten rechts)</strong> für einen dynamischen Effekt! Die Musik baut Spannung auf und entlädt sich dann. Der Stil des Drops (z.B. intensiv, sanft, groovig) passt sich nun automatisch an die aktuell gespielte Musik an, um Übergänge natürlicher und wirkungsvoller zu gestalten. Auch dieser Button ist per MIDI CC steuerbar.</p>
           </section>
           <section>
             <h3>Konfiguration Teilen (via Link)</h3>
@@ -1293,13 +1340,44 @@ class HelpGuidePanel extends LitElement {
             <ul>
               <li><strong>Temperature:</strong> Regelt die Zufälligkeit. Höher = mehr Variation.</li>
               <li><strong>Guidance:</strong> Steuert, wie genau das Modell den Prompts folgt. Höher = strenger, aber Übergänge können abrupter sein.</li>
-              <li><strong>BPM (Beats Per Minute):</strong> Legt das gewünschte Tempo fest. <em>Hinweis: Eine Änderung hier erfordert möglicherweise ein Anhalten/Neustarten der Musik, um wirksam zu werden.</em></li>
+              <li><strong>BPM (Beats Per Minute):</strong> Legt das gewünschte Tempo fest.</li>
               <li><strong>Density:</strong> Steuert die Dichte der Noten/Töne. Niedriger = spärlicher, höher = "belebter".</li>
               <li><strong>Brightness:</strong> Passt die Tonalität an. Höher = "hellerer" Klang mit Betonung höherer Frequenzen.</li>
               <li><strong>Mute Bass / Mute Drums:</strong> Reduziert den Bass bzw. das Schlagzeug.</li>
               <li><strong>Only Bass & Drums:</strong> Gibt nur Bass und Schlagzeug aus. Deaktiviert "Mute Bass" und "Mute Drums".</li>
               <li><strong>Music Generation Mode:</strong> Wählt zwischen "Quality" (höhere Qualität, Standard) und "Diversity" (mehr Abwechslung).</li>
             </ul>
+          </section>
+           <section>
+            <h3>MIDI-Steuerung & Learn-Funktion</h3>
+            <p>Wähle dein MIDI-Gerät aus dem Dropdown-Menü oben links aus. Wenn kein Gerät erscheint, stelle sicher, dass es verbunden ist und dein Browser Zugriff auf MIDI-Geräte hat. Sobald ein Gerät ausgewählt ist, erscheint der <strong>"Learn MIDI"</strong>-Button.</p>
+            <h4>MIDI Learn Modus:</h4>
+            <ol>
+              <li>Klicke auf <strong>"Learn MIDI"</strong>. Der Button-Text ändert sich zu "Learning... (Cancel)" und eine Anleitung erscheint über den Tracks.</li>
+              <li>Klicke nun auf das Element, das du per MIDI steuern möchtest:
+                <ul>
+                  <li>Einen <strong>Track-Slider</strong> (die farbige Leiste unter einem Prompt).</li>
+                  <li>Den <strong>"Drop!"-Button</strong>.</li>
+                  <li>Den <strong>Play/Pause-Button</strong>.</li>
+                </ul>
+                Das ausgewählte Element wird golden hervorgehoben.
+              </li>
+              <li>Bewege nun einen Regler/Fader oder drücke einen Button/Pad an deinem MIDI-Gerät.</li>
+              <li>Die App weist diese MIDI CC-Nummer dem ausgewählten Element zu. Eine Bestätigung (Toast-Nachricht) erscheint.</li>
+              <li>Du kannst direkt weitere Zuweisungen vornehmen, indem du erneut ein Element und dann einen MIDI-Controller auswählst/bewegst.</li>
+              <li>Klicke erneut auf "Learning... (Cancel)" oder drücke die <strong>Escape</strong>-Taste, um den Lernmodus zu beenden. (Escape bricht bei ausgewählten Ziel erst die Zielauswahl ab, dann den Modus).</li>
+            </ol>
+            <h4>Funktionsweise der zugewiesenen MIDI-Controller:</h4>
+            <ul>
+              <li><strong>Track-Slider:</strong> Der MIDI CC-Wert (0-127) steuert die Gewichtung des Tracks (skaliert auf 0-2).</li>
+              <li><strong>Drop!-Button / Play/Pause-Button:</strong> Ein MIDI CC-Wert <strong>größer als 64</strong> löst die Aktion aus (simuliert einen Knopfdruck).</li>
+            </ul>
+            <h4>MIDI-Zuweisungen löschen:</h4>
+            <ul>
+              <li>Alle Zuweisungen werden automatisch gelöscht, wenn du ein anderes MIDI-Gerät auswählst oder die Auswahl aufhebst.</li>
+              <li>Um alle Zuweisungen manuell zu löschen: Drücke und halte den <strong>"Learn MIDI"</strong>-Button (wenn der Lernmodus <em>nicht</em> aktiv ist) für ca. 2 Sekunden, bis eine Bestätigung erscheint.</li>
+            </ul>
+            <p><strong>Wichtig:</strong> Während eine "Drop!"-Sequenz aktiv ist, ist die MIDI-Steuerung (und das Ändern von Einstellungen) temporär deaktiviert.</p>
           </section>
           <section>
             <h3>Tracks verwalten</h3>
@@ -1320,11 +1398,6 @@ class HelpGuidePanel extends LitElement {
             </ul>
           </section>
           <section>
-            <h3>MIDI-Steuerung</h3>
-            <p>Wähle dein MIDI-Gerät aus dem Dropdown-Menü oben links aus. Wenn kein Gerät erscheint, stelle sicher, dass es verbunden ist und dein Browser Zugriff auf MIDI-Geräte hat.</p>
-            <p>Die MIDI Control Change (CC) Nachrichten steuern die Gewichts-Slider der Tracks. CC1 steuert den ersten Track, CC2 den zweiten, und so weiter. Der CC-Wert (0-127) wird automatisch auf den Slider-Bereich (0-2) umgerechnet.</p>
-          </section>
-          <section>
             <h3>Tipps & Fehlerbehebung</h3>
             <h4>"No MIDI Devices" / MIDI-Gerät nicht erkannt</h4>
             <p>Stelle sicher, dass dein MIDI-Gerät korrekt angeschlossen und eingeschaltet ist, bevor du die Seite lädst. Manchmal hilft es, die Seite neu zu laden, nachdem das Gerät verbunden wurde. Überprüfe auch die Browser-Berechtigungen für MIDI.</p>
@@ -1342,6 +1415,175 @@ class HelpGuidePanel extends LitElement {
     `;
   }
 }
+
+@customElement('welcome-overlay')
+class WelcomeOverlay extends LitElement {
+  @query('#first-prompt-input') private firstPromptInput!: HTMLInputElement;
+
+  static override styles = css`
+    :host {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(10, 10, 10, 0.85); /* Slightly more opaque dark background */
+      z-index: 2000; /* Highest z-index */
+      backdrop-filter: blur(8px); /* Blur background for focus */
+      -webkit-backdrop-filter: blur(8px);
+      opacity: 0;
+      animation: fadeInOverlay 0.5s 0.2s ease-out forwards;
+    }
+    @keyframes fadeInOverlay {
+      to { opacity: 1; }
+    }
+    .panel {
+      background-color: #2C2C2C; /* Darker panel background */
+      padding: 30px 40px;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      color: #e0e0e0;
+      width: clamp(320px, 90vw, 600px);
+      text-align: center;
+      border: 1px solid #444;
+      transform: scale(0.95);
+      opacity: 0;
+      animation: popInPanel 0.5s 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+    @keyframes popInPanel {
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .app-icon {
+      font-size: 3em; /* Larger icon */
+      margin-bottom: 15px;
+    }
+
+    h1 {
+      font-size: 2em; /* Slightly larger */
+      font-weight: 600;
+      color: #fff;
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+    .tagline {
+      font-size: 1.1em;
+      color: #bbb;
+      margin-bottom: 25px;
+    }
+    .features {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 25px 0;
+      text-align: left;
+    }
+    .features li {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+      font-size: 1em;
+      color: #ccc;
+    }
+    .features li svg {
+      width: 22px;
+      height: 22px;
+      margin-right: 12px;
+      fill: #A0A0A0; /* Icon color */
+      flex-shrink: 0;
+    }
+
+    .prompt-section {
+      margin-bottom: 25px;
+    }
+    .prompt-section label {
+      display: block;
+      font-size: 1em;
+      color: #ddd;
+      margin-bottom: 10px;
+      font-weight: 500;
+    }
+    #first-prompt-input {
+      width: 100%;
+      padding: 12px 15px;
+      border-radius: 8px;
+      border: 1px solid #555;
+      background-color: #1e1e1e;
+      color: #fff;
+      font-size: 1em;
+      box-sizing: border-box;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    #first-prompt-input:focus {
+      outline: none;
+      border-color: #7e57c2;
+      box-shadow: 0 0 0 3px rgba(126, 87, 194, 0.3);
+    }
+    .start-button {
+      background: linear-gradient(45deg, #7e57c2, #AB47BC);
+      color: white;
+      border: none;
+      padding: 12px 25px;
+      border-radius: 8px;
+      font-size: 1.1em;
+      font-weight: 500;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      display: inline-block;
+      box-shadow: 0 4px 15px rgba(126, 87, 194, 0.3);
+    }
+    .start-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(126, 87, 194, 0.4);
+    }
+    .start-button:active {
+      transform: translateY(0px);
+      box-shadow: 0 2px 10px rgba(126, 87, 194, 0.3);
+    }
+  `;
+
+  private _handleSubmit() {
+    const firstPromptText = this.firstPromptInput.value;
+    this.dispatchEvent(new CustomEvent('welcome-complete', {
+      detail: { firstPromptText },
+      bubbles: true,
+      composed: true
+    }));
+  }
+
+  private _handleKeyPress(e: KeyboardEvent) {
+    if (e.key === 'Enter') {
+      this._handleSubmit();
+    }
+  }
+
+  override render() {
+    return html`
+      <div class="panel" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+        <div class="app-icon">🎵</div>
+        <h1 id="welcome-title">Willkommen bei Steppa's BeatLab!</h1>
+        <p class="tagline">Gestalte deinen Sound mit KI & MIDI</p>
+        
+        <ul class="features">
+          <li>${svg`<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>`} <span><strong>Beschreibe deine Musik:</strong> Tippe Stimmungen, Genres oder Instrumente ein.</span></li>
+          <li>${svg`<svg viewBox="0 0 24 24"><path d="M4 18h16v-2H4v2zm0-5h16v-2H4v2zm0-5h16V6H4v2z"/></svg>`} <span><strong>Mische deine Tracks:</strong> Passe die Slider an, um deine Sound-Ebenen zu mischen.</span></li>
+          <li>${svg`<svg viewBox="0 0 24 24"><path d="M20 18H4V6h16v12zM6 8h2v2H6V8zm0 4h2v2H6v-2zm0 4h2v2H6v-2zm10-8h2v2h-2V8zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2zM10 8h2v2h-2V8zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2z"/></svg>`} <span><strong>MIDI-Steuerung:</strong> Verbinde deinen Controller für interaktives Mixen.</span></li>
+          <li>${svg`<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>`} <span><strong>Starte den Drop!:</strong> Entfessle dynamische musikalische Momente.</span></li>
+        </ul>
+
+        <div class="prompt-section">
+          <label for="first-prompt-input">Beginnen wir mit deinem ersten Sound. Welche Stimmung fühlst du gerade?</label>
+          <input type="text" id="first-prompt-input" placeholder="z.B. Deep House Beat, Cinematic Strings, Lo-fi Hip Hop" @keypress=${this._handleKeyPress}>
+        </div>
+        
+        <button class="start-button" @click=${this._handleSubmit}>Musik erstellen!</button>
+      </div>
+    `;
+  }
+}
+
 
 /** Component for the Steppa's BeatLab UI. */
 @customElement('prompt-dj')
@@ -1509,6 +1751,38 @@ class PromptDj extends LitElement {
       box-shadow: none;
       background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23555%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.4-5.4-12.8z%22/%3E%3C/svg%3E');
     }
+
+    .midi-learn-button {
+      background-color: #4CAF50; /* Green */
+      color: white;
+      border: none;
+      padding: 0.8em 1.2em;
+      border-radius: 6px;
+      font-size: 2vmin;
+      cursor: pointer;
+      transition: background-color 0.2s, box-shadow 0.2s;
+      min-width: 120px;
+      text-align: center;
+    }
+    .midi-learn-button:hover {
+      background-color: #45a049;
+      box-shadow: 0 0 8px rgba(76, 175, 80, 0.5);
+    }
+    .midi-learn-button.learning {
+      background-color: #f44336; /* Red when learning */
+    }
+    .midi-learn-button.learning:hover {
+      background-color: #d32f2f;
+      box-shadow: 0 0 8px rgba(244, 67, 54, 0.5);
+    }
+    .midi-learn-button:disabled {
+      background-color: #222;
+      color: #777;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+
     .header-actions { /* Now only contains settings button */
       display: flex;
       align-items: center;
@@ -1577,6 +1851,29 @@ class PromptDj extends LitElement {
       color: #fff;
     }
 
+    .learn-mode-message-bar {
+      width: 100%;
+      background-color: rgba(255, 215, 0, 0.8); /* Gold, slightly transparent */
+      color: #111;
+      padding: 1vmin 2vmin;
+      text-align: center;
+      font-weight: 500;
+      font-size: 2.2vmin;
+      z-index: 90;
+      position: relative; /* Ensure it's part of the flow */
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      /* Add transition for appearing/disappearing if needed */
+      opacity: 0;
+      max-height: 0;
+      overflow: hidden;
+      transition: opacity 0.3s ease-out, max-height 0.3s ease-out, padding 0.3s ease-out;
+    }
+    .learn-mode-message-bar.visible {
+      opacity: 1;
+      max-height: 100px; /* Ample height */
+      padding: 1vmin 2vmin;
+    }
+
 
     .content-area {
       display: flex;
@@ -1628,6 +1925,7 @@ class PromptDj extends LitElement {
       width: 100%;
       flex-shrink: 0;
       box-sizing: border-box;
+      cursor: pointer; /* Indicate clickable for MIDI learn */
     }
     
     .floating-add-button { /* Styles for the add-prompt-button when it's below prompts */
@@ -1656,6 +1954,7 @@ class PromptDj extends LitElement {
       height: 21vmin;
       max-width: 150px;
       max-height: 150px;
+      cursor: pointer; /* For MIDI learn */
     }
 
     .utility-button-cluster { /* This is the bottom-right cluster */
@@ -1674,6 +1973,7 @@ class PromptDj extends LitElement {
       height: 12vmin;
       max-width: 80px;
       max-height: 80px;
+      cursor: pointer; /* For MIDI learn */
     }
 
     .utility-button-cluster > share-button,
@@ -1683,6 +1983,18 @@ class PromptDj extends LitElement {
       max-width: 50px; 
       max-height: 50px;
     }
+
+    .main-ui-content { /* Wrapper for content that might be hidden by welcome screen */
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+    }
+    .main-ui-content.hidden-by-welcome {
+      /* visibility: hidden; /* Or apply blur/opacity effects */
+      /* pointer-events: none; /* Not strictly needed if overlay is on top */
+    }
+
   `;
 
   @property({
@@ -1706,11 +2018,12 @@ class PromptDj extends LitElement {
   private filteredPrompts = new Set<string>();
   private connectionError = true;
   private midiController: MidiController;
-  private readonly midiCcBase = 1;
   private isConnecting = false;
 
   @query('toast-message') private toastMessage!: ToastMessage;
   @query('#presetFileInput') private fileInputForPreset!: HTMLInputElement;
+  @query('#play-pause-main-button') private playPauseMainButton!: PlayPauseButton | null;
+  @query('#drop-main-button') private dropMainButton!: DropButton | null;
 
 
   @state() private availableMidiInputs: Array<{id: string, name: string}> = [];
@@ -1743,30 +2056,88 @@ class PromptDj extends LitElement {
   @state() private midiAccessGranted = false;
   @state() private isRequestingMidiAccess = false;
 
+  // MIDI Learn states
+  @state() private isMidiLearnActive = false;
+  @state() private midiLearnTargetId: string | null = null; // Can be promptId or special ID for global controls
+  @state() private midiCcToTargetMap = new Map<number, string>(); // ccNumber -> targetId
+  @state() private learnModeMessage = '';
+  private learnButtonLongPressTimeout: number | null = null;
+
+  // Welcome Screen state
+  @state() private showWelcomeScreen = false;
+
+
+  // Define Drop Flavors
+  private readonly DROP_FLAVORS = [
+    {
+      name: "energetic",
+      keywords: ["techno", "house", "edm", "bass drop", "upbeat", "dance", "party", "rave", "fast", "hard", "driving", "power", "beat", "kick", "drum and bass", "trance", "dubstep"],
+      prompt: "Intense build-up with rising synths and fast drum rolls, a short, sharp silence, followed by a powerful, deep bass drop and re-energized beat."
+    },
+    {
+      name: "smooth",
+      keywords: ["ambient", "chill", "soundscape", "pads", "ethereal", "relaxing", "calm", "soft", "gentle", "flowing", "atmospheric", "drone", "meditation", "space"],
+      prompt: "A smooth, swelling crescendo of atmospheric pads and evolving textures, a gentle pause, then a warm, resonant sub-bass re-entry with a subtle rhythmic pulse."
+    },
+    {
+      name: "groovy",
+      keywords: ["funk", "funky", "soul", "disco", "groove", "rhythmic", "swing", "syncopated", "jam", "hip hop", "motown", "breakbeat"],
+      prompt: "Funky filter sweeps and a building drum fill, a syncopated break, then a tight, punchy bassline and drum groove drop back in with extra percussive flair."
+    },
+    {
+      name: "dramatic",
+      keywords: ["epic", "orchestral", "cinematic", "tension", "soundtrack", "suspense", "grand", "sweeping", "classical", "strings", "choir", "film score"],
+      prompt: "Dramatic orchestral swells and rising tension with powerful staccato hits, a moment of suspenseful silence, then a grand, impactful return of the main theme with added layers."
+    }
+  ];
+
 
   constructor() {
     super();
-    const initialColor = TRACK_COLORS[0];
-    this.prompts = new Map([
-      ['prompt-0', {promptId: 'prompt-0', text: 'Ambient Chill', weight: 1.0, color: initialColor}],
-    ]);
-    this.nextPromptId = 1;
+    this.prompts = new Map(); // No initial prompts by default
+    this.nextPromptId = 0;
     this.outputNode.connect(this.audioContext.destination);
     this.midiController = new MidiController();
     this.handleMidiCcReceived = this.handleMidiCcReceived.bind(this);
     this.handleMidiInputsChanged = this.handleMidiInputsChanged.bind(this);
+    this.handleKeyDown = this.handleKeyDown.bind(this);
     this.firstChunkReceivedTimestamp = 0;
+    this.addEventListener('welcome-complete', this.handleWelcomeComplete as EventListener);
   }
 
   override async firstUpdated() {
     await this._loadStateFromUrl(); // Attempt to load shared state first
-    await this.connectToSession();
+
+    const welcomeCompleted = localStorage.getItem('beatLabWelcomeCompleted') === 'true';
+
+    if (!welcomeCompleted && this.prompts.size === 0) { // No share link loaded prompts, and welcome not done
+      this.showWelcomeScreen = true;
+      this.prompts.clear(); // Ensure no accidental prompts before welcome
+      this.nextPromptId = 0;
+    } else {
+      this.showWelcomeScreen = false;
+      if (!welcomeCompleted && this.prompts.size > 0) { // Prompts loaded via share link on first visit
+        localStorage.setItem('beatLabWelcomeCompleted', 'true');
+      }
+      if (this.prompts.size === 0) { // Welcome was completed, or returning user, but no prompts (e.g. from URL)
+        this.createInitialPrompt("Synthwave Groove"); // Default for returning users or if welcome somehow skipped
+      }
+    }
     
-    this.midiController.initialize(); // Initialize MIDI controller (doesn't request access yet)
+    // Initialize MIDI controller irrespective of welcome screen
+    this.midiController.initialize(); 
     this.isMidiSupported = this.midiController.isMidiSupported();
     
     this.addEventListener('midi-cc-received', this.handleMidiCcReceived as EventListener);
     this.midiController.addEventListener('midi-inputs-changed', this.handleMidiInputsChanged as EventListener);
+    this.addEventListener('prompt-interaction', this.handlePromptInteractionForLearn as EventListener);
+    window.addEventListener('keydown', this.handleKeyDown);
+
+    // Connect to session only if not showing welcome screen
+    // If welcome screen is shown, connection happens after welcome completion
+    if (!this.showWelcomeScreen) {
+      await this.connectToSession();
+    }
   }
 
   override disconnectedCallback(): void {
@@ -1778,6 +2149,11 @@ class PromptDj extends LitElement {
       this.midiController.destroy();
       this.removeEventListener('midi-cc-received', this.handleMidiCcReceived as EventListener);
       this.midiController.removeEventListener('midi-inputs-changed', this.handleMidiInputsChanged as EventListener);
+      this.removeEventListener('prompt-interaction', this.handlePromptInteractionForLearn as EventListener);
+      window.removeEventListener('keydown', this.handleKeyDown);
+      this.removeEventListener('welcome-complete', this.handleWelcomeComplete as EventListener);
+
+
       if (this.session) {
         try {
             this.session.stop();
@@ -1788,7 +2164,65 @@ class PromptDj extends LitElement {
       if (this.audioContext.state !== 'closed') {
         this.audioContext.close();
       }
+      if (this.learnButtonLongPressTimeout) {
+        clearTimeout(this.learnButtonLongPressTimeout);
+      }
   }
+
+  private async handleWelcomeComplete(e: CustomEvent<{firstPromptText: string}>) {
+    const firstPromptText = e.detail.firstPromptText.trim() || "Synthwave Groove"; // Default if empty
+    this.showWelcomeScreen = false;
+    localStorage.setItem('beatLabWelcomeCompleted', 'true');
+
+    this.prompts.clear(); // Ensure clean slate
+    this.nextPromptId = 0;
+    this.createInitialPrompt(firstPromptText, 1.0);
+
+    await this.connectToSession(); // Now connect to session with the new prompt
+  }
+
+  private createInitialPrompt(text: string, weight = 1.0) {
+    const newPromptId = `prompt-${this.nextPromptId}`;
+    const newColor = TRACK_COLORS[this.nextPromptId % TRACK_COLORS.length];
+    this.nextPromptId++;
+    const newPrompt: Prompt = {
+      promptId: newPromptId,
+      text: text,
+      weight: weight,
+      color: newColor,
+    };
+    this.prompts.set(newPromptId, newPrompt);
+    this.prompts = new Map(this.prompts); // Trigger update
+    // If session is already connected, send prompts. Otherwise, connectToSession will handle it.
+    if (this.session && !this.connectionError) {
+        this.setSessionPrompts();
+    }
+  }
+
+
+  private handleKeyDown(e: KeyboardEvent) {
+    if (this.showWelcomeScreen) return; // Don't process keydowns if welcome screen is active
+
+    if (e.key === 'Escape') {
+      if (this.isMidiLearnActive) {
+        if (this.midiLearnTargetId) {
+          this.midiLearnTargetId = null; // Deselect target
+          this.updateLearnModeMessage();
+          this.requestUpdate(); // Ensure UI updates for highlight
+        } else {
+          this.toggleMidiLearnMode(); // Exit learn mode
+        }
+        e.preventDefault();
+      } else if (this.showHelpPanel) {
+        this.toggleHelpPanel();
+        e.preventDefault();
+      } else if (this.showAdvancedSettings) {
+        this.toggleAdvancedSettings();
+        e.preventDefault();
+      }
+    }
+  }
+
 
   private async handleMidiSelectorInteraction() {
     if (this.isRequestingMidiAccess || !this.isMidiSupported) {
@@ -1811,46 +2245,42 @@ class PromptDj extends LitElement {
 
   private handleMidiInputsChanged(event: CustomEvent<{inputs: Array<{id: string, name: string}>}>) {
     const newInputs = event.detail.inputs;
+    const oldSelectedId = this.selectedMidiInputId;
     this.availableMidiInputs = newInputs;
+
+    let newSelectedIdToSet: string | null = null;
 
     if (newInputs.length > 0) {
         const currentSelectedStillExists = this.selectedMidiInputId && newInputs.some(input => input.id === this.selectedMidiInputId);
-        let newSelectedId = this.selectedMidiInputId;
-
-        if (!currentSelectedStillExists) {
-            // If current selection is gone, try to select the first available one if not already selected
-            newSelectedId = newInputs[0].id;
-        }
         
-        // If no input was selected before, and now inputs are available, select the first one.
-        if (!this.selectedMidiInputId && newInputs.length > 0) {
-             newSelectedId = newInputs[0].id;
+        if (currentSelectedStillExists) {
+            newSelectedIdToSet = this.selectedMidiInputId; // Keep current
+        } else {
+            newSelectedIdToSet = newInputs[0].id; // Auto-select first if current is gone or none was selected
         }
-
-        if (newSelectedId && newSelectedId !== this.selectedMidiInputId) {
-             this.selectedMidiInputId = newSelectedId;
-             this.midiController.selectMidiInput(this.selectedMidiInputId);
-        } else if (this.selectedMidiInputId && !currentSelectedStillExists) {
-            // If the previously selected device is gone, and we auto-selected a new one, apply it.
-             this.midiController.selectMidiInput(this.selectedMidiInputId);
-        }
-
-
     } else { // No inputs available
-        if (this.selectedMidiInputId) { // If something was selected
-            this.midiController.selectMidiInput(''); // Deselect
+        newSelectedIdToSet = null;
+    }
+    
+    if (newSelectedIdToSet !== oldSelectedId) {
+        this.selectedMidiInputId = newSelectedIdToSet;
+        this.midiController.selectMidiInput(this.selectedMidiInputId || '');
+        if (oldSelectedId && oldSelectedId !== newSelectedIdToSet) {
+            this.clearAllMidiMappings("MIDI device changed.");
         }
-        this.selectedMidiInputId = null;
     }
   }
 
   private handleMidiDeviceChange(event: Event) {
     const selectedId = (event.target as HTMLSelectElement).value;
+    if (this.selectedMidiInputId && this.selectedMidiInputId !== selectedId) {
+        this.clearAllMidiMappings("MIDI device changed.");
+    }
     this.selectedMidiInputId = selectedId || null;
     if (this.selectedMidiInputId) {
         this.midiController.selectMidiInput(this.selectedMidiInputId);
     } else {
-        this.midiController.selectMidiInput('');
+        this.midiController.selectMidiInput(''); // Deselect
     }
   }
 
@@ -1868,7 +2298,8 @@ class PromptDj extends LitElement {
             onmessage: async (e: LiveMusicServerMessage) => {
             // console.log('Received message from the server:', e); // Log every message for debug if needed
             if (e.setupComplete) {
-                this.setGenerationConfiguration();
+                this.setGenerationConfiguration(); // Send initial config
+                this.setSessionPrompts(); // Send initial prompts
             }
             if (e.filteredPrompt) {
                 this.filteredPrompts = new Set([
@@ -1945,7 +2376,7 @@ class PromptDj extends LitElement {
         });
         this.connectionError = false;
         console.log("Session connected successfully.");
-        this.setGenerationConfiguration(); // Send initial full config
+        // Configuration and prompts are sent on `setupComplete`
     } catch (error: any) {
         console.error("Failed to connect to session:", error);
         this.connectionError = true;
@@ -1984,10 +2415,8 @@ class PromptDj extends LitElement {
                  currentPlayingStyleDescription += ", and other elements";
             }
         }
-        // Example: Temporarily boost temperature slightly for more energy during drop, if desired
-        // musicGenConfig.temperature = Math.min(this.temperature + 0.2, 2.0);
         
-        musicGenConfig.systemInstruction = `You are a master DJ executing a highly energetic and dramatic drop. The main prompt describes the sequence. Integrate this drop cohesively with the existing musical style, described as: ${currentPlayingStyleDescription}. Make it impactful.`;
+        musicGenConfig.systemInstruction = `You are a master DJ. Execute the following musical drop sequence, making it fit cohesively with the existing musical style, described as: ${currentPlayingStyleDescription}. Emphasize its impact and musicality.`;
     } else {
         musicGenConfig.systemInstruction = this.globalSystemInstruction;
     }
@@ -2068,15 +2497,16 @@ class PromptDj extends LitElement {
             return;
         }
       } else {
-        // If already connected, ensure config is up-to-date before playing
+        // If already connected, ensure config and prompts are up-to-date before playing
         this.setGenerationConfiguration();
+        this.setSessionPrompts();
       }
 
 
       if (this.audioContext.state === 'suspended') {
         await this.audioContext.resume().catch(err => console.error("Audio context resume failed:", err));
       }
-      await this.setSessionPrompts();
+      // setSessionPrompts is called within connectToSession or just above if already connected.
       this.loadAudio();
 
     } else if (this.playbackState === 'loading') {
@@ -2166,6 +2596,10 @@ class PromptDj extends LitElement {
         this.toastMessage.show("Cannot add prompt during Drop sequence.");
         return;
     }
+    if (this.isMidiLearnActive) {
+        this.toastMessage.show("Cannot add prompt while MIDI Learn is active.");
+        return;
+    }
     const newPromptId = `prompt-${this.nextPromptId}`;
     const newColor = TRACK_COLORS[this.nextPromptId % TRACK_COLORS.length];
     this.nextPromptId++;
@@ -2192,11 +2626,20 @@ class PromptDj extends LitElement {
     e.stopPropagation();
     const promptIdToRemove = e.detail;
     if (this.isDropActive && promptIdToRemove === this.temporaryDropPromptId) {
-        // If user tries to remove the drop prompt itself, let the drop logic handle it
-        // or simply disallow. For now, let's assume drop logic is robust.
         console.log("Attempted to remove active drop prompt. Drop logic will handle it.");
         return;
     }
+    if (this.isMidiLearnActive && promptIdToRemove === this.midiLearnTargetId) {
+        this.midiLearnTargetId = null; // Deselect if it was the target
+        this.updateLearnModeMessage();
+    }
+    // Remove from MIDI CC map if it was mapped
+    for (const [cc, targetId] of this.midiCcToTargetMap.entries()) {
+        if (targetId === promptIdToRemove) {
+            this.midiCcToTargetMap.delete(cc);
+        }
+    }
+
     if (this.prompts.has(promptIdToRemove)) {
         this.actuallyRemovePrompt(promptIdToRemove);
     } else {
@@ -2211,7 +2654,6 @@ class PromptDj extends LitElement {
     newPrompts.delete(promptIdToRemove);
     this.prompts = newPrompts; 
     
-    // If a drop is active and a non-drop prompt is removed, update original weights
     if (this.isDropActive && this.originalPromptWeightsBeforeDrop?.has(promptIdToRemove)) {
         this.originalPromptWeightsBeforeDrop.delete(promptIdToRemove);
     }
@@ -2219,26 +2661,52 @@ class PromptDj extends LitElement {
     this.setSessionPrompts();
   }
 
+  private handleMidiCcReceived(event: CustomEvent<{ ccNumber: number, value: number, rawValue: number }>) {
+    const { ccNumber, value, rawValue } = event.detail; // `value` is normalized 0-2, `rawValue` is 0-127
 
-  private handleMidiCcReceived(event: CustomEvent<{ ccNumber: number, value: number }>) {
+    if (this.isMidiLearnActive && this.midiLearnTargetId) {
+      // Check if this CC is already mapped to something else
+      if (this.midiCcToTargetMap.has(ccNumber) && this.midiCcToTargetMap.get(ccNumber) !== this.midiLearnTargetId) {
+        this.toastMessage.show(`MIDI CC ${ccNumber} is already assigned. Clear it first or use another control.`);
+        return;
+      }
+
+      this.midiCcToTargetMap.set(ccNumber, this.midiLearnTargetId);
+      let targetName = this.midiLearnTargetId;
+      if (this.midiLearnTargetId.startsWith('prompt-')) {
+        targetName = `Track '${this.prompts.get(this.midiLearnTargetId)?.text || 'Unknown'}'`;
+      } else if (this.midiLearnTargetId === MIDI_LEARN_TARGET_DROP_BUTTON) {
+        targetName = 'Drop Button';
+      } else if (this.midiLearnTargetId === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON) {
+        targetName = 'Play/Pause Button';
+      }
+      this.toastMessage.show(`MIDI CC ${ccNumber} assigned to ${targetName}.`);
+      this.midiLearnTargetId = null;
+      this.updateLearnModeMessage();
+      this.requestUpdate(); // Update UI (highlights)
+      return;
+    }
+
     if (this.isDropActive) return; // Don't allow MIDI control during drop
 
-    const receivedCc = event.detail.ccNumber;
-    const normalizedValue = event.detail.value;
-
-    const promptArray = Array.from(this.prompts.values());
-    const promptIndex = receivedCc - this.midiCcBase;
-
-    if (promptIndex >= 0 && promptIndex < promptArray.length) {
-        const targetPrompt = promptArray[promptIndex];
-        if (targetPrompt) {
-            const existingPrompt = this.prompts.get(targetPrompt.promptId);
-            if (existingPrompt) {
-                existingPrompt.weight = normalizedValue; 
-                this.prompts = new Map(this.prompts); 
-                this.setSessionPrompts();
-            }
+    const targetId = this.midiCcToTargetMap.get(ccNumber);
+    if (targetId) {
+      if (targetId.startsWith('prompt-')) {
+        const prompt = this.prompts.get(targetId);
+        if (prompt) {
+          prompt.weight = value; // `value` is already normalized 0-2 for sliders
+          this.prompts = new Map(this.prompts);
+          this.setSessionPrompts();
         }
+      } else if (targetId === MIDI_LEARN_TARGET_DROP_BUTTON) {
+        if (rawValue > 64) { // Treat as button press
+          this.handleDropClick();
+        }
+      } else if (targetId === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON) {
+        if (rawValue > 64) { // Treat as button press
+          this.handlePlayPause();
+        }
+      }
     }
   }
 
@@ -2266,8 +2734,6 @@ class PromptDj extends LitElement {
     if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as ParameterSlider).value = this.bpm; return; }
     this.bpm = e.detail;
     this.setGenerationConfiguration();
-    // Note: User was informed that BPM changes might need context reset.
-    // this.toastMessage.show("BPM changed. Music context may need play/pause to update tempo.");
   }
   private handleDensityChange(e: CustomEvent<number>) {
     if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as ParameterSlider).value = this.density; return; }
@@ -2309,16 +2775,36 @@ class PromptDj extends LitElement {
     this.showHelpPanel = !this.showHelpPanel;
   }
   
+  private _selectDropPromptText(): string {
+    const activePrompts = Array.from(this.prompts.values())
+        .filter(p => p.weight > 0.05 && (!this.isDropActive || p.promptId !== this.temporaryDropPromptId));
+
+    const allActiveText = activePrompts.map(p => p.text.toLowerCase()).join(' ');
+
+    if (allActiveText.trim() === '') {
+        return this.DROP_FLAVORS[0].prompt; // Default energetic if no active text
+    }
+
+    for (const flavor of this.DROP_FLAVORS) {
+        if (flavor.keywords.some(kw => allActiveText.includes(kw))) {
+        return flavor.prompt;
+        }
+    }
+    return this.DROP_FLAVORS[0].prompt; // Default to energetic
+  }
+
   private async handleDropClick() {
+    if (this.isMidiLearnActive) { this.setMidiLearnTarget(MIDI_LEARN_TARGET_DROP_BUTTON); return; }
     if (this.isDropActive) {
       this.toastMessage.show("Drop sequence already in progress!");
       return;
     }
 
+    const selectedDropText = this._selectDropPromptText(); // Select drop text based on current music
+    
     this.isDropActive = true; // Set state FIRST
     this.toastMessage.show("Drop sequence initiated! Brace yourself!");
 
-    // This call ensures the drop-specific systemInstruction is generated and sent
     this.setGenerationConfiguration(); 
 
     this.originalPromptWeightsBeforeDrop = new Map();
@@ -2326,21 +2812,19 @@ class PromptDj extends LitElement {
 
     this.prompts.forEach((prompt, id) => {
       this.originalPromptWeightsBeforeDrop!.set(id, prompt.weight);
-      // Reduce weight of existing prompts significantly during the drop
       newPromptsForDrop.set(id, { ...prompt, weight: 0.05 }); 
     });
 
     this.temporaryDropPromptId = `drop-prompt-${Date.now()}`;
-    const dropPromptText = "Epic buildup, dramatic tension, short silence, then a massive bass drop with explosive energy.";
     newPromptsForDrop.set(this.temporaryDropPromptId, {
       promptId: this.temporaryDropPromptId,
-      text: dropPromptText,
-      weight: 2.0, // High weight for the drop prompt
-      color: TRACK_COLORS[4], // Purple, or another distinct color
+      text: selectedDropText, 
+      weight: 2.0, 
+      color: TRACK_COLORS[4], 
     });
 
     this.prompts = newPromptsForDrop;
-    this.setSessionPrompts(); // Send updated prompts for the drop
+    this.setSessionPrompts(); 
 
     this.dropTimeoutId = window.setTimeout(async () => {
       const newPromptsAfterDrop = new Map<string, Prompt>();
@@ -2353,18 +2837,17 @@ class PromptDj extends LitElement {
       
       this.prompts = newPromptsAfterDrop; 
       
-      this.isDropActive = false; // Set state FIRST
+      this.isDropActive = false; 
       
-      // This call ensures the systemInstruction reverts to global/normal
       this.setGenerationConfiguration(); 
       
-      this.setSessionPrompts(); // Send restored prompts
+      this.setSessionPrompts(); 
 
       this.originalPromptWeightsBeforeDrop = null;
       this.temporaryDropPromptId = null;
       this.dropTimeoutId = null;
       this.toastMessage.show("Drop sequence complete!");
-    }, 8000); // 8 seconds for the drop effect
+    }, 8000); 
   }
 
 
@@ -2375,7 +2858,7 @@ class PromptDj extends LitElement {
     }
     
     if (
-        typeof configData.version !== 'string' || // Looser version check for now
+        typeof configData.version !== 'string' || 
         !Array.isArray(configData.prompts) ||
         typeof configData.temperature !== 'number' ||
         !configData.prompts.every(p => typeof p.text === 'string' && typeof p.weight === 'number')
@@ -2403,7 +2886,6 @@ class PromptDj extends LitElement {
     this.prompts = newPromptsMap;
     this.temperature = configData.temperature;
 
-    // Apply new settings if present, otherwise use defaults
     this.guidance = configData.guidance ?? 4.0;
     this.bpm = configData.bpm ?? 120;
     this.density = configData.density ?? 0.5;
@@ -2413,7 +2895,6 @@ class PromptDj extends LitElement {
     this.onlyBassAndDrums = configData.onlyBassAndDrums ?? false;
     this.musicGenerationMode = configData.musicGenerationMode ?? 'QUALITY';
 
-    // Ensure consistency if onlyBassAndDrums is true
     if (this.onlyBassAndDrums) {
         this.muteBass = false;
         this.muteDrums = false;
@@ -2572,6 +3053,90 @@ class PromptDj extends LitElement {
     }
   }
 
+  private handleLearnButtonMouseDown() {
+    if (this.isMidiLearnActive || !this.selectedMidiInputId) return; // Only for clearing, not when already learning or no MIDI
+    
+    this.learnButtonLongPressTimeout = window.setTimeout(() => {
+      this.clearAllMidiMappings("All MIDI assignments cleared via long press.");
+    }, 2000); // 2 seconds for long press
+  }
+
+  private handleLearnButtonMouseUpOrOut() {
+    if (this.learnButtonLongPressTimeout) {
+      clearTimeout(this.learnButtonLongPressTimeout);
+      this.learnButtonLongPressTimeout = null;
+    }
+  }
+
+  private toggleMidiLearnMode() {
+    if (!this.selectedMidiInputId) {
+        this.toastMessage.show("Please select a MIDI device first.");
+        return;
+    }
+    this.isMidiLearnActive = !this.isMidiLearnActive;
+    if (!this.isMidiLearnActive) {
+      this.midiLearnTargetId = null; // Clear target if exiting learn mode
+      this.toastMessage.show("MIDI Learn mode deactivated.");
+    } else {
+        this.toastMessage.show("MIDI Learn mode activated!");
+    }
+    this.updateLearnModeMessage();
+    this.requestUpdate(); // To update button text and highlights
+  }
+
+  private updateLearnModeMessage() {
+    if (!this.isMidiLearnActive) {
+      this.learnModeMessage = '';
+      return;
+    }
+    if (this.midiLearnTargetId) {
+      let targetName = this.midiLearnTargetId;
+      if (this.midiLearnTargetId.startsWith('prompt-')) {
+        targetName = `Track '${this.prompts.get(this.midiLearnTargetId)?.text || 'Unknown'}'`;
+      } else if (this.midiLearnTargetId === MIDI_LEARN_TARGET_DROP_BUTTON) {
+        targetName = 'Drop Button';
+      } else if (this.midiLearnTargetId === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON) {
+        targetName = 'Play/Pause Button';
+      }
+      this.learnModeMessage = `Move a knob/fader or press a button on your MIDI device for '${targetName}'. Press Esc to cancel selection.`;
+    } else {
+      this.learnModeMessage = "Click a track's slider, Drop, or Play/Pause button to assign a MIDI control. Click 'Learning...' button or Esc to finish.";
+    }
+  }
+
+  private setMidiLearnTarget(targetId: string) {
+    if (!this.isMidiLearnActive) return;
+    this.midiLearnTargetId = targetId;
+    this.updateLearnModeMessage();
+    this.requestUpdate(); // To update highlights
+  }
+  
+  // Called when a prompt-controller's main div is clicked
+  private handlePromptInteractionForLearn(e: CustomEvent<{promptId: string; text: string}>) {
+    if (this.isMidiLearnActive) {
+      this.setMidiLearnTarget(e.detail.promptId);
+    }
+  }
+  
+  private handlePlayPauseButtonClickForLearn() {
+    if (this.isMidiLearnActive) {
+      this.setMidiLearnTarget(MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON);
+    } else {
+      this.handlePlayPause(); // Normal play/pause action
+    }
+  }
+
+  private clearAllMidiMappings(toastMessageText = "All MIDI assignments cleared.") {
+    if (this.midiCcToTargetMap.size > 0) {
+        this.midiCcToTargetMap.clear();
+        this.toastMessage.show(toastMessageText);
+    }
+     if (this.isMidiLearnActive && this.midiLearnTargetId) {
+        this.midiLearnTargetId = null;
+        this.updateLearnModeMessage();
+    }
+  }
+
 
   override render() {
     const showSelectPlaceholder = this.isMidiSupported && this.midiAccessGranted && this.availableMidiInputs.length > 0 && !this.availableMidiInputs.some(input => input.id === this.selectedMidiInputId);
@@ -2596,128 +3161,163 @@ class PromptDj extends LitElement {
         `;
     }
 
-    return html`
-      <div class="background-orbs-container">
-        <div class="orb orb1"></div>
-        <div class="orb orb2"></div>
-        <div class="orb orb3"></div>
-        <div class="orb orb4"></div>
-      </div>
-      <div class="header-bar">
-        <div class="header-left-controls">
-            <select
-            class="midi-selector"
-            @mousedown=${this.handleMidiSelectorInteraction}
-            @change=${this.handleMidiDeviceChange}
-            .value=${this.selectedMidiInputId || ''}
-            ?disabled=${!this.isMidiSupported || this.isRequestingMidiAccess || this.isDropActive }
-            aria-label="Select MIDI Input Device">
-            ${midiSelectorOptions}
-            </select>
-        </div>
-        <div class="header-actions">
-          <settings-button @click=${this.toggleAdvancedSettings} aria-label="Toggle advanced settings"></settings-button>
-        </div>
-      </div>
-      <div class="advanced-settings-panel ${classMap({visible: this.showAdvancedSettings})}">
-        <div class="settings-grid">
-            <parameter-slider
-                label="Temperature"
-                .value=${this.temperature}
-                min="0" max="2" step="0.1"
-                @input=${this.handleTemperatureChange}
-                ?disabled=${this.isDropActive}>
-            </parameter-slider>
-            <parameter-slider
-                label="Guidance"
-                .value=${this.guidance}
-                min="0" max="6" step="0.1"
-                @input=${this.handleGuidanceChange}
-                ?disabled=${this.isDropActive}>
-            </parameter-slider>
-            <parameter-slider
-                label="BPM"
-                .value=${this.bpm}
-                min="60" max="200" step="1"
-                @input=${this.handleBpmChange}
-                ?disabled=${this.isDropActive}>
-            </parameter-slider>
-            <parameter-slider
-                label="Density"
-                .value=${this.density}
-                min="0" max="1" step="0.01"
-                @input=${this.handleDensityChange}
-                ?disabled=${this.isDropActive}>
-            </parameter-slider>
-            <parameter-slider
-                label="Brightness"
-                .value=${this.brightness}
-                min="0" max="1" step="0.01"
-                @input=${this.handleBrightnessChange}
-                ?disabled=${this.isDropActive}>
-            </parameter-slider>
-             <div class="settings-grid-item">
-                <label for="music-gen-mode">Music Generation Mode</label>
-                <select 
-                    id="music-gen-mode"
-                    class="styled-select"
-                    .value=${this.musicGenerationMode}
-                    @change=${this.handleMusicGenerationModeChange}
-                    ?disabled=${this.isDropActive}>
-                    <option value="QUALITY">Quality</option>
-                    <option value="DIVERSITY">Diversity</option>
-                </select>
-            </div>
-            <toggle-switch 
-                label="Mute Bass" 
-                .checked=${this.muteBass}
-                ?disabled=${this.isDropActive || this.onlyBassAndDrums}
-                @change=${this.handleMuteBassToggle}>
-            </toggle-switch>
-            <toggle-switch
-                label="Mute Drums"
-                .checked=${this.muteDrums}
-                ?disabled=${this.isDropActive || this.onlyBassAndDrums}
-                @change=${this.handleMuteDrumsToggle}>
-            </toggle-switch>
-            <toggle-switch
-                label="Only Bass & Drums"
-                .checked=${this.onlyBassAndDrums}
-                ?disabled=${this.isDropActive}
-                @change=${this.handleOnlyBassAndDrumsToggle}>
-            </toggle-switch>
-        </div>
-        <a class="hide-settings-link" @click=${this.toggleAdvancedSettings}>Hide Advanced Settings</a>
-      </div>
-      <div class="content-area">
-        <div id="prompts-container" @prompt-removed=${this.handlePromptRemoved}>
-          ${this.renderPrompts()}
-          <add-prompt-button 
-            class="floating-add-button"
-            @click=${this.handleAddPrompt} 
-            aria-label="Add new prompt track">
-          </add-prompt-button>
-        </div>
-      </div>
-      <toast-message .message=${this.toastMessage?.message || ''} .showing=${this.toastMessage?.showing || false}></toast-message>
-      
-      <div class="bottom-left-utility-cluster">
-        <play-pause-button
-            @click=${this.handlePlayPause}
-            .playbackState=${this.playbackState}
-            aria-label=${this.playbackState === 'playing' ? 'Pause audio' : 'Play audio'}
-          ></play-pause-button>
-      </div>
+    const mainUiClasses = {
+        'main-ui-content': true,
+        'hidden-by-welcome': this.showWelcomeScreen
+    };
 
-      <div class="utility-button-cluster">
-        <drop-button @click=${this.handleDropClick} aria-label="Trigger Drop Effect"></drop-button>
-        <share-button @click=${this.handleShareClick} aria-label="Share current configuration via link"></share-button>
-        <help-button @click=${this.toggleHelpPanel} aria-label="Open help guide"></help-button>
-      </div>
-      
-      <help-guide-panel .isOpen=${this.showHelpPanel} @close-help=${this.toggleHelpPanel}></help-guide-panel>
-      
-      <input type="file" id="presetFileInput" accept=".json" style="display: none;" @change=${this.handlePresetFileSelected}>
+    return html`
+      ${this.showWelcomeScreen ? html`<welcome-overlay @welcome-complete=${this.handleWelcomeComplete}></welcome-overlay>` : ''}
+
+      <div class=${classMap(mainUiClasses)}>
+        <div class="background-orbs-container">
+          <div class="orb orb1"></div>
+          <div class="orb orb2"></div>
+          <div class="orb orb3"></div>
+          <div class="orb orb4"></div>
+        </div>
+        <div class="header-bar">
+          <div class="header-left-controls">
+              <select
+              class="midi-selector"
+              @mousedown=${this.handleMidiSelectorInteraction}
+              @change=${this.handleMidiDeviceChange}
+              .value=${this.selectedMidiInputId || ''}
+              ?disabled=${!this.isMidiSupported || this.isRequestingMidiAccess || this.isDropActive || this.showWelcomeScreen }
+              aria-label="Select MIDI Input Device">
+              ${midiSelectorOptions}
+              </select>
+              ${this.selectedMidiInputId ? html`
+                  <button 
+                      class="midi-learn-button ${classMap({learning: this.isMidiLearnActive})}"
+                      @click=${this.toggleMidiLearnMode}
+                      @mousedown=${this.handleLearnButtonMouseDown}
+                      @mouseup=${this.handleLearnButtonMouseUpOrOut}
+                      @mouseleave=${this.handleLearnButtonMouseUpOrOut}
+                      title=${this.isMidiLearnActive ? "Cancel MIDI Learn" : "Activate MIDI Learn (Hold to clear all mappings)"}
+                      ?disabled=${this.isDropActive || this.showWelcomeScreen}>
+                      ${this.isMidiLearnActive ? 'Learning... (Cancel)' : 'Learn MIDI'}
+                  </button>
+              ` : ''}
+          </div>
+          <div class="header-actions">
+            <settings-button @click=${this.toggleAdvancedSettings} ?disabled=${this.showWelcomeScreen} aria-label="Toggle advanced settings"></settings-button>
+          </div>
+        </div>
+        <div class="learn-mode-message-bar ${classMap({visible: this.isMidiLearnActive && this.learnModeMessage !== ''})}">
+          ${this.learnModeMessage}
+        </div>
+        <div class="advanced-settings-panel ${classMap({visible: this.showAdvancedSettings})}">
+          <div class="settings-grid">
+              <parameter-slider
+                  label="Temperature"
+                  .value=${this.temperature}
+                  min="0" max="2" step="0.1"
+                  @input=${this.handleTemperatureChange}
+                  ?disabled=${this.isDropActive || this.showWelcomeScreen}>
+              </parameter-slider>
+              <parameter-slider
+                  label="Guidance"
+                  .value=${this.guidance}
+                  min="0" max="6" step="0.1"
+                  @input=${this.handleGuidanceChange}
+                  ?disabled=${this.isDropActive || this.showWelcomeScreen}>
+              </parameter-slider>
+              <parameter-slider
+                  label="BPM"
+                  .value=${this.bpm}
+                  min="60" max="200" step="1"
+                  @input=${this.handleBpmChange}
+                  ?disabled=${this.isDropActive || this.showWelcomeScreen}>
+              </parameter-slider>
+              <parameter-slider
+                  label="Density"
+                  .value=${this.density}
+                  min="0" max="1" step="0.01"
+                  @input=${this.handleDensityChange}
+                  ?disabled=${this.isDropActive || this.showWelcomeScreen}>
+              </parameter-slider>
+              <parameter-slider
+                  label="Brightness"
+                  .value=${this.brightness}
+                  min="0" max="1" step="0.01"
+                  @input=${this.handleBrightnessChange}
+                  ?disabled=${this.isDropActive || this.showWelcomeScreen}>
+              </parameter-slider>
+              <div class="settings-grid-item">
+                  <label for="music-gen-mode">Music Generation Mode</label>
+                  <select 
+                      id="music-gen-mode"
+                      class="styled-select"
+                      .value=${this.musicGenerationMode}
+                      @change=${this.handleMusicGenerationModeChange}
+                      ?disabled=${this.isDropActive || this.showWelcomeScreen}>
+                      <option value="QUALITY">Quality</option>
+                      <option value="DIVERSITY">Diversity</option>
+                  </select>
+              </div>
+              <toggle-switch 
+                  label="Mute Bass" 
+                  .checked=${this.muteBass}
+                  ?disabled=${this.isDropActive || this.onlyBassAndDrums || this.showWelcomeScreen}
+                  @change=${this.handleMuteBassToggle}>
+              </toggle-switch>
+              <toggle-switch
+                  label="Mute Drums"
+                  .checked=${this.muteDrums}
+                  ?disabled=${this.isDropActive || this.onlyBassAndDrums || this.showWelcomeScreen}
+                  @change=${this.handleMuteDrumsToggle}>
+              </toggle-switch>
+              <toggle-switch
+                  label="Only Bass & Drums"
+                  .checked=${this.onlyBassAndDrums}
+                  ?disabled=${this.isDropActive || this.showWelcomeScreen}
+                  @change=${this.handleOnlyBassAndDrumsToggle}>
+              </toggle-switch>
+          </div>
+          <a class="hide-settings-link" @click=${this.toggleAdvancedSettings}>Hide Advanced Settings</a>
+        </div>
+        <div class="content-area">
+          <div id="prompts-container" @prompt-removed=${this.handlePromptRemoved}>
+            ${this.renderPrompts()}
+            ${!this.showWelcomeScreen ? html`
+              <add-prompt-button 
+                class="floating-add-button"
+                @click=${this.handleAddPrompt} 
+                aria-label="Add new prompt track">
+              </add-prompt-button>
+            ` : ''}
+          </div>
+        </div>
+        <toast-message .message=${this.toastMessage?.message || ''} .showing=${this.toastMessage?.showing || false}></toast-message>
+        
+        ${!this.showWelcomeScreen ? html`
+          <div class="bottom-left-utility-cluster">
+            <play-pause-button
+                id="play-pause-main-button" 
+                @click=${this.handlePlayPauseButtonClickForLearn}
+                .playbackState=${this.playbackState}
+                .isMidiLearnTarget=${this.isMidiLearnActive && this.midiLearnTargetId === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON}
+                aria-label=${this.playbackState === 'playing' ? 'Pause audio' : 'Play audio'}
+              ></play-pause-button>
+          </div>
+
+          <div class="utility-button-cluster">
+            <drop-button 
+                id="drop-main-button"
+                @click=${this.handleDropClick} 
+                .isMidiLearnTarget=${this.isMidiLearnActive && this.midiLearnTargetId === MIDI_LEARN_TARGET_DROP_BUTTON}
+                aria-label="Trigger Drop Effect">
+            </drop-button>
+            <share-button @click=${this.handleShareClick} aria-label="Share current configuration via link"></share-button>
+            <help-button @click=${this.toggleHelpPanel} aria-label="Open help guide"></help-button>
+          </div>
+        ` : ''}
+        
+        <help-guide-panel .isOpen=${this.showHelpPanel} @close-help=${this.toggleHelpPanel}></help-guide-panel>
+        
+        <input type="file" id="presetFileInput" accept=".json" style="display: none;" @change=${this.handlePresetFileSelected}>
+      </div> <!-- End of main-ui-content -->
       `;
   }
 
@@ -2729,7 +3329,8 @@ class PromptDj extends LitElement {
         .text=${prompt.text}
         .weight=${prompt.weight}
         .sliderColor=${prompt.color}
-        ?disabled=${this.isDropActive && prompt.promptId !== this.temporaryDropPromptId}
+        ?ismidilearntarget=${this.isMidiLearnActive && this.midiLearnTargetId === prompt.promptId}
+        ?disabled=${(this.isDropActive && prompt.promptId !== this.temporaryDropPromptId) || this.showWelcomeScreen}
         @prompt-changed=${this.handlePromptChanged}>
       </prompt-controller>`;
     });
@@ -2764,6 +3365,7 @@ declare global {
     'toast-message': ToastMessage;
     'help-guide-panel': HelpGuidePanel;
     'drop-button': DropButton; 
+    'welcome-overlay': WelcomeOverlay;
   }
 
   interface MidiInputInfo {
@@ -2772,10 +3374,12 @@ declare global {
   }
 
   interface HTMLElementEventMap {
-    'midi-cc-received': CustomEvent<{ ccNumber: number, value: number }>;
+    'midi-cc-received': CustomEvent<{ ccNumber: number, value: number, rawValue: number }>;
     'midi-inputs-changed': CustomEvent<{ inputs: MidiInputInfo[] }>;
     'close-help': CustomEvent<void>;
     'input': CustomEvent<number>; // For parameter-slider
     'change': CustomEvent<{checked: boolean}>; // For toggle-switch
+    'prompt-interaction': CustomEvent<{promptId: string; text: string}>;
+    'welcome-complete': CustomEvent<{firstPromptText: string}>;
   }
 }

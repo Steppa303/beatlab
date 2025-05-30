@@ -1,5 +1,3 @@
-
-
 /**
  * @fileoverview MIDI Controller for Web MIDI API interactions.
  * Manages MIDI device selection and message handling.
@@ -137,15 +135,16 @@ export class MidiController extends EventTarget {
     // Check for Control Change message (0xB0 - 0xBF for channels 1-16)
     if (status >= 0xB0 && status <= 0xBF) {
       const ccNumber = data1;
-      const ccValue = data2;
+      const rawValue = data2; // 0-127
 
       // Normalize CC value (0-127) to a 0-2 range for the slider
-      const normalizedValue = (ccValue / 127) * 2;
+      const normalizedValueForSlider = (rawValue / 127) * 2;
 
       this.dispatchEvent(new CustomEvent('midi-cc-received', {
         detail: {
           ccNumber: ccNumber,
-          value: normalizedValue,
+          value: normalizedValueForSlider, // For sliders (0-2 range)
+          rawValue: rawValue, // For buttons or other logic (0-127 range)
         }
       }));
     }
