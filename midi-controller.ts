@@ -1,4 +1,5 @@
 
+
 /**
  * @fileoverview MIDI Controller for Web MIDI API interactions.
  * Manages MIDI device selection and message handling.
@@ -21,45 +22,74 @@ export class MidiController extends EventTarget {
     super();
   }
 
-  async initialize(): Promise<void> {
-    if (typeof navigator.requestMIDIAccess !== 'function') {
+  public isMidiSupported(): boolean {
+    return typeof navigator.requestMIDIAccess === 'function';
+  }
+
+  public initialize(): void {
+    // Check for support but don't request access yet.
+    if (!this.isMidiSupported()) {
       console.warn('Web MIDI API not supported in this browser.');
-      this.dispatchInputsChanged(); // Dispatch empty list
-      return;
+    }
+    // Initial dispatch of (empty) inputs.
+    // `requestMidiAccessAndListDevices` will dispatch again if/when access is granted.
+    this.dispatchInputsChanged();
+  }
+
+  public async requestMidiAccessAndListDevices(): Promise<boolean> {
+    if (!this.isMidiSupported()) {
+      console.warn('Attempted to request MIDI access, but API is not supported.');
+      this.dispatchInputsChanged(); // Ensure UI knows there are no inputs
+      return false;
+    }
+
+    if (this.midiAccess) {
+      console.log('MIDI access already granted.');
+      this.updateInputList(); // Refresh list in case it changed
+      return true;
     }
 
     try {
-      this.midiAccess = await navigator.requestMIDIAccess({ sysex: false }); // sysex not needed for CC
-      this.updateInputList();
+      console.log('Requesting MIDI access...');
+      this.midiAccess = await navigator.requestMIDIAccess({ sysex: false });
+      console.log('MIDI access granted.');
 
       this.midiAccess.onstatechange = (event: MIDIConnectionEvent) => {
         console.log('MIDI state changed:', event.port.name, event.port.state);
+        const previouslySelectedInputId = this.selectedInput?.id;
         this.updateInputList();
         // If the selected input is disconnected, we need to clear it.
         if (this.selectedInput && this.selectedInput.state === 'disconnected') {
             console.log(`Selected MIDI input disconnected: ${this.selectedInput.name}`);
             this.selectMidiInput(''); // Deselect it
+        } else if (previouslySelectedInputId && !this.inputs.find(i => i.id === previouslySelectedInputId)) {
+             // If the previously selected input is no longer in the list (e.g. unplugged)
+            console.log(`Previously selected MIDI input ${previouslySelectedInputId} is no longer available.`);
+            this.selectMidiInput(''); // Deselect it
         }
       };
+      this.updateInputList();
+      return true;
     } catch (error) {
       console.error('Failed to get MIDI access:', error);
+      this.midiAccess = null; // Ensure it's reset on failure
       this.dispatchInputsChanged(); // Dispatch empty list on error
+      return false;
     }
   }
 
   private updateInputList(): void {
     if (!this.midiAccess) {
       this.inputs = [];
-      this.dispatchInputsChanged();
-      return;
+    } else {
+      this.inputs = Array.from(this.midiAccess.inputs.values());
     }
-    this.inputs = Array.from(this.midiAccess.inputs.values());
     this.dispatchInputsChanged();
 
-    if (this.inputs.length === 0) {
-      console.log('No MIDI input devices found.');
-    } else {
-      console.log('Available MIDI inputs:', this.inputs.map(i => i.name).join(', '));
+    if (this.inputs.length === 0 && this.midiAccess) {
+      // console.log('MIDI access granted, but no MIDI input devices found.');
+    } else if (this.inputs.length > 0) {
+      // console.log('Available MIDI inputs:', this.inputs.map(i => i.name).join(', '));
     }
   }
 
@@ -83,9 +113,10 @@ export class MidiController extends EventTarget {
       this.selectedInput = null;
     }
 
-    if (!inputId) {
-        console.log('MIDI input deselected.');
-        // No new input to select, so we are done.
+    if (!inputId || !this.midiAccess) { // Also check for midiAccess
+        if (!inputId) console.log('MIDI input deselected.');
+        else console.log('Cannot select MIDI input: MIDI access not available.');
+        this.selectedInput = null; // Ensure it's null
         return;
     }
 
@@ -121,7 +152,7 @@ export class MidiController extends EventTarget {
   }
 
   public hasActiveSelection(): boolean {
-    return this.selectedInput !== null;
+    return this.selectedInput !== null && this.selectedInput.state === 'connected';
   }
 
   destroy(): void {
@@ -131,7 +162,8 @@ export class MidiController extends EventTarget {
     }
     if (this.midiAccess) {
       this.midiAccess.onstatechange = null; // Remove state change listener
-      // MIDIAccess object does not have a close() method.
+      // MIDIAccess object does not have a close() method, but we can nullify our reference.
+      this.midiAccess = null;
     }
     this.inputs = [];
     console.log('MIDI Controller destroyed, listeners removed.');

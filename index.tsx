@@ -1,5 +1,3 @@
-
-
 /**
  * @fileoverview Control real time music with text prompts - Minimal Demo
  * @license
@@ -15,7 +13,7 @@ import {
   GoogleGenAI,
   type LiveMusicServerMessage,
   type LiveMusicSession,
-  type LiveMusicGenerationConfig,
+  type LiveMusicGenerationConfig as GenAiLiveMusicGenerationConfig,
 } from '@google/genai';
 import {decode, decodeAudioData} from './utils';
 import { MidiController } from './midi-controller';
@@ -46,6 +44,20 @@ interface Prompt {
 
 type PlaybackState = 'stopped' | 'playing' | 'loading' | 'paused';
 
+// Extend LiveMusicGenerationConfig to include new parameters
+interface AppLiveMusicGenerationConfig extends GenAiLiveMusicGenerationConfig {
+  guidance?: number;
+  bpm?: number;
+  density?: number;
+  brightness?: number;
+  mute_bass?: boolean;
+  mute_drums?: boolean;
+  only_bass_and_drums?: boolean;
+  music_generation_mode?: 'QUALITY' | 'DIVERSITY';
+  systemInstruction?: string; // Added for system-level instructions
+}
+
+
 /** Throttles a callback to be called at most once per `freq` milliseconds. */
 function throttle(func: (...args: unknown[]) => void, delay: number) {
   let lastCall = 0;
@@ -69,8 +81,16 @@ interface Preset {
   version: string;
   prompts: PresetPrompt[];
   temperature: number;
+  guidance?: number;
+  bpm?: number;
+  density?: number;
+  brightness?: number;
+  muteBass?: boolean;
+  muteDrums?: boolean;
+  onlyBassAndDrums?: boolean;
+  musicGenerationMode?: 'QUALITY' | 'DIVERSITY';
 }
-const CURRENT_PRESET_VERSION = "1.0";
+const CURRENT_PRESET_VERSION = "1.1"; // Incremented version for new params
 
 
 // WeightSlider component
@@ -331,6 +351,12 @@ class ParameterSlider extends LitElement {
       border: 2px solid #fff;
       box-shadow: 0 0 3px rgba(0,0,0,0.5);
     }
+     :host([disabled]) input[type="range"],
+     :host([disabled]) input[type="range"]::-webkit-slider-thumb,
+     :host([disabled]) input[type="range"]::-moz-range-thumb {
+        cursor: not-allowed;
+        opacity: 0.5;
+     }
   `;
 
   @property({type: String}) label = '';
@@ -338,18 +364,20 @@ class ParameterSlider extends LitElement {
   @property({type: Number}) min = 0;
   @property({type: Number}) max = 1;
   @property({type: Number}) step = 0.01;
+  @property({type: Boolean, reflect: true}) disabled = false;
 
   private handleInput(e: Event) {
+    if (this.disabled) return;
     const target = e.target as HTMLInputElement;
     this.value = parseFloat(target.value);
-    this.dispatchEvent(new CustomEvent<number>('input', {detail: this.value}));
+    this.dispatchEvent(new CustomEvent<number>('input', {detail: this.value, bubbles: true, composed: true}));
   }
 
   override render() {
     return html`
       <div class="label-value-container">
         <span class="label">${this.label}</span>
-        <span class="value-display">${this.value.toFixed(this.step < 0.1 ? 2 : 1)}</span>
+        <span class="value-display">${this.value.toFixed(this.step < 0.01 ? 3 : (this.step < 0.1 ? 2 : (this.step < 1 ? 1 : 0)))}</span>
       </div>
       <input
         type="range"
@@ -358,8 +386,103 @@ class ParameterSlider extends LitElement {
         .step=${this.step}
         .value=${this.value.toString()}
         @input=${this.handleInput}
+        ?disabled=${this.disabled}
         aria-label=${this.label}
       />
+    `;
+  }
+}
+
+/** A generic toggle switch. */
+@customElement('toggle-switch')
+class ToggleSwitch extends LitElement {
+  static override styles = css`
+    :host {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.9em;
+      color: #ccc;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    :host([disabled]) {
+        cursor: not-allowed;
+        opacity: 0.5;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px; /* Slightly smaller */
+      height: 24px; /* Slightly smaller */
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #4A4A4A; /* Darker grey for off state */
+      transition: .3s;
+      border-radius: 24px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px; /* Smaller knob */
+      width: 18px;  /* Smaller knob */
+      left: 3px;    /* Adjusted position */
+      bottom: 3px;  /* Adjusted position */
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    input:checked + .slider {
+      background-color: #7e57c2; /* Purple when on, matching param sliders */
+    }
+    input:focus + .slider {
+      box-shadow: 0 0 1px #7e57c2;
+    }
+    input:checked + .slider:before {
+      transform: translateX(20px); /* Adjusted travel distance */
+    }
+    :host([disabled]) .slider {
+        cursor: not-allowed;
+    }
+    .label {
+      font-weight: 500;
+    }
+  `;
+
+  @property({type: String}) label = '';
+  @property({type: Boolean, reflect: true}) checked = false;
+  @property({type: Boolean, reflect: true}) disabled = false;
+
+  private _onClick() {
+    if (this.disabled) return;
+    this.checked = !this.checked;
+    this.dispatchEvent(new CustomEvent('change', {
+      detail: { checked: this.checked },
+      bubbles: true,
+      composed: true,
+    }));
+  }
+
+  override render() {
+    return html`
+      <label class="label" @click=${this._onClick}>${this.label}</label>
+      <div class="switch" @click=${this._onClick}>
+        <input type="checkbox" .checked=${this.checked} ?disabled=${this.disabled} aria-label=${this.label}>
+        <span class="slider"></span>
+      </div>
     `;
   }
 }
@@ -1156,19 +1279,27 @@ class HelpGuidePanel extends LitElement {
             <h4>Musik starten/pausieren</h4>
             <p>Verwende den großen <strong>Play/Pause-Button (▶️/⏸️ unten links)</strong>. Beim ersten Start oder nach einer Unterbrechung kann es einen Moment dauern (Lade-Symbol), bis die Musik beginnt.</p>
             <h4>"Drop!"-Effekt</h4>
-            <p>Klicke den <strong>Drop!-Button ( unten rechts)</strong> für einen Überraschungseffekt! Die Musik baut Spannung auf und entlädt sich dann – perfekt für Übergänge oder um Energie freizusetzen.</p>
+            <p>Klicke den <strong>Drop!-Button ( unten rechts)</strong> für einen Überraschungseffekt! Die Musik baut Spannung auf und entlädt sich dann – perfekt für Übergänge oder um Energie freizusetzen. Der Drop versucht, sich an den aktuell gespielten Musikstil anzupassen.</p>
           </section>
           <section>
             <h3>Konfiguration Teilen (via Link)</h3>
             <p>Klicke auf den <strong>Share-Button</strong> unten rechts. Dadurch wird ein spezieller Link in deine Zwischenablage kopiert.</p>
-            <p>Wenn jemand diesen Link öffnet, startet Steppa's BeatLab automatisch mit genau deiner aktuellen Konfiguration (Prompts, Gewichtungen, Temperatur).</p>
+            <p>Wenn jemand diesen Link öffnet, startet Steppa's BeatLab automatisch mit genau deiner aktuellen Konfiguration (Prompts, Gewichtungen, und alle erweiterten Einstellungen).</p>
             <p>Ideal, um deine Kreationen schnell und einfach zu präsentieren oder gemeinsam an Klanglandschaften zu arbeiten!</p>
           </section>
           <section>
             <h3>Erweiterte Einstellungen (Zahnrad-Icon)</h3>
             <p>Klicke auf das Zahnrad-Icon (⚙️) in der oberen rechten Leiste, um die erweiterten Einstellungen ein- oder auszublenden.</p>
-            <h4>Temperature</h4>
-            <p>Regelt die Zufälligkeit und "Kreativität" der Musikgenerierung. Höhere Werte (bis 2.0) bedeuten mehr Variation und potentiell unerwartetere Ergebnisse. Niedrigere Werte (Richtung 0.0) führen zu deterministischeren Ergebnissen.</p>
+            <ul>
+              <li><strong>Temperature:</strong> Regelt die Zufälligkeit. Höher = mehr Variation.</li>
+              <li><strong>Guidance:</strong> Steuert, wie genau das Modell den Prompts folgt. Höher = strenger, aber Übergänge können abrupter sein.</li>
+              <li><strong>BPM (Beats Per Minute):</strong> Legt das gewünschte Tempo fest. <em>Hinweis: Eine Änderung hier erfordert möglicherweise ein Anhalten/Neustarten der Musik, um wirksam zu werden.</em></li>
+              <li><strong>Density:</strong> Steuert die Dichte der Noten/Töne. Niedriger = spärlicher, höher = "belebter".</li>
+              <li><strong>Brightness:</strong> Passt die Tonalität an. Höher = "hellerer" Klang mit Betonung höherer Frequenzen.</li>
+              <li><strong>Mute Bass / Mute Drums:</strong> Reduziert den Bass bzw. das Schlagzeug.</li>
+              <li><strong>Only Bass & Drums:</strong> Gibt nur Bass und Schlagzeug aus. Deaktiviert "Mute Bass" und "Mute Drums".</li>
+              <li><strong>Music Generation Mode:</strong> Wählt zwischen "Quality" (höhere Qualität, Standard) und "Diversity" (mehr Abwechslung).</li>
+            </ul>
           </section>
           <section>
             <h3>Tracks verwalten</h3>
@@ -1340,34 +1471,43 @@ class PromptDj extends LitElement {
       gap: 1.5vmin;
     }
 
-    .midi-selector {
+    .midi-selector, .styled-select {
       background-color: #333;
       color: #fff;
       border: 1px solid #555;
       padding: 0.8em 1em;
       border-radius: 6px;
       font-size: 2vmin;
-      min-width: 180px; /* Adjusted min-width */
-      max-width: 280px; /* Adjusted max-width */
+      min-width: 180px; 
+      max-width: 280px; 
       box-sizing: border-box;
       transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-      flex-shrink: 1; /* Allow shrinking if space is tight */
+      flex-shrink: 1; 
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23BBB%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.4-5.4-12.8z%22/%3E%3C/svg%3E');
+      background-repeat: no-repeat;
+      background-position: right .7em top 50%, 0 0;
+      background-size: .65em auto, 100%;
+      padding-right: 2.5em; /* Make space for arrow */
     }
-    .midi-selector:hover {
+    .midi-selector:hover, .styled-select:hover {
       border-color: #777;
       box-shadow: 0 0 5px rgba(120,120,120,0.5);
     }
-    .midi-selector:focus {
+    .midi-selector:focus, .styled-select:focus {
       border-color: #66afe9;
       outline: none;
       box-shadow: 0 0 8px rgba(102,175,233,0.6);
     }
-    .midi-selector:disabled {
+    .midi-selector:disabled, .styled-select:disabled {
       background-color: #222;
       color: #777;
       cursor: not-allowed;
       border-color: #444;
       box-shadow: none;
+      background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23555%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.4-5.4-12.8z%22/%3E%3C/svg%3E');
     }
     .header-actions { /* Now only contains settings button */
       display: flex;
@@ -1396,23 +1536,41 @@ class PromptDj extends LitElement {
       border-bottom: 1px solid #383838;
     }
     .advanced-settings-panel.visible {
-      max-height: 500px; 
+      max-height: 500px; /* Adjust if more settings are added */
       opacity: 1;
       padding: 2vmin 3vmin;
     }
     .settings-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 2vmin;
-      margin-bottom: 1.5vmin;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 2vmin 2.5vmin; /* Row gap, Column gap */
+      align-items: start; /* Align items at the start of their grid cell */
     }
+    /* Styling for select within the settings grid */
+    .settings-grid .styled-select {
+        width: 100%; /* Make select take full width of its grid cell */
+        max-width: none; /* Override max-width from general .styled-select */
+        font-size: 0.9em;
+        padding: 0.6em 2.2em 0.6em 0.8em; /* Adjusted padding for smaller font */
+    }
+    .settings-grid-item { /* Wrapper for label + control if needed for alignment */
+        display: flex;
+        flex-direction: column;
+        gap: 0.5em;
+    }
+    .settings-grid-item > label { /* For select dropdown label */
+        font-size: 0.9em;
+        color: #ccc;
+        font-weight: 500;
+    }
+
     .hide-settings-link {
       display: block;
       text-align: center;
       color: #aaa;
       text-decoration: underline;
       cursor: pointer;
-      padding-top: 1vmin;
+      padding-top: 2vmin; /* Increased padding */
       font-size: 0.9em;
     }
     .hide-settings-link:hover {
@@ -1560,12 +1718,30 @@ class PromptDj extends LitElement {
   @state() private showAdvancedSettings = false;
   @state() private temperature = 1.0; // Default, Min: 0, Max: 2, Step: 0.1
   @state() private showHelpPanel = false;
+  @state() private globalSystemInstruction = "You are an AI music DJ creating live, evolving soundscapes based on user prompts. Strive for musicality and coherence.";
   
+  // New advanced settings states
+  @state() private guidance = 4.0; // Range 0.0 - 6.0, Default 4.0
+  @state() private bpm = 120; // Range 60 - 200, Default 120
+  @state() private density = 0.5; // Range 0.0 - 1.0, Default 0.5
+  @state() private brightness = 0.5; // Range 0.0 - 1.0, Default 0.5
+  @state() private muteBass = false;
+  @state() private muteDrums = false;
+  @state() private onlyBassAndDrums = false;
+  @state() private musicGenerationMode: 'QUALITY' | 'DIVERSITY' = 'QUALITY';
+
+
   // Drop effect states
   @state() private isDropActive = false;
   private originalPromptWeightsBeforeDrop: Map<string, number> | null = null;
   private temporaryDropPromptId: string | null = null;
   private dropTimeoutId: number | null = null;
+
+  // MIDI Access states
+  @state() private isMidiSupported = false;
+  @state() private midiAccessAttempted = false;
+  @state() private midiAccessGranted = false;
+  @state() private isRequestingMidiAccess = false;
 
 
   constructor() {
@@ -1585,7 +1761,10 @@ class PromptDj extends LitElement {
   override async firstUpdated() {
     await this._loadStateFromUrl(); // Attempt to load shared state first
     await this.connectToSession();
-    this.midiController.initialize();
+    
+    this.midiController.initialize(); // Initialize MIDI controller (doesn't request access yet)
+    this.isMidiSupported = this.midiController.isMidiSupported();
+    
     this.addEventListener('midi-cc-received', this.handleMidiCcReceived as EventListener);
     this.midiController.addEventListener('midi-inputs-changed', this.handleMidiInputsChanged as EventListener);
   }
@@ -1611,6 +1790,25 @@ class PromptDj extends LitElement {
       }
   }
 
+  private async handleMidiSelectorInteraction() {
+    if (this.isRequestingMidiAccess || !this.isMidiSupported) {
+        return;
+    }
+
+    if (!this.midiAccessAttempted || (this.midiAccessAttempted && !this.midiAccessGranted) ) {
+        this.isRequestingMidiAccess = true;
+        this.requestUpdate(); 
+
+        const success = await this.midiController.requestMidiAccessAndListDevices();
+        
+        this.midiAccessGranted = success;
+        this.midiAccessAttempted = true;
+        this.isRequestingMidiAccess = false;
+        this.requestUpdate();
+    }
+    // If access is already granted, normal dropdown behavior will occur.
+  }
+
   private handleMidiInputsChanged(event: CustomEvent<{inputs: Array<{id: string, name: string}>}>) {
     const newInputs = event.detail.inputs;
     this.availableMidiInputs = newInputs;
@@ -1620,22 +1818,27 @@ class PromptDj extends LitElement {
         let newSelectedId = this.selectedMidiInputId;
 
         if (!currentSelectedStillExists) {
+            // If current selection is gone, try to select the first available one if not already selected
             newSelectedId = newInputs[0].id;
+        }
+        
+        // If no input was selected before, and now inputs are available, select the first one.
+        if (!this.selectedMidiInputId && newInputs.length > 0) {
+             newSelectedId = newInputs[0].id;
         }
 
         if (newSelectedId && newSelectedId !== this.selectedMidiInputId) {
              this.selectedMidiInputId = newSelectedId;
-        } else if (!this.selectedMidiInputId && newInputs.length > 0) {
-            this.selectedMidiInputId = newInputs[0].id;
-        }
-
-        if (this.selectedMidiInputId) {
+             this.midiController.selectMidiInput(this.selectedMidiInputId);
+        } else if (this.selectedMidiInputId && !currentSelectedStillExists) {
+            // If the previously selected device is gone, and we auto-selected a new one, apply it.
              this.midiController.selectMidiInput(this.selectedMidiInputId);
         }
 
-    } else {
-        if (this.selectedMidiInputId) {
-            this.midiController.selectMidiInput('');
+
+    } else { // No inputs available
+        if (this.selectedMidiInputId) { // If something was selected
+            this.midiController.selectMidiInput(''); // Deselect
         }
         this.selectedMidiInputId = null;
     }
@@ -1742,7 +1945,7 @@ class PromptDj extends LitElement {
         });
         this.connectionError = false;
         console.log("Session connected successfully.");
-        this.setGenerationConfiguration();
+        this.setGenerationConfiguration(); // Send initial full config
     } catch (error: any) {
         console.error("Failed to connect to session:", error);
         this.connectionError = true;
@@ -1758,12 +1961,40 @@ class PromptDj extends LitElement {
         console.warn("Cannot set generation config: No session or connection error.");
         return;
     }
-    const musicGenConfig: LiveMusicGenerationConfig = {
+    const musicGenConfig: AppLiveMusicGenerationConfig = {
         temperature: this.temperature,
+        guidance: this.guidance,
+        bpm: this.bpm,
+        density: this.density,
+        brightness: this.brightness,
+        mute_bass: this.muteBass,
+        mute_drums: this.muteDrums,
+        only_bass_and_drums: this.onlyBassAndDrums,
+        music_generation_mode: this.musicGenerationMode,
     };
+
+    if (this.isDropActive) {
+        const activePrompts = Array.from(this.prompts.values())
+            .filter(p => p.weight > 0.05 && p.promptId !== this.temporaryDropPromptId); 
+
+        let currentPlayingStyleDescription = "the current soundscape";
+        if (activePrompts.length > 0) {
+            currentPlayingStyleDescription = activePrompts.map(p => p.text).slice(0, 3).join(', ');
+            if (activePrompts.length > 3) {
+                 currentPlayingStyleDescription += ", and other elements";
+            }
+        }
+        // Example: Temporarily boost temperature slightly for more energy during drop, if desired
+        // musicGenConfig.temperature = Math.min(this.temperature + 0.2, 2.0);
+        
+        musicGenConfig.systemInstruction = `You are a master DJ executing a highly energetic and dramatic drop. The main prompt describes the sequence. Integrate this drop cohesively with the existing musical style, described as: ${currentPlayingStyleDescription}. Make it impactful.`;
+    } else {
+        musicGenConfig.systemInstruction = this.globalSystemInstruction;
+    }
+
     try {
         await this.session.setMusicGenerationConfig({ musicGenerationConfig: musicGenConfig });
-        console.log("Generation config sent to session:", musicGenConfig);
+        // console.log("Generation config sent to session:", musicGenConfig); // Can be too verbose
     } catch (e: any) {
         this.toastMessage.show(`Error setting generation config: ${e.message}`);
     }
@@ -1786,7 +2017,7 @@ class PromptDj extends LitElement {
       await this.session.setWeightedPrompts({
         weightedPrompts: promptsToSend,
       });
-      console.log("Prompts sent to session:", promptsToSend);
+      // console.log("Prompts sent to session:", promptsToSend); // Can be too verbose
     } catch (e: any) {
       this.toastMessage.show(`Error setting prompts: ${e.message}`);
       this.pauseAudio();
@@ -1836,8 +2067,11 @@ class PromptDj extends LitElement {
             this.firstChunkReceivedTimestamp = 0; // Ensure reset on failure
             return;
         }
+      } else {
+        // If already connected, ensure config is up-to-date before playing
+        this.setGenerationConfiguration();
       }
-      this.setGenerationConfiguration();
+
 
       if (this.audioContext.state === 'suspended') {
         await this.audioContext.resume().catch(err => console.error("Audio context resume failed:", err));
@@ -2013,9 +2247,8 @@ class PromptDj extends LitElement {
   }
 
   private handleTemperatureChange(e: CustomEvent<number>) {
-    if (this.isDropActive) { // Disallow changing temp during drop
+    if (this.isDropActive) { 
         this.toastMessage.show("Cannot change temperature during Drop sequence.");
-        // Optionally revert the slider UI if it was optimistic
         const slider = e.target as ParameterSlider;
         if (slider) slider.value = this.temperature;
         return;
@@ -2024,29 +2257,81 @@ class PromptDj extends LitElement {
     this.setGenerationConfiguration();
   }
 
+  private handleGuidanceChange(e: CustomEvent<number>) {
+    if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as ParameterSlider).value = this.guidance; return; }
+    this.guidance = e.detail;
+    this.setGenerationConfiguration();
+  }
+  private handleBpmChange(e: CustomEvent<number>) {
+    if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as ParameterSlider).value = this.bpm; return; }
+    this.bpm = e.detail;
+    this.setGenerationConfiguration();
+    // Note: User was informed that BPM changes might need context reset.
+    // this.toastMessage.show("BPM changed. Music context may need play/pause to update tempo.");
+  }
+  private handleDensityChange(e: CustomEvent<number>) {
+    if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as ParameterSlider).value = this.density; return; }
+    this.density = e.detail;
+    this.setGenerationConfiguration();
+  }
+  private handleBrightnessChange(e: CustomEvent<number>) {
+    if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as ParameterSlider).value = this.brightness; return; }
+    this.brightness = e.detail;
+    this.setGenerationConfiguration();
+  }
+  private handleMuteBassToggle(e: CustomEvent<{checked: boolean}>) {
+    if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as ToggleSwitch).checked = this.muteBass; return; }
+    this.muteBass = e.detail.checked;
+    this.setGenerationConfiguration();
+  }
+  private handleMuteDrumsToggle(e: CustomEvent<{checked: boolean}>) {
+    if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as ToggleSwitch).checked = this.muteDrums; return; }
+    this.muteDrums = e.detail.checked;
+    this.setGenerationConfiguration();
+  }
+  private handleOnlyBassAndDrumsToggle(e: CustomEvent<{checked: boolean}>) {
+    if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as ToggleSwitch).checked = this.onlyBassAndDrums; return; }
+    this.onlyBassAndDrums = e.detail.checked;
+    if (this.onlyBassAndDrums) {
+        this.muteBass = false;
+        this.muteDrums = false;
+    }
+    this.setGenerationConfiguration();
+  }
+  private handleMusicGenerationModeChange(e: Event) {
+    if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as HTMLSelectElement).value = this.musicGenerationMode; return; }
+    this.musicGenerationMode = (e.target as HTMLSelectElement).value as 'QUALITY' | 'DIVERSITY';
+    this.setGenerationConfiguration();
+  }
+
+
   private toggleHelpPanel() {
     this.showHelpPanel = !this.showHelpPanel;
   }
   
-  private handleDropClick() {
+  private async handleDropClick() {
     if (this.isDropActive) {
       this.toastMessage.show("Drop sequence already in progress!");
       return;
     }
 
-    this.isDropActive = true;
+    this.isDropActive = true; // Set state FIRST
     this.toastMessage.show("Drop sequence initiated! Brace yourself!");
+
+    // This call ensures the drop-specific systemInstruction is generated and sent
+    this.setGenerationConfiguration(); 
 
     this.originalPromptWeightsBeforeDrop = new Map();
     const newPromptsForDrop = new Map<string, Prompt>();
 
     this.prompts.forEach((prompt, id) => {
       this.originalPromptWeightsBeforeDrop!.set(id, prompt.weight);
-      newPromptsForDrop.set(id, { ...prompt, weight: 0.1 }); // Reduce weight of existing prompts
+      // Reduce weight of existing prompts significantly during the drop
+      newPromptsForDrop.set(id, { ...prompt, weight: 0.05 }); 
     });
 
     this.temporaryDropPromptId = `drop-prompt-${Date.now()}`;
-    const dropPromptText = "epic buildup, dramatic pause, massive bass drop, explosive energy release";
+    const dropPromptText = "Epic buildup, dramatic tension, short silence, then a massive bass drop with explosive energy.";
     newPromptsForDrop.set(this.temporaryDropPromptId, {
       promptId: this.temporaryDropPromptId,
       text: dropPromptText,
@@ -2055,22 +2340,26 @@ class PromptDj extends LitElement {
     });
 
     this.prompts = newPromptsForDrop;
-    this.setSessionPrompts();
+    this.setSessionPrompts(); // Send updated prompts for the drop
 
-    this.dropTimeoutId = window.setTimeout(() => {
+    this.dropTimeoutId = window.setTimeout(async () => {
       const newPromptsAfterDrop = new Map<string, Prompt>();
-      // Restore original prompts and their weights
       this.originalPromptWeightsBeforeDrop?.forEach((originalWeight, promptId) => {
-        const currentPromptState = this.prompts.get(promptId); // Get from the state *during* the drop
-        if (currentPromptState && promptId !== this.temporaryDropPromptId) { // Check if prompt still exists and is not the drop prompt
+        const currentPromptState = this.prompts.get(promptId); 
+        if (currentPromptState && promptId !== this.temporaryDropPromptId) { 
            newPromptsAfterDrop.set(promptId, { ...currentPromptState, weight: originalWeight });
         }
       });
       
-      this.prompts = newPromptsAfterDrop; // Prompts map no longer contains the drop prompt.
-      this.setSessionPrompts();
+      this.prompts = newPromptsAfterDrop; 
+      
+      this.isDropActive = false; // Set state FIRST
+      
+      // This call ensures the systemInstruction reverts to global/normal
+      this.setGenerationConfiguration(); 
+      
+      this.setSessionPrompts(); // Send restored prompts
 
-      this.isDropActive = false;
       this.originalPromptWeightsBeforeDrop = null;
       this.temporaryDropPromptId = null;
       this.dropTimeoutId = null;
@@ -2084,23 +2373,23 @@ class PromptDj extends LitElement {
         this.toastMessage.show(`Cannot load ${source} during Drop sequence.`);
         return;
     }
-    // Basic validation
+    
     if (
-        configData.version !== CURRENT_PRESET_VERSION ||
+        typeof configData.version !== 'string' || // Looser version check for now
         !Array.isArray(configData.prompts) ||
         typeof configData.temperature !== 'number' ||
         !configData.prompts.every(p => typeof p.text === 'string' && typeof p.weight === 'number')
     ) {
-        throw new Error('Invalid configuration data structure or version.');
+        throw new Error('Invalid configuration data structure.');
     }
     
-    this.stopAudio(); // Ensure audio generation stops before changing everything
+    this.stopAudio(); 
     this.prompts.clear();
     this.nextPromptId = 0;
-    this.filteredPrompts.clear(); // Clear any previously filtered prompts
+    this.filteredPrompts.clear();
 
     const newPromptsMap = new Map<string, Prompt>();
-    configData.prompts.forEach((p) => { // No index needed here
+    configData.prompts.forEach((p) => { 
         const newPromptId = `prompt-${this.nextPromptId}`;
         const newColor = TRACK_COLORS[this.nextPromptId % TRACK_COLORS.length];
         this.nextPromptId++;
@@ -2114,11 +2403,26 @@ class PromptDj extends LitElement {
     this.prompts = newPromptsMap;
     this.temperature = configData.temperature;
 
-    // Update session and UI
-    this.setGenerationConfiguration(); // Apply new temperature
-    this.setSessionPrompts();          // Apply new prompts
+    // Apply new settings if present, otherwise use defaults
+    this.guidance = configData.guidance ?? 4.0;
+    this.bpm = configData.bpm ?? 120;
+    this.density = configData.density ?? 0.5;
+    this.brightness = configData.brightness ?? 0.5;
+    this.muteBass = configData.muteBass ?? false;
+    this.muteDrums = configData.muteDrums ?? false;
+    this.onlyBassAndDrums = configData.onlyBassAndDrums ?? false;
+    this.musicGenerationMode = configData.musicGenerationMode ?? 'QUALITY';
+
+    // Ensure consistency if onlyBassAndDrums is true
+    if (this.onlyBassAndDrums) {
+        this.muteBass = false;
+        this.muteDrums = false;
+    }
+
+    this.setGenerationConfiguration(); 
+    this.setSessionPrompts();          
     
-    this.requestUpdate(); // Force UI update
+    this.requestUpdate(); 
     
     if (source === 'preset') {
         this.toastMessage.show('Preset loaded successfully!');
@@ -2142,6 +2446,14 @@ class PromptDj extends LitElement {
       version: CURRENT_PRESET_VERSION,
       prompts: presetPrompts,
       temperature: this.temperature,
+      guidance: this.guidance,
+      bpm: this.bpm,
+      density: this.density,
+      brightness: this.brightness,
+      muteBass: this.muteBass,
+      muteDrums: this.muteDrums,
+      onlyBassAndDrums: this.onlyBassAndDrums,
+      musicGenerationMode: this.musicGenerationMode,
     };
 
     const jsonString = JSON.stringify(presetData, null, 2);
@@ -2149,7 +2461,7 @@ class PromptDj extends LitElement {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'steppas_beatlab_preset.json'; // Updated filename
+    a.download = 'steppas_beatlab_preset_v1.1.json'; 
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -2203,12 +2515,10 @@ class PromptDj extends LitElement {
             const jsonString = atob(sharedStateBase64);
             const parsedConfig = JSON.parse(jsonString) as Preset;
             this._applyConfiguration(parsedConfig, 'share-link');
-            // Clean the URL
             history.replaceState(null, '', window.location.pathname);
         } catch (e: any) {
             console.error('Error loading shared state from URL:', e);
             this.toastMessage.show(`Failed to load shared state: ${e.message || 'Invalid link'}`);
-            // Clean the URL even if loading failed to prevent re-attempt on refresh
             history.replaceState(null, '', window.location.pathname);
         }
     }
@@ -2228,6 +2538,14 @@ class PromptDj extends LitElement {
       version: CURRENT_PRESET_VERSION,
       prompts: currentPrompts,
       temperature: this.temperature,
+      guidance: this.guidance,
+      bpm: this.bpm,
+      density: this.density,
+      brightness: this.brightness,
+      muteBass: this.muteBass,
+      muteDrums: this.muteDrums,
+      onlyBassAndDrums: this.onlyBassAndDrums,
+      musicGenerationMode: this.musicGenerationMode,
     };
 
     try {
@@ -2256,7 +2574,27 @@ class PromptDj extends LitElement {
 
 
   override render() {
-    const showSelectPlaceholder = this.availableMidiInputs.length > 0 && !this.availableMidiInputs.some(input => input.id === this.selectedMidiInputId);
+    const showSelectPlaceholder = this.isMidiSupported && this.midiAccessGranted && this.availableMidiInputs.length > 0 && !this.availableMidiInputs.some(input => input.id === this.selectedMidiInputId);
+
+    let midiSelectorOptions;
+    if (!this.isMidiSupported) {
+        midiSelectorOptions = html`<option value="" disabled selected>MIDI nicht unterstützt</option>`;
+    } else if (this.isRequestingMidiAccess) {
+        midiSelectorOptions = html`<option value="" disabled selected>Suche MIDI-Geräte...</option>`;
+    } else if (!this.midiAccessAttempted) {
+        midiSelectorOptions = html`<option value="" disabled selected>Klicken, um MIDI-Geräte zu suchen</option>`;
+    } else if (!this.midiAccessGranted) {
+        midiSelectorOptions = html`<option value="" disabled selected>MIDI-Zugriff verweigert. Erneut versuchen?</option>`;
+    } else if (this.availableMidiInputs.length === 0) {
+        midiSelectorOptions = html`<option value="" disabled selected>Keine MIDI-Geräte gefunden</option>`;
+    } else {
+        midiSelectorOptions = html`
+            ${showSelectPlaceholder ? html`<option value="" disabled selected hidden>MIDI-Gerät auswählen</option>` : ''}
+            ${this.availableMidiInputs.map(input =>
+                html`<option .value=${input.id} ?selected=${input.id === this.selectedMidiInputId}>${input.name}</option>`
+            )}
+        `;
+    }
 
     return html`
       <div class="background-orbs-container">
@@ -2269,18 +2607,12 @@ class PromptDj extends LitElement {
         <div class="header-left-controls">
             <select
             class="midi-selector"
+            @mousedown=${this.handleMidiSelectorInteraction}
             @change=${this.handleMidiDeviceChange}
             .value=${this.selectedMidiInputId || ''}
-            ?disabled=${this.availableMidiInputs.length === 0 || this.isDropActive}
+            ?disabled=${!this.isMidiSupported || this.isRequestingMidiAccess || this.isDropActive }
             aria-label="Select MIDI Input Device">
-            ${this.availableMidiInputs.length === 0 ?
-                html`<option value="">No MIDI Devices</option>` :
-                html`
-                ${showSelectPlaceholder ? html`<option value="" disabled selected hidden>Select MIDI Device</option>` : ''}
-                ${this.availableMidiInputs.map(input =>
-                    html`<option .value=${input.id} ?selected=${input.id === this.selectedMidiInputId}>${input.name}</option>`
-                )}
-                `}
+            ${midiSelectorOptions}
             </select>
         </div>
         <div class="header-actions">
@@ -2290,14 +2622,70 @@ class PromptDj extends LitElement {
       <div class="advanced-settings-panel ${classMap({visible: this.showAdvancedSettings})}">
         <div class="settings-grid">
             <parameter-slider
-            label="Temperature"
-            .value=${this.temperature}
-            min="0"
-            max="2"
-            step="0.1"
-            @input=${this.handleTemperatureChange}
-            ?disabled=${this.isDropActive}
-            ></parameter-slider>
+                label="Temperature"
+                .value=${this.temperature}
+                min="0" max="2" step="0.1"
+                @input=${this.handleTemperatureChange}
+                ?disabled=${this.isDropActive}>
+            </parameter-slider>
+            <parameter-slider
+                label="Guidance"
+                .value=${this.guidance}
+                min="0" max="6" step="0.1"
+                @input=${this.handleGuidanceChange}
+                ?disabled=${this.isDropActive}>
+            </parameter-slider>
+            <parameter-slider
+                label="BPM"
+                .value=${this.bpm}
+                min="60" max="200" step="1"
+                @input=${this.handleBpmChange}
+                ?disabled=${this.isDropActive}>
+            </parameter-slider>
+            <parameter-slider
+                label="Density"
+                .value=${this.density}
+                min="0" max="1" step="0.01"
+                @input=${this.handleDensityChange}
+                ?disabled=${this.isDropActive}>
+            </parameter-slider>
+            <parameter-slider
+                label="Brightness"
+                .value=${this.brightness}
+                min="0" max="1" step="0.01"
+                @input=${this.handleBrightnessChange}
+                ?disabled=${this.isDropActive}>
+            </parameter-slider>
+             <div class="settings-grid-item">
+                <label for="music-gen-mode">Music Generation Mode</label>
+                <select 
+                    id="music-gen-mode"
+                    class="styled-select"
+                    .value=${this.musicGenerationMode}
+                    @change=${this.handleMusicGenerationModeChange}
+                    ?disabled=${this.isDropActive}>
+                    <option value="QUALITY">Quality</option>
+                    <option value="DIVERSITY">Diversity</option>
+                </select>
+            </div>
+            <toggle-switch 
+                label="Mute Bass" 
+                .checked=${this.muteBass}
+                ?disabled=${this.isDropActive || this.onlyBassAndDrums}
+                @change=${this.handleMuteBassToggle}>
+            </toggle-switch>
+            <toggle-switch
+                label="Mute Drums"
+                .checked=${this.muteDrums}
+                ?disabled=${this.isDropActive || this.onlyBassAndDrums}
+                @change=${this.handleMuteDrumsToggle}>
+            </toggle-switch>
+            <toggle-switch
+                label="Only Bass & Drums"
+                .checked=${this.onlyBassAndDrums}
+                ?disabled=${this.isDropActive}
+                @change=${this.handleOnlyBassAndDrumsToggle}>
+            </toggle-switch>
         </div>
         <a class="hide-settings-link" @click=${this.toggleAdvancedSettings}>Hide Advanced Settings</a>
       </div>
@@ -2319,7 +2707,6 @@ class PromptDj extends LitElement {
             .playbackState=${this.playbackState}
             aria-label=${this.playbackState === 'playing' ? 'Pause audio' : 'Play audio'}
           ></play-pause-button>
-        <!-- AddPromptButton removed from here -->
       </div>
 
       <div class="utility-button-cluster">
@@ -2373,9 +2760,10 @@ declare global {
     'load-preset-button': LoadPresetButton;
     'weight-slider': WeightSlider;
     'parameter-slider': ParameterSlider;
+    'toggle-switch': ToggleSwitch;
     'toast-message': ToastMessage;
     'help-guide-panel': HelpGuidePanel;
-    'drop-button': DropButton; // Renamed from fx-button
+    'drop-button': DropButton; 
   }
 
   interface MidiInputInfo {
@@ -2387,5 +2775,7 @@ declare global {
     'midi-cc-received': CustomEvent<{ ccNumber: number, value: number }>;
     'midi-inputs-changed': CustomEvent<{ inputs: MidiInputInfo[] }>;
     'close-help': CustomEvent<void>;
+    'input': CustomEvent<number>; // For parameter-slider
+    'change': CustomEvent<{checked: boolean}>; // For toggle-switch
   }
 }
