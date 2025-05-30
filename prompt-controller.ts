@@ -7,7 +7,7 @@
 
 import {css, html, LitElement, svg} from 'lit';
 import {customElement, property, query, state} from 'lit/decorators.js';
-import type {Prompt, WeightSlider} from './index'; // Assuming Prompt and WeightSlider types are exported from index.tsx or a types file
+import type { Prompt, WeightSlider } from './index'; // Assuming Prompt and WeightSlider types are exported from index.tsx or a types file
 
 @customElement('prompt-controller')
 class PromptController extends LitElement {

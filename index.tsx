@@ -1331,7 +1331,7 @@ class HelpGuidePanel extends LitElement {
           <section>
             <h3>Konfiguration Teilen (via Link)</h3>
             <p>Klicke auf den <strong>Share-Button</strong> unten rechts. Dadurch wird ein spezieller Link in deine Zwischenablage kopiert.</p>
-            <p>Wenn jemand diesen Link öffnet, startet Steppa's BeatLab automatisch mit genau deiner aktuellen Konfiguration (Prompts, Gewichtungen, und alle erweiterten Einstellungen).</p>
+            <p>Wenn jemand diesen Link öffnet, startet Steppa's BeatLab automatisch mit genau deiner aktuellen Konfiguration (Prompts, Gewichtungen, und alle erweiterten Einstellungen) <strong>und beginnt mit der Wiedergabe</strong>.</p>
             <p>Ideal, um deine Kreationen schnell und einfach zu präsentieren oder gemeinsam an Klanglandschaften zu arbeiten!</p>
           </section>
           <section>
@@ -1339,14 +1339,9 @@ class HelpGuidePanel extends LitElement {
             <p>Klicke auf das Zahnrad-Icon (⚙️) in der oberen rechten Leiste, um die erweiterten Einstellungen ein- oder auszublenden.</p>
             <ul>
               <li><strong>Temperature:</strong> Regelt die Zufälligkeit. Höher = mehr Variation.</li>
-              <li><strong>Guidance:</strong> Steuert, wie genau das Modell den Prompts folgt. Höher = strenger, aber Übergänge können abrupter sein.</li>
-              <li><strong>BPM (Beats Per Minute):</strong> Legt das gewünschte Tempo fest.</li>
-              <li><strong>Density:</strong> Steuert die Dichte der Noten/Töne. Niedriger = spärlicher, höher = "belebter".</li>
-              <li><strong>Brightness:</strong> Passt die Tonalität an. Höher = "hellerer" Klang mit Betonung höherer Frequenzen.</li>
-              <li><strong>Mute Bass / Mute Drums:</strong> Reduziert den Bass bzw. das Schlagzeug.</li>
-              <li><strong>Only Bass & Drums:</strong> Gibt nur Bass und Schlagzeug aus. Deaktiviert "Mute Bass" und "Mute Drums".</li>
-              <li><strong>Music Generation Mode:</strong> Wählt zwischen "Quality" (höhere Qualität, Standard) und "Diversity" (mehr Abwechslung).</li>
+              <!-- Removed other advanced settings from help for now, as they are not UI-editable -->
             </ul>
+            <p>Andere Parameter wie Guidance, BPM, Density, Brightness, Mute-Optionen und der Music Generation Mode können über geteilte Links oder geladene Presets beeinflusst werden, sind aber nicht direkt in der UI einstellbar.</p>
           </section>
            <section>
             <h3>MIDI-Steuerung & Learn-Funktion</h3>
@@ -2033,11 +2028,11 @@ class PromptDj extends LitElement {
   @state() private showHelpPanel = false;
   @state() private globalSystemInstruction = "You are an AI music DJ creating live, evolving soundscapes based on user prompts. Strive for musicality and coherence.";
   
-  // New advanced settings states
-  @state() private guidance = 4.0; // Range 0.0 - 6.0, Default 4.0
-  @state() private bpm = 120; // Range 60 - 200, Default 120
-  @state() private density = 0.5; // Range 0.0 - 1.0, Default 0.5
-  @state() private brightness = 0.5; // Range 0.0 - 1.0, Default 0.5
+  // Advanced settings states (kept for preset/share functionality, not UI editable)
+  @state() private guidance = 4.0; 
+  @state() private bpm = 120; 
+  @state() private density = 0.5; 
+  @state() private brightness = 0.5; 
   @state() private muteBass = false;
   @state() private muteDrums = false;
   @state() private onlyBassAndDrums = false;
@@ -2106,25 +2101,25 @@ class PromptDj extends LitElement {
   }
 
   override async firstUpdated() {
-    await this._loadStateFromUrl(); // Attempt to load shared state first
+    // Attempt to load shared state first, this will also handle auto-play if 'share' param exists
+    const sharedStateLoaded = await this._loadStateFromUrl(); 
 
     const welcomeCompleted = localStorage.getItem('beatLabWelcomeCompleted') === 'true';
 
-    if (!welcomeCompleted && this.prompts.size === 0) { // No share link loaded prompts, and welcome not done
+    if (!welcomeCompleted && !sharedStateLoaded && this.prompts.size === 0) { 
       this.showWelcomeScreen = true;
-      this.prompts.clear(); // Ensure no accidental prompts before welcome
+      this.prompts.clear(); 
       this.nextPromptId = 0;
     } else {
       this.showWelcomeScreen = false;
-      if (!welcomeCompleted && this.prompts.size > 0) { // Prompts loaded via share link on first visit
+      if (!welcomeCompleted && (sharedStateLoaded || this.prompts.size > 0)) { 
         localStorage.setItem('beatLabWelcomeCompleted', 'true');
       }
       if (this.prompts.size === 0) { // Welcome was completed, or returning user, but no prompts (e.g. from URL)
-        this.createInitialPrompt("Synthwave Groove"); // Default for returning users or if welcome somehow skipped
+        this.createInitialPrompt("Synthwave Groove"); 
       }
     }
     
-    // Initialize MIDI controller irrespective of welcome screen
     this.midiController.initialize(); 
     this.isMidiSupported = this.midiController.isMidiSupported();
     
@@ -2133,9 +2128,8 @@ class PromptDj extends LitElement {
     this.addEventListener('prompt-interaction', this.handlePromptInteractionForLearn as EventListener);
     window.addEventListener('keydown', this.handleKeyDown);
 
-    // Connect to session only if not showing welcome screen
-    // If welcome screen is shown, connection happens after welcome completion
-    if (!this.showWelcomeScreen) {
+    // Connect to session only if not showing welcome screen and not already playing due to share link
+    if (!this.showWelcomeScreen && this.playbackState !== 'loading' && this.playbackState !== 'playing') {
       await this.connectToSession();
     }
   }
@@ -2725,6 +2719,7 @@ class PromptDj extends LitElement {
     this.setGenerationConfiguration();
   }
 
+  // Keep other handlers (handleGuidanceChange etc.) for preset/share even if UI is removed
   private handleGuidanceChange(e: CustomEvent<number>) {
     if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as ParameterSlider).value = this.guidance; return; }
     this.guidance = e.detail;
@@ -2872,7 +2867,7 @@ class PromptDj extends LitElement {
     this.filteredPrompts.clear();
 
     const newPromptsMap = new Map<string, Prompt>();
-    configData.prompts.forEach((p) => { 
+    configData.prompts.forEach((p: PresetPrompt) => { 
         const newPromptId = `prompt-${this.nextPromptId}`;
         const newColor = TRACK_COLORS[this.nextPromptId % TRACK_COLORS.length];
         this.nextPromptId++;
@@ -2886,6 +2881,7 @@ class PromptDj extends LitElement {
     this.prompts = newPromptsMap;
     this.temperature = configData.temperature;
 
+    // Apply other settings from preset/share link, using defaults if not present
     this.guidance = configData.guidance ?? 4.0;
     this.bpm = configData.bpm ?? 120;
     this.density = configData.density ?? 0.5;
@@ -2986,7 +2982,7 @@ class PromptDj extends LitElement {
     reader.readAsText(file);
   }
 
-  private async _loadStateFromUrl() {
+  private async _loadStateFromUrl(): Promise<boolean> {
     const params = new URLSearchParams(window.location.search);
     const encodedSharedStateBase64 = params.get('share');
 
@@ -2995,14 +2991,44 @@ class PromptDj extends LitElement {
             const sharedStateBase64 = decodeURIComponent(encodedSharedStateBase64);
             const jsonString = atob(sharedStateBase64);
             const parsedConfig = JSON.parse(jsonString) as Preset;
+            
             this._applyConfiguration(parsedConfig, 'share-link');
-            history.replaceState(null, '', window.location.pathname);
+            history.replaceState(null, '', window.location.pathname); // Clean URL
+
+            // Autoplay logic
+            if (this.playbackState === 'stopped' || this.playbackState === 'paused') {
+                if (!this.isConnecting && !this.showWelcomeScreen) {
+                    this.playbackState = 'loading';
+                    this.firstChunkReceivedTimestamp = 0;
+
+                    if (this.connectionError || !this.session) {
+                        await this.connectToSession();
+                        if (this.connectionError) {
+                            if(this.playbackState === 'loading') this.playbackState = 'stopped';
+                            this.firstChunkReceivedTimestamp = 0;
+                            return true; // Shared state was processed, but playback failed
+                        }
+                    } else {
+                        this.setGenerationConfiguration(); 
+                        this.setSessionPrompts();          
+                    }
+
+                    if (this.audioContext.state === 'suspended') {
+                        await this.audioContext.resume().catch(err => console.error("Audio context resume failed:", err));
+                    }
+                    this.loadAudio(); 
+                    this.toastMessage.show('Playing shared session...');
+                }
+            }
+            return true; // Shared state loaded
         } catch (e: any) {
             console.error('Error loading shared state from URL:', e);
             this.toastMessage.show(`Failed to load shared state: ${e.message || 'Invalid link'}`);
             history.replaceState(null, '', window.location.pathname);
+            return false; // Error loading shared state
         }
     }
+    return false; // No shared state in URL
   }
 
   private async handleShareClick() {
@@ -3216,64 +3242,7 @@ class PromptDj extends LitElement {
                   @input=${this.handleTemperatureChange}
                   ?disabled=${this.isDropActive || this.showWelcomeScreen}>
               </parameter-slider>
-              <parameter-slider
-                  label="Guidance"
-                  .value=${this.guidance}
-                  min="0" max="6" step="0.1"
-                  @input=${this.handleGuidanceChange}
-                  ?disabled=${this.isDropActive || this.showWelcomeScreen}>
-              </parameter-slider>
-              <parameter-slider
-                  label="BPM"
-                  .value=${this.bpm}
-                  min="60" max="200" step="1"
-                  @input=${this.handleBpmChange}
-                  ?disabled=${this.isDropActive || this.showWelcomeScreen}>
-              </parameter-slider>
-              <parameter-slider
-                  label="Density"
-                  .value=${this.density}
-                  min="0" max="1" step="0.01"
-                  @input=${this.handleDensityChange}
-                  ?disabled=${this.isDropActive || this.showWelcomeScreen}>
-              </parameter-slider>
-              <parameter-slider
-                  label="Brightness"
-                  .value=${this.brightness}
-                  min="0" max="1" step="0.01"
-                  @input=${this.handleBrightnessChange}
-                  ?disabled=${this.isDropActive || this.showWelcomeScreen}>
-              </parameter-slider>
-              <div class="settings-grid-item">
-                  <label for="music-gen-mode">Music Generation Mode</label>
-                  <select 
-                      id="music-gen-mode"
-                      class="styled-select"
-                      .value=${this.musicGenerationMode}
-                      @change=${this.handleMusicGenerationModeChange}
-                      ?disabled=${this.isDropActive || this.showWelcomeScreen}>
-                      <option value="QUALITY">Quality</option>
-                      <option value="DIVERSITY">Diversity</option>
-                  </select>
-              </div>
-              <toggle-switch 
-                  label="Mute Bass" 
-                  .checked=${this.muteBass}
-                  ?disabled=${this.isDropActive || this.onlyBassAndDrums || this.showWelcomeScreen}
-                  @change=${this.handleMuteBassToggle}>
-              </toggle-switch>
-              <toggle-switch
-                  label="Mute Drums"
-                  .checked=${this.muteDrums}
-                  ?disabled=${this.isDropActive || this.onlyBassAndDrums || this.showWelcomeScreen}
-                  @change=${this.handleMuteDrumsToggle}>
-              </toggle-switch>
-              <toggle-switch
-                  label="Only Bass & Drums"
-                  .checked=${this.onlyBassAndDrums}
-                  ?disabled=${this.isDropActive || this.showWelcomeScreen}
-                  @change=${this.handleOnlyBassAndDrumsToggle}>
-              </toggle-switch>
+              <!-- Other advanced settings removed from UI -->
           </div>
           <a class="hide-settings-link" @click=${this.toggleAdvancedSettings}>Hide Advanced Settings</a>
         </div>
