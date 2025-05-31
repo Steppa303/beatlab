@@ -189,7 +189,9 @@ export class PromptController extends LitElement {
 
   override connectedCallback() {
     super.connectedCallback();
-    if (this.text === 'New Prompt' && !this.hasUpdated) {
+    // If the prompt is new (default text) and hasn't been updated yet, start in edit mode.
+    // "New Prompt" is German "Neuer Prompt" in index.tsx
+    if (this.text === 'Neuer Prompt' && !this.hasUpdated) {
       this.isEditingText = true;
       this._originalTextBeforeEdit = this.text;
     }
@@ -246,7 +248,8 @@ export class PromptController extends LitElement {
 
   private saveText() {
     const newText = this.textInputElement.value.trim();
-    if (newText === this.text && this.text !== 'New Prompt') { 
+    // Only save and dispatch if text actually changed, or if it was the default "Neuer Prompt"
+    if (newText === this.text && this.text !== 'Neuer Prompt') { 
       this.isEditingText = false;
       return;
     }
@@ -328,9 +331,10 @@ export class PromptController extends LitElement {
   
   // Method to be called from parent if add button creates this prompt
   public enterEditModeAfterCreation() {
-    if (this.text === 'New Prompt') {
+    // "Neuer Prompt" is German, "New Prompt" might be from older versions or direct manipulation
+    if (this.text === 'Neuer Prompt' || this.text === 'New Prompt') {
       this.isEditingText = true;
-      this._originalTextBeforeEdit = this.text; // Ensure original is "New Prompt"
+      this._originalTextBeforeEdit = this.text; 
     }
   }
 
@@ -340,8 +344,8 @@ export class PromptController extends LitElement {
       ? html`<input
             type="text"
             id="text-input"
-            .value=${this.text === 'New Prompt' && this.isEditingText ? '' : this.text}
-            placeholder=${this.text === 'New Prompt' ? 'Enter prompt...' : this.text}
+            .value=${this.text}
+            placeholder="Dein Sound-Prompt..."
             @click=${(e: Event) => e.stopPropagation()}
             @keydown=${this.handleTextInputKeyDown}
             @blur=${this.handleTextInputBlur}

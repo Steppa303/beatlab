@@ -20,9 +20,10 @@ export type TutorialStepId =
   | 'creativePauseHint'
   | 'createSecondTrack_HighlightAdd'
   | 'createSecondTrack_EnterName'
-  | 'mixTrack_HighlightControls'
-  | 'mixTrack_AwaitInteraction' // Kept for potential future use if simple weight change isn't enough
-  | 'mixTrack_Feedback'
+  | 'mixTrack_SetToOne' 
+  | 'mixTrack_ListenToOne' 
+  | 'mixTrack_SetToOnePointFour' 
+  | 'mixTrack_ListenToOnePointFourAndConclude'
   | 'completion';
 
 interface TutorialStepConfig {
@@ -110,7 +111,7 @@ export class TutorialController extends LitElement {
     {
       id: 'createFirstTrack_EnterName',
       highlightTarget: () => this.firstPromptId ? this.targets.getPromptTextInput?.(this.firstPromptId) : null,
-      tooltipText: "Gib deinem Track einen Namen & drück Enter!",
+      tooltipText: "Benenn ihn (z.B. 'Trompete', 'tek house', '20er Swing') & Enter!",
       waitForEvent: 'promptTextChanged',
       eventDetailCondition: (detail) => detail.promptId === this.firstPromptId && detail.newText.trim() !== '' && detail.newText.trim().toLowerCase() !== 'neuer prompt' && detail.newText.trim().toLowerCase() !== 'untitled prompt',
       onEnter: () => {
@@ -160,23 +161,43 @@ export class TutorialController extends LitElement {
     {
       id: 'createSecondTrack_EnterName',
       highlightTarget: () => this.secondPromptId ? this.targets.getPromptTextInput?.(this.secondPromptId) : null,
-      tooltipText: "Cool! Benenne auch diesen.",
+      tooltipText: "Benenn ihn (z.B. '70s Funk Bassline', 'Indie Pop Gitarre', 'Hyperpop Synth Lead') & Enter!",
       waitForEvent: 'promptTextChanged',
       eventDetailCondition: (detail) => detail.promptId === this.secondPromptId && detail.newText.trim() !== '' && detail.newText.trim().toLowerCase() !== 'neuer prompt' && detail.newText.trim().toLowerCase() !== 'untitled prompt',
     },
     {
-        id: 'mixTrack_HighlightControls',
-        highlightTarget: () => this.secondPromptId ? this.targets.getPromptWeightSlider?.(this.secondPromptId) : null,
-        tooltipText: "Cool! Justiere die Regler. Wie klingt's jetzt?",
-        waitForEvent: 'promptWeightChanged',
-        eventDetailCondition: (detail) => detail.promptId === this.secondPromptId && detail.newWeight > 0.05,
+      id: 'mixTrack_SetToOne',
+      highlightTarget: () => this.secondPromptId ? this.targets.getPromptWeightSlider?.(this.secondPromptId) : null,
+      tooltipText: "Zieh den Regler auf ca. 1.0. Lausche der Veränderung!",
+      waitForEvent: 'promptWeightChanged',
+      eventDetailCondition: (detail) => detail.promptId === this.secondPromptId && detail.newWeight >= 0.95 && detail.newWeight <= 1.05,
+      onEnter: () => {
+        this.targets.getPromptWeightSlider?.(this.secondPromptId!)?.addEventListener('pointerdown', this.handleTentativeAdvance, { once: true });
+      }
     },
     {
-        id: 'mixTrack_Feedback',
-        tooltipText: "Hör genau! Merkst du den Unterschied? Spiel damit!",
-        highlightTarget: () => this.targets.promptsContainer?.(), // Highlight the general area
-        autoAdvanceDelay: 4000,
-        onEnter: () => this.clearHighlightAndTooltip(false),
+      id: 'mixTrack_ListenToOne',
+      tooltipText: "Hörst du's? Gleich geht's weiter...",
+      highlightTarget: () => this.targets.promptsContainer?.(),
+      autoAdvanceDelay: 8000,
+      onEnter: () => this.clearHighlightAndTooltip(false),
+    },
+    {
+      id: 'mixTrack_SetToOnePointFour',
+      highlightTarget: () => this.secondPromptId ? this.targets.getPromptWeightSlider?.(this.secondPromptId) : null,
+      tooltipText: "Super! Jetzt zieh ihn auf ca. 1.4. Wie klingt's jetzt?",
+      waitForEvent: 'promptWeightChanged',
+      eventDetailCondition: (detail) => detail.promptId === this.secondPromptId && detail.newWeight >= 1.35 && detail.newWeight <= 1.45,
+      onEnter: () => {
+        this.targets.getPromptWeightSlider?.(this.secondPromptId!)?.addEventListener('pointerdown', this.handleTentativeAdvance, { once: true });
+      }
+    },
+    {
+      id: 'mixTrack_ListenToOnePointFourAndConclude',
+      tooltipText: "Hör genau! Merkst du den Unterschied? Spiel damit!",
+      highlightTarget: () => this.targets.promptsContainer?.(),
+      autoAdvanceDelay: 8000,
+      onEnter: () => this.clearHighlightAndTooltip(false),
     },
     {
       id: 'completion',
@@ -247,13 +268,17 @@ export class TutorialController extends LitElement {
 
   private advanceStep() {
     const prevStepConfig = this.steps[this.currentStepIndex];
-    if (prevStepConfig?.highlightTarget?.() === this.targets.addPromptButton?.() ||
-        prevStepConfig?.highlightTarget?.() === this.targets.playPauseButton?.()) {
-        const targetElement = prevStepConfig.highlightTarget();
-        if (targetElement) {
-            targetElement.removeEventListener('click', this.handleTentativeAdvance);
-        }
+    // Clean up tentative advance listeners for specific elements
+    const targetElement = prevStepConfig?.highlightTarget?.();
+    if (targetElement && (
+      targetElement === this.targets.addPromptButton?.() ||
+      targetElement === this.targets.playPauseButton?.() ||
+      (this.secondPromptId && targetElement === this.targets.getPromptWeightSlider?.(this.secondPromptId))
+    )) {
+        targetElement.removeEventListener('click', this.handleTentativeAdvance);
+        targetElement.removeEventListener('pointerdown', this.handleTentativeAdvance);
     }
+
 
     if (this.currentStepIndex < this.steps.length - 1) {
       this.currentStepIndex++;
@@ -280,6 +305,11 @@ export class TutorialController extends LitElement {
         this.setupHighlightAndTooltip(target, stepConfig.tooltipText || '');
       } else {
         console.warn(`Tutorial: Target for step ${stepConfig.id} not found.`);
+         // If target is not found, but there's tooltip text, show centered tooltip
+        if (stepConfig.tooltipText) {
+            this.tooltipText = stepConfig.tooltipText;
+            this.tooltipStyle = { display: 'block', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
+        }
       }
     } else if (stepConfig.tooltipText) {
         this.tooltipText = stepConfig.tooltipText;
@@ -325,10 +355,10 @@ export class TutorialController extends LitElement {
   interceptSpacebar(): boolean {
     const stepConfig = this.steps[this.currentStepIndex];
     if (this.isActive && stepConfig?.highlightTarget?.() === this.targets.playPauseButton?.()) {
-        this.handleTentativeAdvance();
-        return false;
+        this.handleTentativeAdvance(); // Clear tooltip, wait for event
+        // Let PromptDj handle the actual play/pause action
     }
-    return false;
+    return false; // Always allow PromptDj to process spacebar
   }
 
 
@@ -359,7 +389,7 @@ export class TutorialController extends LitElement {
         return;
     }
 
-    const padding = (stepConfig?.id.startsWith('createFirstTrack_ConfirmCreation') || stepConfig?.id.startsWith('mixTrack_Feedback')) ? 8 : 4;
+    const padding = (stepConfig?.id.startsWith('createFirstTrack_ConfirmCreation') || stepConfig?.id.startsWith('mixTrack_ListenToOne') || stepConfig?.id.startsWith('mixTrack_ListenToOnePointFourAndConclude')) ? 8 : 4;
     this.highlightStyle = {
       display: 'block',
       top: `${rect.top - padding + window.scrollY}px`,
@@ -380,29 +410,32 @@ export class TutorialController extends LitElement {
     let ttTop = rect.bottom + TOOLTIP_OFFSET + window.scrollY;
     let ttLeft = rect.left + rect.width / 2 + window.scrollX;
     let arrowVis = 'visible';
-    let arrowTopStyle = '-5px';
+    let arrowTopStyle = '-5px'; // Arrow pointing up from top of tooltip
     let arrowLeftStyle = '50%';
     let arrowTransformStyle = 'translateX(-50%) rotate(45deg)';
 
-    const estTooltipHeight = this.tooltipText.length > 50 ? 100 : 80;
-    const estTooltipWidth = Math.min(250, this.tooltipText.length * 7 + 30);
+    // Estimate tooltip dimensions (could be improved by measuring actual element)
+    const estTooltipHeight = this.tooltipText.length > 50 ? (this.tooltipText.length > 100 ? 100 : 80) : 60;
+    const estTooltipWidth = Math.min(250, Math.max(100,this.tooltipText.length * 6 + 30));
 
-    if (ttTop - window.scrollY + estTooltipHeight > viewportHeight) {
-      ttTop = rect.top - estTooltipHeight - TOOLTIP_OFFSET + window.scrollY;
-      arrowTopStyle = 'calc(100% - 5px)';
+
+    // Prefer bottom, then top. Then adjust horizontal.
+    if (ttTop - window.scrollY + estTooltipHeight > viewportHeight) { // Not enough space below
+      ttTop = rect.top - estTooltipHeight - TOOLTIP_OFFSET + window.scrollY; // Position above
+      arrowTopStyle = 'calc(100% - 5px)'; // Arrow pointing down from bottom of tooltip
       arrowTransformStyle = 'translateX(-50%) rotate(225deg)';
     }
 
-    let finalTransform = 'translateX(-50%)';
-    if (ttLeft - window.scrollX - (estTooltipWidth/2) < 0) {
+    // Adjust left position and arrow for horizontal overflow
+    let finalTransform = 'translateX(-50%)'; // Default: center tooltip under/over target center
+    if (ttLeft - window.scrollX - (estTooltipWidth / 2) < TOOLTIP_OFFSET) { // Too far left
         ttLeft = TOOLTIP_OFFSET + window.scrollX;
-        finalTransform = '';
-        arrowLeftStyle = `${rect.left + rect.width / 2 - ttLeft + window.scrollX}px`;
-    }
-    else if (ttLeft - window.scrollX + (estTooltipWidth/2) > viewportWidth) {
+        finalTransform = ''; // Align left edge of tooltip
+        arrowLeftStyle = `${rect.left + rect.width / 2 - ttLeft + window.scrollX - (ARROW_SIZE / 2)}px`;
+    } else if (ttLeft - window.scrollX + (estTooltipWidth / 2) > viewportWidth - TOOLTIP_OFFSET) { // Too far right
         ttLeft = viewportWidth - estTooltipWidth - TOOLTIP_OFFSET + window.scrollX;
-        finalTransform = '';
-        arrowLeftStyle = `${(rect.left + rect.width / 2) - (ttLeft - window.scrollX)}px`;
+        finalTransform = ''; // Align left edge of tooltip
+        arrowLeftStyle = `${(rect.left + rect.width / 2) - (ttLeft - window.scrollX) - (ARROW_SIZE / 2)}px`;
     }
 
 
@@ -599,7 +632,8 @@ export class TutorialController extends LitElement {
         stepConfig.id === 'playTrack_HighlightPlay' ||
         stepConfig.id === 'createSecondTrack_HighlightAdd' ||
         stepConfig.id === 'createSecondTrack_EnterName' ||
-        stepConfig.id === 'mixTrack_HighlightControls'
+        stepConfig.id === 'mixTrack_SetToOne' ||
+        stepConfig.id === 'mixTrack_SetToOnePointFour'
     );
 
 
@@ -614,7 +648,7 @@ export class TutorialController extends LitElement {
         </div>
       ` : nothing}
 
-      ${this.highlightStyle.display === 'block' ? html`
+      ${this.highlightStyle.display === 'block' && stepConfig?.highlightTarget ? html`
         <div class="highlight-box ${isPulsating ? 'pulsate' : ''}" style=${styleMap(this.highlightStyle as any)}></div>
       ` : nothing}
 

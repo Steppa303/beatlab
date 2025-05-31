@@ -1,5 +1,5 @@
 {
-  "name": "rebuild cast Beatjam Render-Deploy",
+  "name": "tutorial Beatjam Render-Deploy",
   "description": "Steer a continuous stream of music with text prompts with midi",
   "requestFramePermissions": [],
   "prompt": ""

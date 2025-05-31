@@ -822,9 +822,14 @@ class PromptDj extends LitElement {
     const newPrompt: Prompt = {
       promptId: newId,
       text: 'Neuer Prompt',
-      weight: 0.0,
+      weight: 0.0, // Default weight
       color: this.getUnusedRandomColor(Array.from(this.prompts.values()).map(p => p.color)),
     };
+
+    if (this.isTutorialActive && this.prompts.size === 0) {
+        newPrompt.weight = 1.0; // Set first tutorial prompt's weight to 1
+    }
+
     this.prompts = new Map(this.prompts).set(newId, newPrompt);
     this.savePromptsToLocalStorage();
     this.sendPromptsToSession();
@@ -842,7 +847,8 @@ class PromptDj extends LitElement {
            this.tutorialControllerEl.notifyAppEvent('promptCreated', {
              promptId: newId,
              element: promptElement,
-             isEmpty: this.prompts.size === 1 // True if it's the first prompt
+             isEmpty: this.prompts.size === 1, // True if it's the first prompt
+             initialWeight: newPrompt.weight // Pass initial weight
            });
         }
     }
