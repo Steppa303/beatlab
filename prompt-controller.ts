@@ -206,7 +206,9 @@ export class PromptController extends LitElement {
     if (this.isEditingText) { // If we are in edit mode
       if (this._forceSkipAutoFocusOnce) {
         this._forceSkipAutoFocusOnce = false; // Consume the flag
-        // Do not focus. The input is already visible due to isEditingText.
+        if (this.textInputElement) { // Ensure input element exists
+            this.textInputElement.blur(); // Explicitly remove focus
+        }
       } else if (changedProperties.has('isEditingText')) { // Only auto-focus if isEditingText just became true
         // Default behavior: auto-focus when entering edit mode
         // Ensure textInputElement is available by awaiting updateComplete if necessary
@@ -214,7 +216,8 @@ export class PromptController extends LitElement {
         requestAnimationFrame(() => { // Then focus
           if (this.textInputElement) {
             this.textInputElement.focus();
-            if (this.text === 'Neuer Prompt' || this.text === 'New Prompt') {
+            // Select text if it's default or empty (after clearText:true)
+            if (this.text === 'Neuer Prompt' || this.text === 'New Prompt' || this.text === '') {
               this.textInputElement.select();
             }
           }
