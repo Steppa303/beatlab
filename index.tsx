@@ -22,18 +22,18 @@ import type { Prompt, PlaybackState, AppLiveMusicGenerationConfig, PresetPrompt,
 import { TRACK_COLORS, ORB_COLORS, CURRENT_PRESET_VERSION, MIDI_LEARN_TARGET_DROP_BUTTON, MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON } from './constants.js';
 
 // Import components
-import './components/weight-slider.js'; 
+import './components/weight-slider.js';
 // import { WeightSlider } from './components/weight-slider.js'; // Type import not strictly needed if not directly referenced by type
-import './components/parameter-slider.js'; 
-import { ParameterSlider } from './components/parameter-slider.js'; 
-import './components/toggle-switch.js'; 
+import './components/parameter-slider.js';
+import { ParameterSlider } from './components/parameter-slider.js';
+import './components/toggle-switch.js';
 // import { ToggleSwitch } from './components/toggle-switch.js';  // Type import not strictly needed
 // import { IconButton } from './components/icon-button.js'; // Base class, not directly used by tag name in prompt-dj template
-import './components/play-pause-button.js'; 
-import { PlayPauseButton } from './components/play-pause-button.js'; 
-import './components/add-prompt-button.js'; 
+import './components/play-pause-button.js';
+import { PlayPauseButton } from './components/play-pause-button.js';
+import './components/add-prompt-button.js';
 // import { AddPromptButton } from './components/add-prompt-button.js'; // Type import not strictly needed
-import './prompt-controller.js'; 
+import './prompt-controller.js';
 import { PromptController as PromptControllerElement } from './prompt-controller.js';
 
 // Import newly refactored components
@@ -51,9 +51,12 @@ import './components/help-guide-panel.js';
 import { HelpGuidePanel } from './components/help-guide-panel.js'; // Queried
 import './components/welcome-overlay.js';
 import { WelcomeOverlay } from './components/welcome-overlay.js'; // Queried
+import './components/tutorial-controller.js'; // Import TutorialController
+import { TutorialController } from './components/tutorial-controller.js';
 
 
-// Declare Cast SDK globals for TypeScript
+// Declare Cast SDK globals for TypeScript - Temporarily commented out to avoid ReferenceError
+/*
 declare global {
   // CHROME.CAST.MEDIA NAMESPACE
   namespace chrome.cast.media {
@@ -208,25 +211,28 @@ declare global {
   }
 
   interface Window {
-    cast?: typeof cast; // Make optional as it might not be loaded
-    chrome?: typeof chrome; // Make optional
+    // cast?: typeof cast; // Make optional as it might not be loaded
+    // chrome?: typeof chrome; // Make optional
     __onGCastApiAvailable?: (available: boolean, errorInfo?: any) => void;
     // webkitAudioContext for Safari
     webkitAudioContext: typeof AudioContext;
   }
 }
+*/
 
-// window.__onGCastApiAvailable is now defined in index.html
+// window.__onGCastApiAvailable is now defined in index.html (but commented out)
 
 
 // Use API_KEY as per guidelines
 const ai = new GoogleGenAI({
   apiKey: process.env.API_KEY,
-  apiVersion: 'v1alpha', 
+  apiVersion: 'v1alpha',
 });
 
 // Model for Lyria real-time music generation.
 const activeModelName = 'models/lyria-realtime-exp';
+const TUTORIAL_STORAGE_KEY = 'beatLabTutorialCompleted_v1.1';
+const CAST_FEATURE_ENABLED = false; // Feature flag for Cast
 
 
 // Default styles
@@ -234,14 +240,14 @@ const defaultStyles = css`
   :host {
     display: flex;
     flex-direction: column;
-    height: 100vh; 
-    width: 100vw; 
-    background-color: #181818; 
-    color: #e0e0e0; 
+    height: 100vh;
+    width: 100vw;
+    background-color: #181818;
+    color: #e0e0e0;
     font-family: 'Google Sans', sans-serif;
     box-sizing: border-box;
-    overflow: hidden; 
-    position: relative; 
+    overflow: hidden;
+    position: relative;
   }
 `;
 
@@ -250,11 +256,11 @@ const defaultStyles = css`
 class PromptDj extends LitElement {
   // --- Constants & Configuration ---
   private readonly SAMPLE_RATE = 48000;
-  private readonly BUFFER_AHEAD_TIME_SECONDS = 1.5; 
+  private readonly BUFFER_AHEAD_TIME_SECONDS = 1.5;
   private readonly CAST_STREAM_URL = 'https://chunkstreamer.onrender.com/stream';
   private readonly CAST_UPLOAD_URL = 'https://chunkstreamer.onrender.com/upload-chunk';
   private readonly CAST_RESET_URL = 'https://chunkstreamer.onrender.com/reset-stream';
-  private readonly CAST_NAMESPACE = 'urn:x-cast:com.google.cast.media';
+  // private readonly CAST_NAMESPACE = 'urn:x-cast:com.google.cast.media'; // Temporarily unused
   private readonly FUNNY_LOADING_MESSAGES = [
     "🎵 Synthesizer werden vorgewärmt...",
     "🎧 Beats werden sorgfältig verteilt...",
@@ -272,25 +278,29 @@ class PromptDj extends LitElement {
   // --- LitElement State & Properties ---
   @state() private prompts: Map<string, Prompt> = new Map();
   @state() private playbackState: PlaybackState = 'stopped';
-  @state() private filteredPrompts: Set<string> = new Set(); 
+  @state() private filteredPrompts: Set<string> = new Set();
   @state() private availableMidiInputs: MidiInputInfo[] = [];
   @state() private selectedMidiInputId: string | null = null;
   @state() private isMidiLearning = false;
-  @state() private midiLearnTarget: string | null = null; 
-  @state() private midiCcMap: Map<number, string> = new Map(); 
+  @state() private midiLearnTarget: string | null = null;
+  @state() private midiCcMap: Map<number, string> = new Map();
   @state() private showSettings = false;
   @state() private showHelp = false;
-  @state() private showWelcome = false; 
-  @state() private isDropEffectActive = false; 
+  @state() private showWelcome = false;
+  @state() private isDropEffectActive = false;
 
-  @state() private temperature = 1.1; 
-  
-  @state() private castContext: cast.framework.CastContext | null = null;
-  @state() private castSession: cast.framework.CastSession | null = null;
-  @state() private remotePlayer: cast.framework.RemotePlayer | null = null;
-  @state() private remotePlayerController: cast.framework.RemotePlayerController | null = null;
+  @state() private temperature = 1.1;
+
+  // Cast related state - will not be actively used if CAST_FEATURE_ENABLED is false
+  // Types will be 'any' if global Cast types are commented out
+  @state() private castContext: any | null = null;
+  @state() private castSession: any | null = null;
+  @state() private remotePlayer: any | null = null;
+  @state() private remotePlayerController: any | null = null;
   @state() private isCastingAvailable = false;
   @state() private isCastingActive = false;
+
+  @state() private isTutorialActive = false;
 
 
   // --- Internal Class Members ---
@@ -300,7 +310,7 @@ class PromptDj extends LitElement {
   private outputGainNode: GainNode;
   private nextAudioChunkStartTime = 0;
   private midiController: MidiController;
-  private sessionSetupComplete = false; 
+  private sessionSetupComplete = false;
   private boundHandleCastApiReady: (event: CustomEvent<{available: boolean, errorInfo?: any}>) => void;
   private loadingMessageInterval: number | null = null;
   private currentLoadingMessageIndex = 0;
@@ -310,9 +320,11 @@ class PromptDj extends LitElement {
   // --- Queries for DOM Elements ---
   @query('play-pause-button') private playPauseButtonEl!: PlayPauseButton;
   @query('drop-button') private dropButtonEl!: DropButton;
+  @query('add-prompt-button') private addPromptButtonEl!: HTMLElement;
+  @query('tutorial-controller') private tutorialControllerEl!: TutorialController;
   @query('toast-message') private toastMessageEl!: ToastMessage;
   @query('#prompts-container') private promptsContainerEl!: HTMLElement;
-  @query('#settings-panel') private settingsPanelEl!: HTMLElement; 
+  @query('#settings-panel') private settingsPanelEl!: HTMLElement;
   @query('help-guide-panel') private helpGuidePanelEl!: HelpGuidePanel;
   @query('welcome-overlay') private welcomeOverlayEl!: WelcomeOverlay;
   @query('#midi-device-select') private midiDeviceSelectEl!: HTMLSelectElement;
@@ -321,31 +333,50 @@ class PromptDj extends LitElement {
 
   constructor() {
     super();
-    this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
+    this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
       sampleRate: this.SAMPLE_RATE,
     });
     this.outputGainNode = this.audioContext.createGain();
     this.outputGainNode.connect(this.audioContext.destination);
     this.midiController = new MidiController();
     this.initializeMidi();
-    this.loadInitialPrompts(); 
+    this.checkTutorialStatusAndLoadPrompts();
+
 
     this.handleSessionMessage = this.handleSessionMessage.bind(this);
     this.handleSessionError = this.handleSessionError.bind(this);
     this.handleSessionClose = this.handleSessionClose.bind(this);
-    this.boundHandleCastApiReady = this.handleCastApiReady.bind(this) as EventListener;
-    // Listen for the custom event dispatched by the HTML-defined __onGCastApiAvailable
-    document.addEventListener('cast-api-ready', this.boundHandleCastApiReady);
     
-    if (!localStorage.getItem('beatLabWelcomeShown')) {
+    if (CAST_FEATURE_ENABLED) {
+        this.boundHandleCastApiReady = this.handleCastApiReady.bind(this) as EventListener;
+        document.addEventListener('cast-api-ready', this.boundHandleCastApiReady);
+    } else {
+        this.boundHandleCastApiReady = () => {}; // No-op if Cast is disabled
+    }
+
+    if (!this.isTutorialActive && !localStorage.getItem('beatLabWelcomeShown')) {
         this.showWelcome = true;
     }
   }
 
+  private checkTutorialStatusAndLoadPrompts() {
+    const tutorialCompleted = localStorage.getItem(TUTORIAL_STORAGE_KEY);
+    if (!tutorialCompleted) {
+      this.isTutorialActive = true;
+      // Start with 0 prompts for the tutorial. They will be added interactively.
+      this.prompts = new Map();
+      this.nextPromptIdCounter = 0;
+    } else {
+      this.isTutorialActive = false;
+      this.loadInitialPrompts();
+    }
+  }
+
+
   // --- Lifecycle Methods ---
   override connectedCallback() {
     super.connectedCallback();
-    this.audioContext.resume(); 
+    this.audioContext.resume();
     document.addEventListener('keydown', this.handleGlobalKeyDown);
   }
 
@@ -353,30 +384,33 @@ class PromptDj extends LitElement {
     super.disconnectedCallback();
     if (this.activeSession) {
       this.activeSession.stop();
-      this.activeSession = null; 
+      this.activeSession = null;
     }
     if (this.audioContext.state !== 'closed') {
       this.audioContext.close();
     }
     this.midiController.destroy();
-    if (this.castContext) {
-        this.castContext.removeEventListener(
-            window.cast!.framework.CastContextEventType.SESSION_STATE_CHANGED,
-            this.handleCastSessionStateChange
-        );
-        this.castContext.removeEventListener(
-            window.cast!.framework.CastContextEventType.CAST_STATE_CHANGED,
-            this.handleCastStateChange
-        );
-    }
-    if (this.remotePlayerController) {
-        this.remotePlayerController.removeEventListener(
-            window.cast!.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
-            this.handleRemotePlayerConnectChange
-        );
+    
+    if (CAST_FEATURE_ENABLED && (window as any).cast && (window as any).cast.framework) {
+        if (this.castContext) {
+            this.castContext.removeEventListener(
+                (window as any).cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
+                this.handleCastSessionStateChange.bind(this) // Ensure bound listener for removal
+            );
+            this.castContext.removeEventListener(
+                (window as any).cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+                this.handleCastStateChange.bind(this) // Ensure bound listener for removal
+            );
+        }
+        if (this.remotePlayerController) {
+            this.remotePlayerController.removeEventListener(
+                (window as any).cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
+                this.handleRemotePlayerConnectChange.bind(this) // Ensure bound listener for removal
+            );
+        }
+        document.removeEventListener('cast-api-ready', this.boundHandleCastApiReady);
     }
     document.removeEventListener('keydown', this.handleGlobalKeyDown);
-    document.removeEventListener('cast-api-ready', this.boundHandleCastApiReady);
     this.clearLoadingMessageInterval();
     if (this.sliderJiggleTimeout) {
         clearTimeout(this.sliderJiggleTimeout);
@@ -385,13 +419,14 @@ class PromptDj extends LitElement {
   }
 
   override firstUpdated() {
-    this.loadStateFromURL(); 
-    this.updateMidiLearnButtonState(); 
+    this.loadStateFromURL();
+    this.updateMidiLearnButtonState();
   }
 
   // --- Initialization & Setup ---
 
   private loadInitialPrompts() {
+    // This is called only if tutorial is NOT active or already completed
     const storedPrompts = localStorage.getItem('prompts');
     if (storedPrompts) {
       try {
@@ -416,7 +451,7 @@ class PromptDj extends LitElement {
   private createDefaultPrompts(firstPromptText?: string) {
     const defaultTexts = ["Ambient Chill with a Lo-Fi Beat", "Energetic Drum and Bass", "Mysterious Sci-Fi Score", "Funky Jazz Groove"];
     if (firstPromptText && !defaultTexts.includes(firstPromptText)) {
-        defaultTexts.unshift(firstPromptText); 
+        defaultTexts.unshift(firstPromptText);
     } else if (firstPromptText) {
         const index = defaultTexts.indexOf(firstPromptText);
         if (index > -1) {
@@ -425,14 +460,14 @@ class PromptDj extends LitElement {
         }
     }
 
-    const numToCreate = Math.min(2, defaultTexts.length); 
+    const numToCreate = this.isTutorialActive ? 0 : Math.min(2, defaultTexts.length);
     const newPrompts = new Map<string, Prompt>();
     for (let i = 0; i < numToCreate; i++) {
       const id = this.generateNewPromptId();
       newPrompts.set(id, {
         promptId: id,
         text: defaultTexts[i],
-        weight: i === 0 ? 1.0 : 0.0, 
+        weight: i === 0 ? 1.0 : 0.0,
         color: this.getUnusedRandomColor(Array.from(newPrompts.values()).map(p => p.color)),
       });
     }
@@ -447,14 +482,14 @@ class PromptDj extends LitElement {
       console.log('Session already active and setup.');
       return true;
     }
-    if (this.playbackState === 'loading') { 
+    if (this.playbackState === 'loading') {
         console.warn('Connection attempt skipped, already loading.');
         return false;
     }
 
     this.playbackState = 'loading';
     this.startLoadingMessageSequence();
-    this.sessionSetupComplete = false; 
+    this.sessionSetupComplete = false;
 
     try {
       console.log(`Attempting to connect to Lyria session with model: ${activeModelName}`);
@@ -491,7 +526,7 @@ class PromptDj extends LitElement {
       const filteredText = message.filteredPrompt.text;
       const reason = message.filteredPrompt.filteredReason || 'Content policy';
       this.filteredPrompts = new Set([...this.filteredPrompts, filteredText]);
-      
+
       let foundPromptId: string | null = null;
       for (const p of this.prompts.values()){
         if (p.text === filteredText) {
@@ -507,25 +542,25 @@ class PromptDj extends LitElement {
       }
       this.toastMessageEl.show(`Prompt: "${filteredText}" wurde gefiltert. Grund: ${reason}. Wird ignoriert.`);
       this.requestUpdate('filteredPrompts');
-      this.sendPromptsToSession(); 
+      this.sendPromptsToSession();
     }
 
     const audioChunkData = message.serverContent?.audioChunks?.[0]?.data;
     if (audioChunkData) {
       if (this.playbackState === 'paused' || this.playbackState === 'stopped') {
-        return; 
+        return;
       }
-      
+
       try {
-        const rawAudioData = decode(audioChunkData); 
+        const rawAudioData = decode(audioChunkData);
         const audioBuffer = await localDecodeAudioData(
           rawAudioData,
           this.audioContext,
           this.SAMPLE_RATE,
-          2 
+          2
         );
 
-        if (this.isCastingActive && this.castSession) {
+        if (CAST_FEATURE_ENABLED && this.isCastingActive && this.castSession) {
             this.sendChunkToCastServer(rawAudioData);
         }
 
@@ -534,8 +569,8 @@ class PromptDj extends LitElement {
         source.connect(this.outputGainNode);
 
         const currentTime = this.audioContext.currentTime;
-        
-        if (this.nextAudioChunkStartTime === 0) { 
+
+        if (this.nextAudioChunkStartTime === 0) {
           this.nextAudioChunkStartTime = currentTime + this.BUFFER_AHEAD_TIME_SECONDS;
         }
 
@@ -545,7 +580,7 @@ class PromptDj extends LitElement {
           this.startLoadingMessageSequence(); // Restart messages if underrun
           this.nextAudioChunkStartTime = currentTime + this.BUFFER_AHEAD_TIME_SECONDS; // Try to re-buffer
         }
-        
+
         source.start(this.nextAudioChunkStartTime);
         this.nextAudioChunkStartTime += audioBuffer.duration;
 
@@ -558,20 +593,24 @@ class PromptDj extends LitElement {
                 clearTimeout(this.sliderJiggleTimeout);
                 this.sliderJiggleTimeout = null;
             }
+             // Notify tutorial if active
+            if (this.isTutorialActive && this.tutorialControllerEl) {
+              this.tutorialControllerEl.notifyAppEvent('playbackStarted');
+            }
         }
 
       } catch (error) {
         console.error('Error processing audio chunk:', error);
         this.toastMessageEl.show('Fehler bei der Audioverarbeitung.');
-         if (this.playbackState === 'loading') { 
-            this.playbackState = 'paused'; 
+         if (this.playbackState === 'loading') {
+            this.playbackState = 'paused';
             this.clearLoadingMessageInterval();
         }
       }
     }
   }
 
-  private handleSessionError(error: any) { 
+  private handleSessionError(error: any) {
     console.error('LiveMusicSession Error:', error);
     this.toastMessageEl.show(`Session-Fehler: ${error.message || 'Verbindung verloren'}. Bitte erneut versuchen.`);
     this.playbackState = 'stopped';
@@ -582,12 +621,12 @@ class PromptDj extends LitElement {
     }
     this.activeSession = null;
     this.sessionSetupComplete = false;
-    this.nextAudioChunkStartTime = 0; 
+    this.nextAudioChunkStartTime = 0;
   }
 
-  private handleSessionClose(event: any) { 
+  private handleSessionClose(event: any) {
     console.log('LiveMusicSession Closed:', event);
-    if (this.playbackState !== 'stopped') { 
+    if (this.playbackState !== 'stopped') {
       // this.toastMessageEl.show('Music session closed.');
     }
     this.playbackState = 'stopped';
@@ -598,7 +637,7 @@ class PromptDj extends LitElement {
     }
     this.activeSession = null;
     this.sessionSetupComplete = false;
-    this.nextAudioChunkStartTime = 0; 
+    this.nextAudioChunkStartTime = 0;
   }
 
 
@@ -617,22 +656,22 @@ class PromptDj extends LitElement {
   }
 
   private async startAudioStream() {
-    if (this.playbackState === 'loading' && this.loadingMessageInterval) { 
+    if (this.playbackState === 'loading' && this.loadingMessageInterval) {
         return; // Already trying to load/connect and messages are showing
     }
-    
+
     if (!(await this.connectToSession())) { // connectToSession sets loading state and starts messages
       return;
     }
-    
+
     if (this.activeSession) {
         try {
             console.log('Calling session.play()');
             if (this.playbackState === 'paused' || this.playbackState === 'stopped') {
-                this.nextAudioChunkStartTime = 0; 
+                this.nextAudioChunkStartTime = 0;
             }
 
-            this.activeSession.play(); 
+            this.activeSession.play();
             // playbackState is already 'loading' from connectToSession
             this.audioContext.resume();
             this.outputGainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
@@ -682,7 +721,7 @@ class PromptDj extends LitElement {
             this.clearLoadingMessageInterval();
             if (this.sliderJiggleTimeout) clearTimeout(this.sliderJiggleTimeout);
             this.sliderJiggleTimeout = null;
-            this.nextAudioChunkStartTime = 0; 
+            this.nextAudioChunkStartTime = 0;
         }
     } else {
         console.error("Cannot start audio stream: session not active.");
@@ -691,18 +730,18 @@ class PromptDj extends LitElement {
         this.clearLoadingMessageInterval();
         if (this.sliderJiggleTimeout) clearTimeout(this.sliderJiggleTimeout);
         this.sliderJiggleTimeout = null;
-        this.nextAudioChunkStartTime = 0; 
+        this.nextAudioChunkStartTime = 0;
     }
   }
 
   private pauseAudioStream() {
     if (this.activeSession) {
       console.log('Calling session.pause()');
-      this.activeSession.pause(); 
+      this.activeSession.pause();
     }
     this.outputGainNode.gain.setValueAtTime(this.outputGainNode.gain.value, this.audioContext.currentTime);
     this.outputGainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.2);
-    
+
     this.playbackState = 'paused';
     this.clearLoadingMessageInterval();
     if (this.sliderJiggleTimeout) {
@@ -714,28 +753,28 @@ class PromptDj extends LitElement {
   private stopAudioStreamResetSession() {
     if (this.activeSession) {
       console.log('Calling session.stop() and resetting context.');
-      this.activeSession.stop(); 
-      this.activeSession.resetContext(); 
+      this.activeSession.stop();
+      this.activeSession.resetContext();
     }
-    this.outputGainNode.gain.setValueAtTime(0, this.audioContext.currentTime); 
-    this.nextAudioChunkStartTime = 0; 
+    this.outputGainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+    this.nextAudioChunkStartTime = 0;
     this.playbackState = 'stopped';
     this.clearLoadingMessageInterval();
     if (this.sliderJiggleTimeout) {
         clearTimeout(this.sliderJiggleTimeout);
         this.sliderJiggleTimeout = null;
     }
-    this.activeSession = null; 
-    this.sessionSetupComplete = false; 
+    this.activeSession = null;
+    this.sessionSetupComplete = false;
     this.requestUpdate();
   }
 
   private startLoadingMessageSequence() {
     this.clearLoadingMessageInterval(); // Clear any existing interval
     this.currentLoadingMessageIndex = 0; // Reset index
-    
+
     // Show the first message immediately, make it stay until next one or cleared
-    this.toastMessageEl.show(this.FUNNY_LOADING_MESSAGES[this.currentLoadingMessageIndex], 0); 
+    this.toastMessageEl.show(this.FUNNY_LOADING_MESSAGES[this.currentLoadingMessageIndex], 0);
     this.currentLoadingMessageIndex = (this.currentLoadingMessageIndex + 1) % this.FUNNY_LOADING_MESSAGES.length;
 
     this.loadingMessageInterval = window.setInterval(() => {
@@ -773,9 +812,9 @@ class PromptDj extends LitElement {
   }
 
 
-  private handleAddPromptClick() {
+  private async handleAddPromptClick() {
     if (this.isDropEffectActive) return;
-    if (this.prompts.size >= 7) {
+    if (this.prompts.size >= 7 && !this.isTutorialActive) { // Allow more during tutorial if needed by steps
       this.toastMessageEl.show('Maximal 7 Prompts erreicht.', 3000);
       return;
     }
@@ -783,22 +822,30 @@ class PromptDj extends LitElement {
     const newPrompt: Prompt = {
       promptId: newId,
       text: 'Neuer Prompt',
-      weight: 0.0, 
+      weight: 0.0,
       color: this.getUnusedRandomColor(Array.from(this.prompts.values()).map(p => p.color)),
     };
     this.prompts = new Map(this.prompts).set(newId, newPrompt);
     this.savePromptsToLocalStorage();
-    this.sendPromptsToSession(); 
-    
-    this.updateComplete.then(() => {
-        const promptElement = this.shadowRoot?.querySelector(`prompt-controller[promptid="${newId}"]`) as PromptControllerElement | null;
-        if (promptElement) {
-            promptElement.enterEditModeAfterCreation?.(); 
-            if (this.promptsContainerEl) { // Scroll into view if container exists
-              promptElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
+    this.sendPromptsToSession();
+
+    await this.updateComplete; // Wait for Lit to re-render
+
+    const promptElement = this.shadowRoot?.querySelector(`prompt-controller[promptid="${newId}"]`) as PromptControllerElement | null;
+    if (promptElement) {
+        promptElement.enterEditModeAfterCreation?.();
+        if (this.promptsContainerEl) { // Scroll into view if container exists
+          promptElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
-    });
+        // Notify tutorial controller that a prompt was created
+        if (this.isTutorialActive && this.tutorialControllerEl) {
+           this.tutorialControllerEl.notifyAppEvent('promptCreated', {
+             promptId: newId,
+             element: promptElement,
+             isEmpty: this.prompts.size === 1 // True if it's the first prompt
+           });
+        }
+    }
   }
 
   private handlePromptChanged(e: CustomEvent<Partial<Prompt> & {promptId: string}>) {
@@ -808,7 +855,7 @@ class PromptDj extends LitElement {
     if (existingPrompt) {
       const updatedPrompt = { ...existingPrompt, ...changes };
       this.prompts = new Map(this.prompts).set(promptId, updatedPrompt);
-      
+
       if (changes.text && this.filteredPrompts.has(existingPrompt.text) && existingPrompt.text !== changes.text) {
           this.filteredPrompts.delete(existingPrompt.text);
           const promptController = this.shadowRoot?.querySelector(`prompt-controller[promptid="${promptId}"]`);
@@ -820,6 +867,15 @@ class PromptDj extends LitElement {
 
       this.savePromptsToLocalStorage();
       this.sendPromptsToSession();
+
+      if (this.isTutorialActive && this.tutorialControllerEl) {
+        if (changes.weight !== undefined) {
+          this.tutorialControllerEl.notifyAppEvent('promptWeightChanged', { promptId, newWeight: changes.weight });
+        }
+        if (changes.text !== undefined) {
+          this.tutorialControllerEl.notifyAppEvent('promptTextChanged', { promptId, newText: changes.text });
+        }
+      }
     }
   }
 
@@ -829,7 +885,7 @@ class PromptDj extends LitElement {
     const promptToRemove = this.prompts.get(promptIdToRemove);
     if (promptToRemove) {
       this.prompts.delete(promptIdToRemove);
-      this.prompts = new Map(this.prompts); 
+      this.prompts = new Map(this.prompts);
       if (this.filteredPrompts.has(promptToRemove.text)) {
           this.filteredPrompts.delete(promptToRemove.text);
           this.requestUpdate('filteredPrompts');
@@ -850,7 +906,7 @@ class PromptDj extends LitElement {
       return;
     }
     const promptsToSendForAPI = Array.from(this.prompts.values())
-      .filter(p => !this.filteredPrompts.has(p.text) && p.weight > 0.001) 
+      .filter(p => !this.filteredPrompts.has(p.text) && p.weight > 0.001)
       .map(p => ({ text: p.text, weight: p.weight }));
 
     try {
@@ -870,6 +926,11 @@ class PromptDj extends LitElement {
   }
 
   private savePromptsToLocalStorage() {
+    // Don't save prompts if tutorial is active and hasn't created any prompts yet by user,
+    // or if tutorial is active but not yet on the completion step.
+    if (this.isTutorialActive && this.prompts.size === 0 && this.tutorialControllerEl?.currentStepId !== 'completion') {
+        return;
+    }
     const promptsToStore: PresetPrompt[] = Array.from(this.prompts.values()).map(p => ({
       text: p.text,
       weight: p.weight,
@@ -881,7 +942,7 @@ class PromptDj extends LitElement {
   // --- Playback Parameters & Settings ---
   private handleTemperatureChange(e: CustomEvent<number>) {
     if (this.isDropEffectActive) {
-        (e.target as ParameterSlider).value = this.temperature; 
+        (e.target as ParameterSlider).value = this.temperature;
         return;
     }
     this.temperature = e.detail;
@@ -894,8 +955,8 @@ class PromptDj extends LitElement {
     const currentConfigForAPI: AppLiveMusicGenerationConfig = {
       temperature: this.temperature,
     };
-    
-    const sharedConfig = this.getSharedConfigFromState(); 
+
+    const sharedConfig = this.getSharedConfigFromState();
     Object.assign(currentConfigForAPI, sharedConfig);
 
     const definedConfig = Object.fromEntries(
@@ -922,7 +983,9 @@ class PromptDj extends LitElement {
   private handleWelcomeComplete(e: CustomEvent<{firstPromptText: string}>) {
     this.showWelcome = false;
     localStorage.setItem('beatLabWelcomeShown', 'true');
-    this.createDefaultPrompts(e.detail.firstPromptText);
+    if (!this.isTutorialActive) { // Only create defaults if tutorial isn't managing prompts
+        this.createDefaultPrompts(e.detail.firstPromptText);
+    }
   }
 
 
@@ -940,17 +1003,17 @@ class PromptDj extends LitElement {
     this.isDropEffectActive = true;
     this.toastMessageEl.show("Drop im Anflug!", 1500);
     try {
-      if (this.activeSession.resetContext) { 
-        this.activeSession.resetContext(); 
+      if (this.activeSession.resetContext) {
+        this.activeSession.resetContext();
       } else {
         console.warn("session.resetContext() not available. 'Drop' effect might not work as intended.");
         const originalTemp = this.temperature;
-        this.temperature = Math.min(originalTemp + 0.5, 2.0); 
+        this.temperature = Math.min(originalTemp + 0.5, 2.0);
         await this.updatePlaybackParameters();
         setTimeout(async () => {
             this.temperature = originalTemp;
             await this.updatePlaybackParameters();
-        }, 2000); 
+        }, 2000);
       }
 
     } catch (error) {
@@ -959,7 +1022,7 @@ class PromptDj extends LitElement {
     } finally {
         setTimeout(() => {
             this.isDropEffectActive = false;
-        }, 4000); 
+        }, 4000);
     }
   }
 
@@ -971,51 +1034,54 @@ class PromptDj extends LitElement {
       this.availableMidiInputs = customEvent.detail.inputs;
       if (this.availableMidiInputs.length > 0 && !this.selectedMidiInputId) {
       } else if (this.availableMidiInputs.length === 0 && this.selectedMidiInputId) {
-        this.clearMidiMappingsAndSelection(); 
+        this.clearMidiMappingsAndSelection();
       }
     });
 
     this.midiController.addEventListener('midi-cc-received', (e: Event) => {
-      if (this.isDropEffectActive) return; 
+      if (this.isDropEffectActive) return;
       const customEvent = e as CustomEvent<{ccNumber: number, value: number, rawValue: number}>;
       const { ccNumber, value, rawValue } = customEvent.detail;
-      
+
       if (this.isMidiLearning && this.midiLearnTarget) {
         this.assignMidiCcToLearnTarget(ccNumber);
         return; // Don't process the CC value for control if we just learned it
       }
-      
+
       const targetId = this.midiCcMap.get(ccNumber);
 
       if (targetId) {
         if (targetId === MIDI_LEARN_TARGET_DROP_BUTTON) {
-          if (rawValue > 64) this.handleDropClick(); 
+          if (rawValue > 64) this.handleDropClick();
         } else if (targetId === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON) {
           if (rawValue > 64) this.togglePlayPause();
-        } else { 
+        } else {
           const prompt = this.prompts.get(targetId);
           if (prompt) {
             const newWeight = Math.max(0, Math.min(2, value));
             if (prompt.weight !== newWeight) {
                 prompt.weight = newWeight;
-                this.prompts = new Map(this.prompts); 
+                this.prompts = new Map(this.prompts);
                 this.sendPromptsToSession();
-                this.savePromptsToLocalStorage(); 
+                this.savePromptsToLocalStorage();
+                 if (this.isTutorialActive && this.tutorialControllerEl) {
+                    this.tutorialControllerEl.notifyAppEvent('promptWeightChanged', { promptId: targetId, newWeight });
+                }
             }
           }
         }
       }
     });
-    this.midiController.initialize(); 
+    this.midiController.initialize();
   }
 
   private async handleMidiDeviceChange(e: Event) {
     const newId = (e.target as HTMLSelectElement).value;
     if (newId === this.selectedMidiInputId) return;
 
-    this.clearMidiMappingsAndSelection(false); 
+    this.clearMidiMappingsAndSelection(false);
     this.selectedMidiInputId = newId;
-    
+
     if (newId) {
         const success = await this.midiController.requestMidiAccessAndListDevices();
         if (success) {
@@ -1023,19 +1089,19 @@ class PromptDj extends LitElement {
             this.toastMessageEl.show(`MIDI-Gerät ${this.availableMidiInputs.find(i => i.id === newId)?.name || newId} ausgewählt.`, 2000);
         } else if (this.midiController.isMidiSupported()){
             this.toastMessageEl.show('MIDI-Zugriff verweigert oder keine Geräte gefunden. Bitte Browser-Berechtigungen prüfen.', 4000);
-            this.selectedMidiInputId = null; 
+            this.selectedMidiInputId = null;
         } else {
             this.toastMessageEl.show('Web MIDI API nicht unterstützt in diesem Browser.', 4000);
             this.selectedMidiInputId = null;
         }
     } else {
-        this.midiController.selectMidiInput(''); 
+        this.midiController.selectMidiInput('');
         this.toastMessageEl.show('MIDI-Eingang abgewählt.', 2000);
     }
-    this.isMidiLearning = false; 
+    this.isMidiLearning = false;
     this.midiLearnTarget = null;
     this.updateMidiLearnButtonState();
-    this.loadMidiMappings(); 
+    this.loadMidiMappings();
   }
 
   private toggleMidiLearnMode() {
@@ -1044,8 +1110,8 @@ class PromptDj extends LitElement {
         return;
     }
     this.isMidiLearning = !this.isMidiLearning;
-    if (!this.isMidiLearning) { 
-      this.midiLearnTarget = null; 
+    if (!this.isMidiLearning) {
+      this.midiLearnTarget = null;
       this.saveMidiMappings();
       this.toastMessageEl.hide(); // Hide any "move a control" messages
     } else {
@@ -1053,24 +1119,24 @@ class PromptDj extends LitElement {
     }
     this.updateMidiLearnButtonState();
   }
-  
+
   private handleMidiLearnTargetClick(targetType: 'prompt' | 'dropbutton' | 'playpausebutton', id: string, e: Event) {
     if (!this.isMidiLearning) return;
-    e.stopPropagation(); 
+    e.stopPropagation();
 
-    if (this.midiLearnTarget === id) { 
-      this.midiLearnTarget = null; 
+    if (this.midiLearnTarget === id) {
+      this.midiLearnTarget = null;
       this.toastMessageEl.show(`Zielauswahl aufgehoben. Klicke ein Element an oder Esc zum Beenden.`, 0);
     } else {
       this.midiLearnTarget = id;
-      const targetName = 
+      const targetName =
         id === MIDI_LEARN_TARGET_DROP_BUTTON ? "Drop! Button" :
         id === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON ? "Play/Pause Button" :
         `Prompt "${this.prompts.get(id)?.text}"`;
-      this.toastMessageEl.show(`"${targetName}" ausgewählt. Jetzt einen MIDI-Controller bewegen. (Esc zum Abbrechen)`, 0); 
+      this.toastMessageEl.show(`"${targetName}" ausgewählt. Jetzt einen MIDI-Controller bewegen. (Esc zum Abbrechen)`, 0);
     }
   }
-  
+
   private assignMidiCcToLearnTarget(ccNumber: number) {
     if (!this.isMidiLearning || !this.midiLearnTarget) return;
 
@@ -1082,15 +1148,15 @@ class PromptDj extends LitElement {
             this.midiCcMap.delete(cc);
         }
     });
-    
+
     this.midiCcMap.set(ccNumber, this.midiLearnTarget);
-    const targetName = this.midiLearnTarget === MIDI_LEARN_TARGET_DROP_BUTTON ? "Drop! Button" 
+    const targetName = this.midiLearnTarget === MIDI_LEARN_TARGET_DROP_BUTTON ? "Drop! Button"
                      : this.midiLearnTarget === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON ? "Play/Pause Button"
                      : `Prompt "${this.prompts.get(this.midiLearnTarget)?.text}"`;
     this.toastMessageEl.show(`MIDI CC ${ccNumber} zugewiesen zu ${targetName}. Klicke nächstes Ziel an.`, 2500);
-    
+
     this.midiLearnTarget = null; // Deselect target, ready for next
-    this.saveMidiMappings(); 
+    this.saveMidiMappings();
   }
 
   private updateMidiLearnButtonState() {
@@ -1113,10 +1179,10 @@ class PromptDj extends LitElement {
     if (this.isMidiLearning) {
       if (e.key === 'Escape') {
         if (this.midiLearnTarget) {
-          this.midiLearnTarget = null; 
+          this.midiLearnTarget = null;
           this.toastMessageEl.show('MIDI-Lernziel abgewählt. Wähle ein anderes oder Esc zum Beenden.', 0);
         } else {
-          this.isMidiLearning = false; 
+          this.isMidiLearning = false;
           this.updateMidiLearnButtonState();
           this.toastMessageEl.show('MIDI-Lernmodus beendet.', 2000);
           this.saveMidiMappings();
@@ -1126,16 +1192,20 @@ class PromptDj extends LitElement {
         // Global spacebar for play/pause if no input field is focused
         if (e.key === ' ' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement).isContentEditable) ) {
             e.preventDefault();
+            // Allow tutorial to intercept space if needed
+            if (this.isTutorialActive && this.tutorialControllerEl?.interceptSpacebar()) {
+                return;
+            }
             this.togglePlayPause();
         }
     }
   }
 
   private learnButtonPressTimer: number | null = null;
-  private readonly LONG_PRESS_DURATION = 1500; 
+  private readonly LONG_PRESS_DURATION = 1500;
 
   private handleMidiLearnButtonMouseDown() {
-    if (this.isMidiLearning || !this.selectedMidiInputId) return; 
+    if (this.isMidiLearning || !this.selectedMidiInputId) return;
     this.learnButtonPressTimer = window.setTimeout(this.boundHandleMidiLearnClearLongPress, this.LONG_PRESS_DURATION);
   }
   private handleMidiLearnButtonMouseUpOrLeave() {
@@ -1144,9 +1214,9 @@ class PromptDj extends LitElement {
       this.learnButtonPressTimer = null;
     }
   }
-  
+
   private boundHandleMidiLearnClearLongPress = () => {
-    this.clearMidiMappingsAndSelection(true, true); 
+    this.clearMidiMappingsAndSelection(true, true);
   }
 
 
@@ -1159,7 +1229,7 @@ class PromptDj extends LitElement {
   private loadMidiMappings() {
     this.midiCcMap.clear();
     if (!this.selectedMidiInputId) {
-      this.requestUpdate('midiCcMap'); 
+      this.requestUpdate('midiCcMap');
       return;
     }
     const savedMappings = localStorage.getItem(`midiMappings_${this.selectedMidiInputId}`);
@@ -1178,7 +1248,7 @@ class PromptDj extends LitElement {
   private clearMidiMappingsAndSelection(alsoDeselectDevice = false, showToast = false) {
     const oldMappingsCount = this.midiCcMap.size;
     this.midiCcMap.clear();
-    
+
     if (this.selectedMidiInputId) {
         localStorage.removeItem(`midiMappings_${this.selectedMidiInputId}`);
         if (showToast && oldMappingsCount > 0) { // Only show toast if mappings were actually cleared
@@ -1206,7 +1276,7 @@ class PromptDj extends LitElement {
     const config: Partial<AppLiveMusicGenerationConfig> = {
         temperature: this.temperature,
     };
-    
+
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('bpm')) config.bpm = parseFloat(urlParams.get('bpm')!);
     if (urlParams.has('guidance')) config.guidance = parseFloat(urlParams.get('guidance')!);
@@ -1229,8 +1299,8 @@ class PromptDj extends LitElement {
     params.append('p', JSON.stringify(promptData));
 
     params.append('temp', this.temperature.toFixed(2));
-    
-    const sharedConfig = this.getSharedConfigFromState(); 
+
+    const sharedConfig = this.getSharedConfigFromState();
     if (sharedConfig.guidance !== undefined) params.append('guid', sharedConfig.guidance.toFixed(2));
     if (sharedConfig.bpm !== undefined) params.append('bpm', sharedConfig.bpm.toFixed(0));
     if (sharedConfig.density !== undefined) params.append('den', sharedConfig.density.toFixed(2));
@@ -1241,8 +1311,8 @@ class PromptDj extends LitElement {
     if (sharedConfig.music_generation_mode) params.append('mgm', sharedConfig.music_generation_mode);
 
 
-    params.append('v', CURRENT_PRESET_VERSION); 
-    params.append('play', '1'); 
+    params.append('v', CURRENT_PRESET_VERSION);
+    params.append('play', '1');
 
     try {
       navigator.clipboard.writeText(`${base}?${params.toString()}`);
@@ -1255,7 +1325,8 @@ class PromptDj extends LitElement {
 
   private loadStateFromURL() {
     const params = new URLSearchParams(window.location.search);
-    if (!params.has('v')) return; 
+    if (!params.has('v')) return;
+    if (this.isTutorialActive) return; // Don't load from URL if tutorial is active
 
     if (params.has('p')) {
       try {
@@ -1271,12 +1342,12 @@ class PromptDj extends LitElement {
           });
         });
         this.prompts = newPrompts;
-        this.savePromptsToLocalStorage(); 
+        this.savePromptsToLocalStorage();
       } catch (e) { console.error('Error parsing prompts from URL', e); }
     }
 
     if (params.has('temp')) this.temperature = parseFloat(params.get('temp')!);
-    
+
     if (params.has('play') && params.get('play') === '1') {
       setTimeout(() => this.startAudioStream(), 500);
     }
@@ -1288,7 +1359,7 @@ class PromptDj extends LitElement {
         text: p.text,
         weight: p.weight
     }));
-    
+
     const preset: Preset = {
         version: CURRENT_PRESET_VERSION,
         prompts: presetPrompts,
@@ -1330,6 +1401,10 @@ class PromptDj extends LitElement {
   }
 
   private applyPreset(preset: Preset) {
+    if (this.isTutorialActive) {
+        this.toastMessageEl.show('Presets können nach Abschluss des Tutorials geladen werden.', 3000);
+        return;
+    }
     if (!preset.version || preset.version !== CURRENT_PRESET_VERSION) {
         this.toastMessageEl.show(`Preset Version nicht kompatibel. Erwartet ${CURRENT_PRESET_VERSION}, erhalten ${preset.version}. Versuche bestmögliche Anwendung.`, 4000);
     }
@@ -1345,56 +1420,60 @@ class PromptDj extends LitElement {
         });
     });
     this.prompts = newPrompts;
-    this.recalculateNextPromptIdCounter(); 
+    this.recalculateNextPromptIdCounter();
 
     this.temperature = preset.temperature ?? this.temperature;
-    
-    this.savePromptsToLocalStorage(); 
-    this.updatePlaybackParameters(); 
+
+    this.savePromptsToLocalStorage();
+    this.updatePlaybackParameters();
     this.toastMessageEl.show('Preset geladen!', 2000);
     if (this.playbackState === 'playing' || this.playbackState === 'loading') {
-        this.stopAudioStreamResetSession(); 
-        this.nextAudioChunkStartTime = 0; 
+        this.stopAudioStreamResetSession();
+        this.nextAudioChunkStartTime = 0;
         setTimeout(() => this.startAudioStream(), 200);
     }
   }
 
   // --- Cast Functionality ---
   private handleCastApiReady(event: CustomEvent<{available: boolean, errorInfo?: any}>) {
+    if (!CAST_FEATURE_ENABLED) return;
+    
     const { available, errorInfo } = event.detail;
+    const gWindow = window as any; // Use 'any' for gWindow when Cast types are commented out
+
     if (available) {
         console.log('Cast API is available via event. Initializing CastContext.');
         try {
-            if (typeof window.cast === 'undefined' || typeof window.chrome === 'undefined' || 
-                !window.chrome.cast || !window.cast.framework) {
-                console.error("Critical: 'window.cast' or 'window.chrome' global not defined even after SDK reported 'available'. This indicates a deeper issue with Cast SDK loading or environment.");
+            if (typeof gWindow.cast === 'undefined' || typeof gWindow.chrome === 'undefined' ||
+                !gWindow.chrome.cast || !gWindow.cast.framework) {
+                console.error("Critical: 'gWindow.cast' or 'gWindow.chrome' global not defined even after SDK reported 'available'. This indicates a deeper issue with Cast SDK loading or environment.");
                 this.isCastingAvailable = false;
                 this.toastMessageEl?.show('Cast-Initialisierung fehlgeschlagen (SDK-Globale fehlen).', 5000);
                 return;
             }
 
-            this.castContext = window.cast.framework.CastContext.getInstance();
-            const castOptions: cast.framework.CastOptions = {
-                receiverApplicationId: window.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
-                autoJoinPolicy: window.chrome.cast.AutoJoinPolicy.TAB_AND_ORIGIN_SCOPED
+            this.castContext = gWindow.cast.framework.CastContext.getInstance();
+            const castOptions/*: cast.framework.CastOptions*/ = { // Type annotation commented out
+                receiverApplicationId: gWindow.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+                autoJoinPolicy: gWindow.chrome.cast.AutoJoinPolicy.TAB_AND_ORIGIN_SCOPED
             };
             this.castContext.setOptions(castOptions);
-            
-            this.isCastingAvailable = this.castContext.getCastState() !== window.cast.framework.CastState.NO_DEVICES_AVAILABLE;
+
+            this.isCastingAvailable = this.castContext.getCastState() !== gWindow.cast.framework.CastState.NO_DEVICES_AVAILABLE;
 
             this.castContext.addEventListener(
-                window.cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
+                gWindow.cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
                 this.handleCastSessionStateChange.bind(this)
             );
             this.castContext.addEventListener(
-                window.cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+                gWindow.cast.framework.CastContextEventType.CAST_STATE_CHANGED,
                 this.handleCastStateChange.bind(this)
             );
 
-            this.remotePlayer = new window.cast.framework.RemotePlayer();
-            this.remotePlayerController = new window.cast.framework.RemotePlayerController(this.remotePlayer);
+            this.remotePlayer = new gWindow.cast.framework.RemotePlayer();
+            this.remotePlayerController = new gWindow.cast.framework.RemotePlayerController(this.remotePlayer);
             this.remotePlayerController.addEventListener(
-                window.cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
+                gWindow.cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
                 this.handleRemotePlayerConnectChange.bind(this)
             );
             console.log('CastContext initialized successfully.');
@@ -1412,38 +1491,51 @@ class PromptDj extends LitElement {
         }
     }
   }
-  
-  private handleCastSessionStateChange(event: cast.framework.SessionStateEventData) {
+
+  private handleCastSessionStateChange(event: any /*cast.framework.SessionStateEventData*/) { // Type annotation commented out
+    if (!CAST_FEATURE_ENABLED || !(window as any).cast || !(window as any).cast.framework) return;
+    
+    const gWindow = window as any;
     console.log('Cast session state changed:', event.sessionState);
     this.castSession = this.castContext?.getCurrentSession() || null;
-    this.isCastingActive = this.castSession?.getSessionState() === window.cast!.framework.SessionState.SESSION_STARTED;
+    this.isCastingActive = !!this.castSession && this.castSession.getSessionState() === gWindow.cast.framework.SessionState.SESSION_STARTED;
     this.updateMuteState();
     if (this.isCastingActive && this.castSession) {
         this.toastMessageEl.show(`Casting zu ${this.castSession.getCastDevice().friendlyName}`, 3000);
-        this.resetCastStream(); 
-        this.castMediaSession = null; 
+        this.resetCastStream();
+        this.castMediaSession = null;
         if (this.playbackState === 'playing' || this.playbackState === 'loading') {
             this.startCastPlaybackIfNeeded();
         }
-    } else if (event.sessionState === window.cast!.framework.SessionState.SESSION_ENDED) {
+    } else if (event.sessionState === gWindow.cast.framework.SessionState.SESSION_ENDED) {
         this.toastMessageEl.show('Casting beendet.', 2000);
         this.castMediaSession = null;
-    } else if (event.sessionState === window.cast!.framework.SessionState.SESSION_START_FAILED) {
+    } else if (event.sessionState === gWindow.cast.framework.SessionState.SESSION_START_FAILED) {
         this.toastMessageEl.show('Casting konnte nicht gestartet werden.', 3000);
         this.castMediaSession = null;
     }
   }
 
-  private handleCastStateChange(event: cast.framework.CastStateEventData) {
+  private handleCastStateChange(event: any /*cast.framework.CastStateEventData*/) { // Type annotation commented out
+    if (!CAST_FEATURE_ENABLED || !(window as any).cast || !(window as any).cast.framework) return;
+    
+    const gWindow = window as any;
     console.log('Cast state changed:', event.castState);
-    this.isCastingAvailable = event.castState !== window.cast!.framework.CastState.NO_DEVICES_AVAILABLE;
+    this.isCastingAvailable = event.castState !== gWindow.cast.framework.CastState.NO_DEVICES_AVAILABLE;
   }
-  
+
   private handleRemotePlayerConnectChange() {
+    if (!CAST_FEATURE_ENABLED) return;
     // This event can be used for more detailed player state, but basic connection is handled by session state.
+    // console.log('Remote player connection changed. Connected:', this.remotePlayer?.isConnected);
   }
 
   private async toggleCast() {
+    if (!CAST_FEATURE_ENABLED) {
+        this.toastMessageEl.show('Cast-Funktion ist temporär deaktiviert.', 3000);
+        return;
+    }
+    
     if (!this.castContext) {
         this.toastMessageEl.show('Cast nicht initialisiert. Bitte Seite neu laden.', 3000);
         console.error('CastContext not initialized, cannot toggle cast.');
@@ -1470,14 +1562,15 @@ class PromptDj extends LitElement {
   }
 
   private updateMuteState() {
-    if (this.isCastingActive) {
-        this.outputGainNode.gain.value = 0; 
+    if (CAST_FEATURE_ENABLED && this.isCastingActive) {
+        this.outputGainNode.gain.value = 0;
     } else {
-        this.outputGainNode.gain.value = 1; 
+        this.outputGainNode.gain.value = 1;
     }
   }
 
   private async resetCastStream() {
+    if (!CAST_FEATURE_ENABLED) return;
     try {
         const response = await fetch(this.CAST_RESET_URL, { method: 'POST' });
         if (!response.ok) {
@@ -1491,7 +1584,7 @@ class PromptDj extends LitElement {
   }
 
   private async sendChunkToCastServer(chunk: Uint8Array) {
-    if (!this.isCastingActive) return;
+    if (!CAST_FEATURE_ENABLED || !this.isCastingActive) return;
     try {
         let uploadUrl = this.CAST_UPLOAD_URL;
         const response = await fetch(uploadUrl, {
@@ -1508,17 +1601,16 @@ class PromptDj extends LitElement {
         this.toastMessageEl.show('Casting-Verbindungsfehler.', 2000);
     }
   }
-  
-  private castMediaSession: chrome.cast.media.Media | null = null;
+
+  private castMediaSession: any | null = null; // Type chrome.cast.media.Media | null commented out
 
   private startCastPlaybackIfNeeded() {
-    if (!this.castSession || !window.chrome || !window.chrome.cast || !window.chrome.cast.media) {
-        console.warn('Cannot start cast playback: Cast session or chrome.cast.media not available.');
-        return; 
-    }
+    if (!CAST_FEATURE_ENABLED || !this.castSession) return;
     
-    // Check if window.chrome.cast.media.PlayerState is available
-    const PlayerState = window.chrome.cast.media.PlayerState;
+    const gWindow = window as any;
+    if (!gWindow.chrome || !gWindow.chrome.cast || !gWindow.chrome.cast.media ) return;
+    
+    const PlayerState = gWindow.chrome.cast.media.PlayerState;
     if (!PlayerState) {
         console.warn('Cannot start cast playback: chrome.cast.media.PlayerState is not available.');
         return;
@@ -1526,20 +1618,20 @@ class PromptDj extends LitElement {
 
     if (this.castMediaSession && typeof this.castMediaSession.getPlayerState === 'function') {
         const playerState = this.castMediaSession.getPlayerState();
-        if (playerState === PlayerState.PLAYING || 
+        if (playerState === PlayerState.PLAYING ||
             playerState === PlayerState.BUFFERING) {
-            return; 
+            return;
         }
     }
-    
-    console.log('Cast: Attempting to load media for playback.');
-    const mediaInfo = new window.chrome.cast.media.MediaInfo(this.CAST_STREAM_URL, 'audio/wav');
-    mediaInfo.streamType = window.chrome.cast.media.StreamType.LIVE;
-    mediaInfo.metadata = new window.chrome.cast.media.GenericMediaMetadata();
-    mediaInfo.metadata.title = "Steppa's BeatLab Live Stream";
-    mediaInfo.duration = null; 
 
-    const loadRequest = new window.chrome.cast.media.LoadRequest(mediaInfo);
+    console.log('Cast: Attempting to load media for playback.');
+    const mediaInfo = new gWindow.chrome.cast.media.MediaInfo(this.CAST_STREAM_URL, 'audio/wav');
+    mediaInfo.streamType = gWindow.chrome.cast.media.StreamType.LIVE;
+    mediaInfo.metadata = new gWindow.chrome.cast.media.GenericMediaMetadata();
+    mediaInfo.metadata.title = "Steppa's BeatLab Live Stream";
+    mediaInfo.duration = null;
+
+    const loadRequest = new gWindow.chrome.cast.media.LoadRequest(mediaInfo);
     loadRequest.autoplay = true;
 
     this.castSession.loadMedia(loadRequest)
@@ -1547,19 +1639,50 @@ class PromptDj extends LitElement {
             console.log('Media loaded and playing on Cast device.');
             this.castMediaSession = this.castSession!.getMediaSession();
             if (this.castMediaSession) {
-              this.castMediaSession.addUpdateListener((isAlive) => {
+              this.castMediaSession.addUpdateListener((isAlive: boolean) => {
                   if (!isAlive) {
-                      this.castMediaSession = null; 
+                      this.castMediaSession = null;
                       console.log('Cast media session ended (isAlive is false).');
                   }
               });
             }
         })
-        .catch((error: any) => { 
+        .catch((error: any) => {
             console.error('Error loading media on Cast device:', error);
             this.toastMessageEl.show(`Cast Wiedergabefehler: ${error.description || error.code || 'Unbekannt'}`, 3000);
             this.castMediaSession = null;
         });
+  }
+
+  private handleTutorialComplete() {
+    this.isTutorialActive = false;
+    localStorage.setItem(TUTORIAL_STORAGE_KEY, 'true');
+    // If no prompts were created during tutorial, load defaults.
+    if (this.prompts.size === 0) {
+        this.createDefaultPrompts("Ambient Chill with a Lo-Fi Beat"); // Suggest a first prompt
+    }
+  }
+
+  private getTutorialTargets() {
+    return {
+        addPromptButton: () => this.addPromptButtonEl,
+        playPauseButton: () => this.playPauseButtonEl,
+        promptsContainer: () => this.promptsContainerEl,
+        getPromptController: (promptId: string) => this.shadowRoot?.querySelector(`prompt-controller[promptid="${promptId}"]`) as PromptControllerElement | null,
+        getPromptWeightSlider: (promptId: string) => {
+            const pc = this.shadowRoot?.querySelector(`prompt-controller[promptid="${promptId}"]`) as PromptControllerElement | null;
+            return pc?.shadowRoot?.querySelector('weight-slider') as HTMLElement | null;
+        },
+        getPromptTextInput: (promptId: string) => {
+            const pcEl = this.shadowRoot?.querySelector(`prompt-controller[promptid="${promptId}"]`) as PromptControllerElement | null;
+            if (!pcEl || !pcEl.shadowRoot) return null;
+            // In PromptController, either #text-input or #static-text is rendered based on isEditingText.
+            // We try to find the input first (active editing), then the static text.
+            const inputElement = pcEl.shadowRoot.querySelector('#text-input') as HTMLInputElement | null;
+            if (inputElement) return inputElement;
+            return pcEl.shadowRoot.querySelector('#static-text') as HTMLElement | null;
+        }
+    };
   }
 
 
@@ -1568,17 +1691,17 @@ class PromptDj extends LitElement {
     const backgroundOrbs = TRACK_COLORS.slice(0, this.prompts.size).map((color, i) => {
         const promptArray = Array.from(this.prompts.values());
         const weight = promptArray[i] ? promptArray[i].weight : 0;
-        const size = 5 + weight * 30; 
-        const opacity = 0.05 + weight * 0.15; 
-        const x = (i / Math.max(1, this.prompts.size -1 )) * 80 + 10; 
-        const y = 30 + Math.random() * 20 - 10; 
+        const size = 5 + weight * 30;
+        const opacity = 0.05 + weight * 0.15;
+        const x = (i / Math.max(1, this.prompts.size -1 )) * 80 + 10;
+        const y = 30 + Math.random() * 20 - 10;
 
         return {
             left: `${x}%`,
             top: `${y}%`,
             width: `${size}vmax`,
             height: `${size}vmax`,
-            backgroundColor: ORB_COLORS[i % ORB_COLORS.length], 
+            backgroundColor: ORB_COLORS[i % ORB_COLORS.length],
             opacity: opacity.toString(),
             transform: `translate(-50%, -50%) rotate(${Math.random() * 360}deg)`,
         };
@@ -1589,8 +1712,18 @@ class PromptDj extends LitElement {
         ${backgroundOrbs.map(style => html`<div class="bg-orb" style=${unsafeCSS(`left:${style.left}; top:${style.top}; width:${style.width}; height:${style.height}; background-color:${style.backgroundColor}; opacity:${style.opacity}; transform:${style.transform}`)}></div>`)}
       </div>
 
-      ${this.showWelcome ? html`<welcome-overlay @welcome-complete=${this.handleWelcomeComplete}></welcome-overlay>` : ''}
+      ${this.showWelcome && !this.isTutorialActive ? html`<welcome-overlay @welcome-complete=${this.handleWelcomeComplete}></welcome-overlay>` : ''}
       <help-guide-panel .isOpen=${this.showHelp} @close-help=${() => this.showHelp = false}></help-guide-panel>
+      ${this.isTutorialActive ? html`
+        <tutorial-controller
+            .targets=${this.getTutorialTargets()}
+            .initialPromptsCount=${this.prompts.size}
+            @tutorial-complete=${this.handleTutorialComplete}
+            @tutorial-skip=${this.handleTutorialComplete}
+            ?isActive=${this.isTutorialActive}
+        ></tutorial-controller>
+      ` : ''}
+
 
       <header class="app-header">
         <div class="logo-title">
@@ -1604,7 +1737,7 @@ class PromptDj extends LitElement {
                 <option value="">-- MIDI-Gerät wählen --</option>
                 ${this.availableMidiInputs.map(input => html`<option value=${input.id}>${input.name}</option>`)}
                 </select>
-                <button 
+                <button
                     id="learn-midi-button"
                     @click=${this.toggleMidiLearnMode}
                     @mousedown=${this.handleMidiLearnButtonMouseDown}
@@ -1616,7 +1749,9 @@ class PromptDj extends LitElement {
                 >Learn MIDI</button>
             </div>
             <settings-button title="Einstellungen" @click=${this.toggleSettingsPanel} .isMidiLearnTarget=${false}></settings-button>
-            <cast-button title="Audio Casten" @click=${this.toggleCast} .isCastingActive=${this.isCastingActive} ?disabled=${!this.isCastingAvailable}></cast-button>
+            ${CAST_FEATURE_ENABLED ? html`
+                <cast-button title="Audio Casten" @click=${this.toggleCast} .isCastingActive=${this.isCastingActive} ?disabled=${!this.isCastingAvailable}></cast-button>
+            ` : ''}
             <help-button title="Hilfe" @click=${this.toggleHelpPanel}></help-button>
         </div>
       </header>
@@ -1624,7 +1759,7 @@ class PromptDj extends LitElement {
       <main class="main-content">
         ${this.isMidiLearning ? html`
             <div class="midi-learn-instructions">
-                ${this.midiLearnTarget 
+                ${this.midiLearnTarget
                     ? `Höre auf MIDI CC für "${this.midiLearnTarget === MIDI_LEARN_TARGET_DROP_BUTTON ? "Drop! Button" : this.midiLearnTarget === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON ? "Play/Pause Button" : this.prompts.get(this.midiLearnTarget)?.text || 'Unbekanntes Ziel'}"... (Esc zum Abwählen)`
                     : "Klicke einen Slider, Drop!- oder Play/Pause-Button an, dann bewege einen MIDI-Controller. (Esc zum Beenden des Lernmodus)"
                 }
@@ -1646,7 +1781,7 @@ class PromptDj extends LitElement {
           `)}
         </div>
       </main>
-      
+
       <div id="settings-panel" class=${classMap({visible: this.showSettings})}>
         <h3>Einstellungen</h3>
         <parameter-slider
@@ -1664,7 +1799,7 @@ class PromptDj extends LitElement {
 
 
       <footer class="footer-controls">
-        <play-pause-button 
+        <play-pause-button
             .playbackState=${this.playbackState}
             @click=${(e: Event) => { if (this.isMidiLearning) this.handleMidiLearnTargetClick('playpausebutton', MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON, e); else this.togglePlayPause(); }}
             ?ismidilearntarget=${this.isMidiLearning && this.midiLearnTarget === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON}
@@ -1673,14 +1808,14 @@ class PromptDj extends LitElement {
             >
         </play-pause-button>
         <div class="footer-center-spacer">
-            <add-prompt-button 
-                title="Neuen Prompt hinzufügen" 
-                @click=${this.handleAddPromptClick} 
-                ?disabled=${this.isDropEffectActive || this.prompts.size >= 7}>
+            <add-prompt-button
+                title="Neuen Prompt hinzufügen"
+                @click=${this.handleAddPromptClick}
+                ?disabled=${this.isDropEffectActive || (this.prompts.size >= 7 && !this.isTutorialActive) }>
             </add-prompt-button>
         </div>
         <share-button title="Aktuelle Konfiguration teilen" @click=${this.generateShareLink}></share-button>
-        <drop-button 
+        <drop-button
             @click=${(e: Event) => { if (this.isMidiLearning) this.handleMidiLearnTargetClick('dropbutton', MIDI_LEARN_TARGET_DROP_BUTTON, e); else this.handleDropClick(); }}
             ?ismidilearntarget=${this.isMidiLearning && this.midiLearnTarget === MIDI_LEARN_TARGET_DROP_BUTTON}
             title="'Drop!'-Effekt auslösen"
@@ -1697,8 +1832,8 @@ class PromptDj extends LitElement {
         position: absolute;
         border-radius: 50%;
         filter: blur(20px);
-        transition: all 1s ease-in-out; 
-        opacity: 0; 
+        transition: all 1s ease-in-out;
+        opacity: 0;
     }
     #background-gradient {
         position: fixed;
@@ -1743,12 +1878,12 @@ class PromptDj extends LitElement {
     .global-controls {
       display: flex;
       align-items: center;
-      gap: 10px; 
+      gap: 10px;
     }
     .global-controls settings-button,
     .global-controls help-button,
     .global-controls cast-button {
-      width: 40px; 
+      width: 40px;
       height: 40px;
     }
     .midi-selector-group {
@@ -1785,7 +1920,7 @@ class PromptDj extends LitElement {
         background-color: #777;
     }
     #learn-midi-button.learning {
-        background-color: #FFD700; 
+        background-color: #FFD700;
         color: #000;
     }
     #learn-midi-button:disabled {
@@ -1797,40 +1932,40 @@ class PromptDj extends LitElement {
 
     .main-content {
       display: flex;
-      flex-direction: column; 
-      align-items: center; 
-      justify-content: flex-start; 
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
       flex-grow: 1;
       width: 100%;
       padding: 80px 20px 20px 20px; /* Adjusted top padding for fixed header */
       padding-bottom: 100px; /* Space for fixed footer */
       box-sizing: border-box;
       gap: 20px;
-      overflow: hidden; 
-      position: relative; 
+      overflow: hidden;
+      position: relative;
     }
     #prompts-container {
       display: flex;
-      flex-direction: column; 
-      gap: 15px; 
-      padding: 10px; 
-      overflow-y: auto; 
-      overflow-x: hidden; 
-      width: clamp(350px, 60vw, 550px); 
+      flex-direction: column;
+      gap: 15px;
+      padding: 10px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      width: clamp(350px, 60vw, 550px);
       max-height: calc(100vh - 200px); /* Adjusted for header and footer */
-      min-height: 200px; 
-      align-items: stretch; 
+      min-height: 200px;
+      align-items: stretch;
       scrollbar-width: thin;
       scrollbar-color: #5200ff #2c2c2c;
       border-radius: 8px;
-      background-color: rgba(0,0,0,0.1); 
-      position: relative; 
+      background-color: rgba(0,0,0,0.1);
+      position: relative;
       /* padding-bottom: 70px; /* Removed Space for fixed add prompt button */
     }
     #prompts-container::-webkit-scrollbar { width: 8px; }
     #prompts-container::-webkit-scrollbar-track { background: #2c2c2c; border-radius: 4px; }
     #prompts-container::-webkit-scrollbar-thumb { background-color: #5200ff; border-radius: 4px;}
-    
+
     .midi-learn-instructions {
         text-align: center;
         background-color: rgba(40,40,40,0.9);
@@ -1838,20 +1973,20 @@ class PromptDj extends LitElement {
         padding: 8px 15px;
         border-radius: 6px;
         font-size: 0.9em;
-        z-index: 5; 
-        white-space: normal; 
+        z-index: 5;
+        white-space: normal;
         word-break: break-word;
-        margin-bottom: -5px; 
+        margin-bottom: -5px;
     }
 
     prompt-controller {
-        width: 100%; 
-        flex-shrink: 0; 
+        width: 100%;
+        flex-shrink: 0;
     }
-    
+
     #settings-panel {
       position: fixed;
-      bottom: 80px; 
+      bottom: 80px;
       left: 50%;
       transform: translateX(-50%);
       width: clamp(300px, 60vw, 500px);
@@ -1860,16 +1995,16 @@ class PromptDj extends LitElement {
       -webkit-backdrop-filter: blur(10px);
       color: #e0e0e0;
       padding: 20px;
-      border-radius: 12px 12px 0 0; 
+      border-radius: 12px 12px 0 0;
       box-shadow: 0 -5px 20px rgba(0,0,0,0.3);
       z-index: 200;
       transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
-      transform: translate(-50%, 100%); 
+      transform: translate(-50%, 100%);
       opacity: 0;
       pointer-events: none;
     }
     #settings-panel.visible {
-      transform: translateX(-50%); 
+      transform: translateX(-50%);
       opacity: 1;
       pointer-events: auto;
     }
@@ -1888,14 +2023,14 @@ class PromptDj extends LitElement {
     }
     .preset-buttons save-preset-button,
     .preset-buttons load-preset-button {
-        width: 50px; 
+        width: 50px;
         height: 50px;
     }
 
 
     .footer-controls {
       display: flex;
-      justify-content: space-between; 
+      justify-content: space-between;
       align-items: center;
       padding: 10px 20px;
       background-color: rgba(20,20,20,0.7);
@@ -1914,11 +2049,11 @@ class PromptDj extends LitElement {
     .footer-controls drop-button,
     .footer-controls share-button,
     .footer-controls add-prompt-button {
-      width: 70px; 
+      width: 70px;
       height: 70px;
     }
     .footer-center-spacer {
-        flex-grow: 1; 
+        flex-grow: 1;
         display: flex;
         justify-content: center;
         align-items: center;
@@ -1935,9 +2070,10 @@ document.body.appendChild(promptDjApp);
 declare global {
   interface HTMLElementTagNameMap {
     'prompt-dj': PromptDj;
-    'toast-message': ToastMessage; 
-    'help-guide-panel': HelpGuidePanel; 
-    'welcome-overlay': WelcomeOverlay; 
-    'drop-button': DropButton; 
+    'toast-message': ToastMessage;
+    'help-guide-panel': HelpGuidePanel;
+    'welcome-overlay': WelcomeOverlay;
+    'drop-button': DropButton;
+    'tutorial-controller': TutorialController;
   }
 }
