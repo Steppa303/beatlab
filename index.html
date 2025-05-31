@@ -14,6 +14,18 @@
   }
 }
 </script>
+  <script>
+    window.__onGCastApiAvailable = function(available, errorInfo) {
+      // This log helps confirm the callback is invoked by the Cast SDK
+      console.log('HTML-defined __onGCastApiAvailable. Cast API Available: ' + available, errorInfo);
+      if (!available && errorInfo) {
+        console.error('Cast API failed to load or is not available from SDK:', errorInfo);
+      }
+      // Dispatch a custom event that the PromptDj component (loaded via index.js) can listen to.
+      // This event signifies that the Cast SDK has reported its status.
+      document.dispatchEvent(new CustomEvent('cast-api-ready', { detail: { available, errorInfo } }));
+    };
+  </script>
   <script defer src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 <link rel="stylesheet" href="/index.css">
 </head>

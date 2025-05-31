@@ -1,4 +1,3 @@
-
 /**
  * @fileoverview Control real time music with text prompts - Minimal Demo
  * @license
@@ -24,18 +23,34 @@ import { TRACK_COLORS, ORB_COLORS, CURRENT_PRESET_VERSION, MIDI_LEARN_TARGET_DRO
 
 // Import components
 import './components/weight-slider.js'; 
-import { WeightSlider } from './components/weight-slider.js'; 
+// import { WeightSlider } from './components/weight-slider.js'; // Type import not strictly needed if not directly referenced by type
 import './components/parameter-slider.js'; 
 import { ParameterSlider } from './components/parameter-slider.js'; 
 import './components/toggle-switch.js'; 
-import { ToggleSwitch } from './components/toggle-switch.js'; 
-import { IconButton } from './components/icon-button.js'; 
+// import { ToggleSwitch } from './components/toggle-switch.js';  // Type import not strictly needed
+// import { IconButton } from './components/icon-button.js'; // Base class, not directly used by tag name in prompt-dj template
 import './components/play-pause-button.js'; 
 import { PlayPauseButton } from './components/play-pause-button.js'; 
 import './components/add-prompt-button.js'; 
-import { AddPromptButton } from './components/add-prompt-button.js'; 
+// import { AddPromptButton } from './components/add-prompt-button.js'; // Type import not strictly needed
 import './prompt-controller.js'; 
 import { PromptController as PromptControllerElement } from './prompt-controller.js';
+
+// Import newly refactored components
+import './components/settings-button.js';
+import './components/cast-button.js';
+import './components/help-button.js';
+import './components/share-button.js';
+import './components/drop-button.js';
+import { DropButton } from './components/drop-button.js'; // Queried
+import './components/save-preset-button.js';
+import './components/load-preset-button.js';
+import './components/toast-message.js';
+import { ToastMessage } from './components/toast-message.js'; // Queried
+import './components/help-guide-panel.js';
+import { HelpGuidePanel } from './components/help-guide-panel.js'; // Queried
+import './components/welcome-overlay.js';
+import { WelcomeOverlay } from './components/welcome-overlay.js'; // Queried
 
 
 // Declare Cast SDK globals for TypeScript
@@ -201,16 +216,7 @@ declare global {
   }
 }
 
-// Define the Cast API available callback globally.
-// This ensures it's set before the Cast SDK script tries to call it.
-window.__onGCastApiAvailable = (available: boolean, errorInfo?: any) => {
-  console.log(`__onGCastApiAvailable invoked. Available: ${available}`, errorInfo);
-  if (!available && errorInfo) {
-    console.error('Cast API failed to load or is not available:', errorInfo);
-  }
-  // Dispatch a custom event that the PromptDj component can listen to.
-  document.dispatchEvent(new CustomEvent('cast-api-ready', { detail: { available, errorInfo } }));
-};
+// window.__onGCastApiAvailable is now defined in index.html
 
 
 // Use API_KEY as per guidelines
@@ -222,651 +228,6 @@ const ai = new GoogleGenAI({
 // Model for Lyria real-time music generation.
 const activeModelName = 'models/lyria-realtime-exp';
 
-
-// SettingsButton component
-@customElement('settings-button')
-export class SettingsButton extends IconButton {
-  static override styles = [
-    IconButton.styles,
-    css`
-      .icon-path {
-        stroke: #FEFEFE;
-        stroke-width: 6;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-      }
-    `
-  ];
-  // Simple gear icon
-  private renderSettingsIcon() {
-    return svg`
-      <path class="icon-path" d="M43.75 25V20.625C43.75 19.9179 44.3429 19.375 45.0804 19.375H54.9196C55.6571 19.375 56.25 19.9179 56.25 20.625V25M43.75 75V79.375C43.75 80.0821 44.3429 80.625 45.0804 80.625H54.9196C55.6571 80.625 56.25 80.0821 56.25 79.375V75M25 43.75H20.625C19.9179 43.75 19.375 44.3429 19.375 45.0804V54.9196C19.375 55.6571 19.9179 56.25 20.625 56.25H25M75 43.75H79.375C80.0821 43.75 80.625 44.3429 80.625 45.0804V54.9196C80.625 55.6571 80.0821 56.25 79.375 56.25H75" />
-      <circle class="icon-path" cx="50" cy="50" r="12.5" />
-      <path class="icon-path" d="M33.2375 33.2375L37.5 37.5M66.7625 66.7625L62.5 62.5M33.2375 66.7625L37.5 62.5M66.7625 33.2375L62.5 37.5" />
-    `;
-  }
-  override renderIcon() {
-    return this.renderSettingsIcon();
-  }
-}
-
-// CastButton component
-@customElement('cast-button')
-export class CastButton extends IconButton {
-  static override styles = [
-    IconButton.styles,
-    css`
-      .icon-path-fill {
-        fill: #FEFEFE;
-      }
-      :host([iscastingactive]) .icon-path-fill {
-        fill: #64B5F6; /* Light blue when casting */
-      }
-    `
-  ];
-
-  @property({type: Boolean, reflect: true}) isCastingActive = false;
-
-  private renderCastIconSvg() {
-    return svg`
-      <path class="icon-path-fill"
-        d="M87.5 25H12.5C10.25 25 8.33333 26.9167 8.33333 29.1667V37.5H16.6667V33.3333H83.3333V70.8333H54.1667V79.1667H83.3333C85.5833 79.1667 87.5 77.25 87.5 75V29.1667C87.5 26.9167 85.5833 25 87.5 25ZM8.33333 70.8333V79.1667H20.8333C20.8333 74.4167 16.25 70.8333 8.33333 70.8333ZM8.33333 58.3333V64.5833C22.5833 64.5833 29.1667 71.1667 29.1667 79.1667H35.4167C35.4167 66.0833 23.4167 58.3333 8.33333 58.3333ZM8.33333 45.8333V52.0833C29.25 52.0833 41.6667 64.5 41.6667 79.1667H47.9167C47.9167 57.9167 30.5833 45.8333 8.33333 45.8333Z"
-      />
-    `;
-  }
-
-  override renderIcon() {
-    return this.renderCastIconSvg();
-  }
-}
-
-
-// HelpButton component
-@customElement('help-button')
-export class HelpButton extends IconButton {
-  static override styles = [
-    IconButton.styles,
-    css`
-      .icon-path-curve {
-        stroke: #FEFEFE;
-        stroke-width: 10; 
-        stroke-linecap: round;
-        stroke-linejoin: round;
-        fill: none;
-      }
-      .icon-path-dot {
-        fill: #FEFEFE;
-        stroke: none;
-      }
-    `
-  ];
-
-  private renderHelpIcon() {
-    return svg`
-      <path class="icon-path-curve" d="M38 35 Q38 20 50 20 Q62 20 62 35 C62 45 53 42 50 55 L50 60" />
-      <circle class="icon-path-dot" cx="50" cy="72" r="6" />
-    `;
-  }
-  override renderIcon() {
-    return this.renderHelpIcon();
-  }
-}
-
-// ShareButton component
-@customElement('share-button')
-export class ShareButton extends IconButton {
-  static override styles = [
-    IconButton.styles,
-  ];
-
-  private renderShareText() {
-    return svg`
-      <text 
-        x="50%" 
-        y="50%" 
-        dominant-baseline="middle" 
-        text-anchor="middle" 
-        font-family="Arial, sans-serif"
-        font-size="30"  
-        font-weight="bold" 
-        fill="#FEFEFE">
-        Share
-      </text>
-    `;
-  }
-  override renderIcon() {
-    return this.renderShareText();
-  }
-}
-
-// DropButton component
-@customElement('drop-button')
-export class DropButton extends IconButton {
-  static override styles = [
-    IconButton.styles,
-  ];
-
-  private renderDropIcon() {
-    return svg`
-      <text 
-        x="50%" 
-        y="50%" 
-        dominant-baseline="middle" 
-        text-anchor="middle" 
-        font-family="Arial, sans-serif"
-        font-size="38"  
-        font-weight="bold" 
-        fill="#FFD700">
-        Drop!
-      </text>
-    `;
-  }
-
-  override renderIcon() {
-    return this.renderDropIcon();
-  }
-}
-
-
-// SavePresetButton component
-@customElement('save-preset-button')
-export class SavePresetButton extends IconButton {
-  static override styles = [
-    IconButton.styles,
-    css` .icon-path { fill: #FEFEFE; } `
-  ];
-  private renderSaveIcon() {
-    return svg`<path class="icon-path" d="M25 65 H75 V75 H25 Z M50 20 L70 45 H58 V20 H42 V45 H30 Z"/>`;
-  }
-  override renderIcon() { return this.renderSaveIcon(); }
-}
-
-// LoadPresetButton component
-@customElement('load-preset-button')
-export class LoadPresetButton extends IconButton {
-  static override styles = [
-    IconButton.styles,
-    css` .icon-path { fill: #FEFEFE; } `
-  ];
-  private renderLoadIcon() {
-    return svg`<path class="icon-path" d="M20 25 H40 L45 20 H70 L75 25 V30 H20 V25 Z M20 35 H80 V70 H20 V35 Z"/>`;
-  }
-  override renderIcon() { return this.renderLoadIcon(); }
-}
-
-
-// Toast Message component
-@customElement('toast-message')
-class ToastMessage extends LitElement {
-  static override styles = css`
-    .toast {
-      line-height: 1.6;
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background-color: #000;
-      color: white;
-      padding: 15px;
-      border-radius: 5px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 15px;
-      min-width: 200px;
-      max-width: 80vw;
-      transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.5s ease-out;
-      z-index: 1100;
-      opacity: 1;
-    }
-    button {
-      border-radius: 100px;
-      aspect-ratio: 1;
-      border: none;
-      color: #000;
-      cursor: pointer;
-      background-color: #fff;
-    }
-    .toast:not(.showing) {
-      transition-duration: 1s;
-      transform: translate(-50%, 200%);
-      opacity: 0;
-    }
-  `;
-
-  @property({type: String}) message = '';
-  @property({type: Boolean}) showing = false;
-  private hideTimeout: number | null = null;
-
-  override render() {
-    return html`<div class=${classMap({showing: this.showing, toast: true})}>
-      <div class="message">${this.message}</div>
-      <button @click=${this.hide}>✕</button>
-    </div>`;
-  }
-
-  show(message: string, duration = 5000) {
-    this.showing = true;
-    this.message = message;
-    if (this.hideTimeout) {
-        clearTimeout(this.hideTimeout);
-    }
-    if (duration > 0) {
-        this.hideTimeout = window.setTimeout(() => this.hide(), duration);
-    }
-  }
-
-  hide() {
-    if (this.hideTimeout) {
-        clearTimeout(this.hideTimeout);
-        this.hideTimeout = null;
-    }
-    this.showing = false;
-  }
-}
-
-
-@customElement('help-guide-panel')
-class HelpGuidePanel extends LitElement {
-  @property({type: Boolean, reflect: true}) isOpen = false;
-
-  static override styles = css`
-    :host {
-      display: block;
-      position: fixed;
-      top: 0;
-      right: 0;
-      width: 100%;
-      height: 100%;
-      z-index: 1050; 
-      pointer-events: none; 
-      transition: background-color 0.3s ease-in-out;
-    }
-    :host([isOpen]) {
-      pointer-events: auto; 
-      background-color: rgba(0, 0, 0, 0.5); 
-    }
-    .panel {
-      position: absolute;
-      top: 0;
-      right: 0;
-      width: clamp(300px, 40vw, 500px); 
-      height: 100%;
-      background-color: #282828; 
-      color: #e0e0e0;
-      box-shadow: -5px 0 15px rgba(0,0,0,0.3);
-      transform: translateX(100%);
-      transition: transform 0.3s ease-in-out;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-    :host([isOpen]) .panel {
-      transform: translateX(0);
-    }
-    .panel-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 15px 20px;
-      background-color: #333;
-      border-bottom: 1px solid #444;
-      flex-shrink: 0;
-    }
-    .panel-header h2 {
-      margin: 0;
-      font-size: 1.4em;
-      font-weight: 500;
-    }
-    .close-button {
-      background: none;
-      border: none;
-      color: #e0e0e0;
-      font-size: 1.8em;
-      font-weight: bold;
-      cursor: pointer;
-      padding: 0 5px;
-      line-height: 1;
-    }
-    .close-button:hover {
-      color: #fff;
-    }
-    .panel-content {
-      padding: 20px;
-      overflow-y: auto;
-      flex-grow: 1;
-      scrollbar-width: thin;
-      scrollbar-color: #555 #282828;
-    }
-    .panel-content::-webkit-scrollbar { width: 8px; }
-    .panel-content::-webkit-scrollbar-track { background: #282828; }
-    .panel-content::-webkit-scrollbar-thumb { background-color: #555; border-radius: 4px; }
-    
-    .panel-content h3 {
-      color: #fff;
-      margin-top: 1.5em;
-      margin-bottom: 0.5em;
-      font-weight: 500;
-      border-bottom: 1px solid #444;
-      padding-bottom: 0.3em;
-    }
-    .panel-content h3:first-child {
-      margin-top: 0;
-    }
-    .panel-content h4 {
-      color: #ddd;
-      margin-top: 1em;
-      margin-bottom: 0.3em;
-      font-weight: 500;
-    }
-    .panel-content p, .panel-content ul {
-      line-height: 1.6;
-      margin-bottom: 0.8em;
-    }
-    .panel-content ul {
-      padding-left: 20px;
-    }
-    .panel-content li {
-      margin-bottom: 0.5em;
-    }
-    .panel-content strong {
-      color: #fff;
-      font-weight: 600;
-    }
-    .panel-content code {
-      background-color: #1e1e1e;
-      padding: 0.1em 0.4em;
-      border-radius: 3px;
-      font-family: monospace;
-    }
-  `;
-
-  private _close() {
-    this.dispatchEvent(new CustomEvent('close-help', {bubbles: true, composed: true}));
-  }
-
-  override render() {
-    return html`
-      <div class="panel" role="dialog" aria-modal="true" aria-labelledby="help-panel-title" ?hidden=${!this.isOpen}>
-        <div class="panel-header">
-          <h2 id="help-panel-title">Steppa's BeatLab Help</h2>
-          <button class="close-button" @click=${this._close} aria-label="Close help panel">✕</button>
-        </div>
-        <div class="panel-content">
-          <section>
-            <h3>Willkommen bei Steppa's BeatLab!</h3>
-            <p>Diese App ermöglicht es dir, interaktiv Musik in Echtzeit mit Text-Prompts und MIDI-Controllern zu gestalten.</p>
-          </section>
-          <section>
-            <h3>Grundlagen</h3>
-            <h4>Tracks hinzufügen</h4>
-            <p>Klicke auf den großen <strong>+ Button</strong> unterhalb deiner aktuellen Track-Liste, um einen neuen Track (Prompt-Zeile) hinzuzufügen.</p>
-            <h4>Prompts schreiben</h4>
-            <p>Klicke auf den Text (z.B. "Ambient Chill" oder "New Prompt") eines Tracks oder den Bearbeiten-Button (Stift-Icon) daneben, um deinen eigenen Musik-Prompt einzugeben. Drücke <strong>Enter</strong> oder klicke den Speichern-Button (Haken-Icon), um zu speichern. Die Musik-Engine versucht dann, diesen Prompt umzusetzen.</p>
-            <h4>Gewichtung anpassen (Ratio)</h4>
-            <p>Ziehe den farbigen Slider unter jedem Prompt, um dessen Einfluss (Gewichtung) auf die generierte Musik anzupassen. Werte reichen von 0 (kein Einfluss) bis 2 (starker Einfluss). Die aktuelle Ratio wird rechts neben dem Prompt-Text angezeigt. Dies ist auch per MIDI CC steuerbar (siehe MIDI-Sektion).</p>
-            <h4>Musik starten/pausieren</h4>
-            <p>Verwende den großen <strong>Play/Pause-Button (▶️/⏸️ unten links)</strong>. Beim ersten Start oder nach einer Unterbrechung kann es einen Moment dauern (Lade-Symbol), bis die Musik beginnt. Auch dieser Button ist per MIDI CC steuerbar.</p>
-            <h4>"Drop!"-Effekt</h4>
-            <p>Klicke den <strong>Drop!-Button ( unten rechts)</strong> für einen dynamischen Effekt! Die Musik baut Spannung auf und entlädt sich dann. Der Stil des Drops (z.B. intensiv, sanft, groovig) passt sich nun automatisch an die aktuell gespielte Musik an, um Übergänge natürlicher und wirkungsvoller zu gestalten. Auch dieser Button ist per MIDI CC steuerbar.</p>
-            <h4>Cast-Funktion (Audio streamen)</h4>
-            <p>Klicke auf das <strong>Cast-Icon (oben rechts)</strong>, um die Audioausgabe an ein Google Cast-fähiges Gerät (z.B. Chromecast, Google Home Lautsprecher) zu streamen. Die Audio-Chunks werden an einen Webservice gesendet, der einen kontinuierlichen Stream für das Cast-Gerät bereitstellt. Wenn die Verbindung aktiv ist, wird das Icon blau. Klicke erneut, um das Casting zu beenden. Während des Castings wird der Ton lokal stummgeschaltet.</p>
-            <p><strong>Wichtig:</strong> Die Audioausgabe an das Cast-Gerät startet erst, nachdem die ersten Audio-Daten an den Webservice gesendet wurden. Dies kann zu einer kurzen Verzögerung führen. Die Qualität und Stabilität des Audio-Castings hängt von deiner Netzwerkverbindung, dem Cast-Gerät und dem Webservice (aktuell unter <code>https://chunkstreamer.onrender.com</code>) ab. Bei Problemen ("Failed to fetch"), prüfe die Browser-Konsole auf CORS- oder Mixed-Content-Fehler.</p>
-            <p>Wenn eine neue Cast-Sitzung gestartet wird, wird der Server angewiesen, alle alten Audiodaten zu verwerfen und einen neuen Stream zu beginnen. Dies stellt sicher, dass du immer die aktuelle Live-Generierung hörst.</p>
-          </section>
-          <section>
-            <h3>Konfiguration Teilen (via Link)</h3>
-            <p>Klicke auf den <strong>Share-Button</strong> unten rechts. Dadurch wird ein spezieller Link in deine Zwischenablage kopiert.</p>
-            <p>Wenn jemand diesen Link öffnet, startet Steppa's BeatLab automatisch mit genau deiner aktuellen Konfiguration (Prompts, Gewichtungen, und alle erweiterten Einstellungen) <strong>und beginnt mit der Wiedergabe</strong>.</p>
-            <p>Ideal, um deine Kreationen schnell und einfach zu präsentieren oder gemeinsam an Klanglandschaften zu arbeiten!</p>
-          </section>
-          <section>
-            <h3>Erweiterte Einstellungen (Zahnrad-Icon)</h3>
-            <p>Klicke auf das Zahnrad-Icon (⚙️) in der oberen rechten Leiste, um die erweiterten Einstellungen ein- oder auszublenden.</p>
-            <ul>
-              <li><strong>Temperature:</strong> Regelt die Zufälligkeit. Höher = mehr Variation.</li>
-            </ul>
-            <p>Andere Parameter wie Guidance, BPM, Density, Brightness, Mute-Optionen und der Music Generation Mode können über geteilte Links oder geladene Presets beeinflusst werden, sind aber nicht direkt in der UI einstellbar.</p>
-          </section>
-           <section>
-            <h3>MIDI-Steuerung & Learn-Funktion</h3>
-            <p>Wähle dein MIDI-Gerät aus dem Dropdown-Menü oben links aus. Wenn kein Gerät erscheint, stelle sicher, dass es verbunden ist und dein Browser Zugriff auf MIDI-Geräte hat. Sobald ein Gerät ausgewählt ist, erscheint der <strong>"Learn MIDI"</strong>-Button.</p>
-            <h4>MIDI Learn Modus:</h4>
-            <ol>
-              <li>Klicke auf <strong>"Learn MIDI"</strong>. Der Button-Text ändert sich zu "Learning... (Cancel)" und eine Anleitung erscheint über den Tracks.</li>
-              <li>Klicke nun auf das Element, das du per MIDI steuern möchtest:
-                <ul>
-                  <li>Einen <strong>Track-Slider</strong> (die farbige Leiste unter einem Prompt).</li>
-                  <li>Den <strong>"Drop!"-Button</strong>.</li>
-                  <li>Den <strong>Play/Pause-Button</strong>.</li>
-                </ul>
-                Das ausgewählte Element wird golden hervorgehoben.
-              </li>
-              <li>Bewege nun einen Regler/Fader oder drücke einen Button/Pad an deinem MIDI-Gerät.</li>
-              <li>Die App weist diese MIDI CC-Nummer dem ausgewählten Element zu. Eine Bestätigung (Toast-Nachricht) erscheint.</li>
-              <li>Du kannst direkt weitere Zuweisungen vornehmen, indem du erneut ein Element und dann einen MIDI-Controller auswählst/bewegst.</li>
-              <li>Klicke erneut auf "Learning... (Cancel)" oder drücke die <strong>Escape</strong>-Taste, um den Lernmodus zu beenden. (Escape bricht bei ausgewählten Ziel erst die Zielauswahl ab, dann den Modus).</li>
-            </ol>
-            <h4>Funktionsweise der zugewiesenen MIDI-Controller:</h4>
-            <ul>
-              <li><strong>Track-Slider:</strong> Der MIDI CC-Wert (0-127) steuert die Gewichtung des Tracks (skaliert auf 0-2).</li>
-              <li><strong>Drop!-Button / Play/Pause-Button:</strong> Ein MIDI CC-Wert <strong>größer als 64</strong> löst die Aktion aus (simuliert einen Knopfdruck).</li>
-            </ul>
-            <h4>MIDI-Zuweisungen löschen:</h4>
-            <ul>
-              <li>Alle Zuweisungen werden automatisch gelöscht, wenn du ein anderes MIDI-Gerät auswählst oder die Auswahl aufhebst.</li>
-              <li>Um alle Zuweisungen manuell zu löschen: Drücke und halte den <strong>"Learn MIDI"</strong>-Button (wenn der Lernmodus <em>nicht</em> aktiv ist) für ca. 2 Sekunden, bis eine Bestätigung erscheint.</li>
-            </ul>
-            <p><strong>Wichtig:</strong> Während eine "Drop!"-Sequenz aktiv ist, ist die MIDI-Steuerung (und das Ändern von Einstellungen) temporär deaktiviert.</p>
-          </section>
-          <section>
-            <h3>Tracks verwalten</h3>
-            <h4>Prompts bearbeiten</h4>
-            <p>Klicke auf den Text des Prompts (oder den Stift-Button), bearbeite ihn und drücke <strong>Enter</strong> (oder klicke den Haken-Button).</p>
-            <h4>Tracks entfernen</h4>
-            <p>Klicke auf das rote <strong>✕</strong>-Symbol rechts neben einem Track, um ihn zu entfernen.</p>
-          </section>
-          <section>
-            <h3>Inspirations-Ecke: Was kannst du Cooles machen?</h3>
-            <ul>
-              <li><strong>Ambient-Klangwelten:</strong> Erzeuge beruhigende Ambient-Klanglandschaften für Meditation oder Fokus. Nutze Prompts wie <code>tiefer Weltraumklang, langsame Synthesizer-Pads, ferne Chöre</code> und halte die Temperatur niedrig (z.B. 0.5-0.8) für subtile Entwicklungen.</li>
-              <li><strong>Dynamische Live-Sets:</strong> Mixe verschiedene Musikstile live! Starte mit einem <code>Deep House Beat mit 120 BPM</code>, füge dann einen Track mit <code>funky analog Bassline</code> hinzu und überblende später zu <code>energetischer Trance-Melodie mit treibenden Arpeggios</code>. Nutze die Gewichts-Slider (Ratio) und einen MIDI-Controller für fließende Übergänge. Nutze den <strong>Drop!</strong>-Button für dramatische Höhepunkte!</li>
-              <li><strong>Kreative Sound-Experimente:</strong> Entdecke verrückte und einzigartige Sounds! Probiere ungewöhnliche Prompts wie <code>singende Roboter im Dschungel bei Gewitter</code>, <code>gläserne Regentropfen auf einer alten Holztür</code> oder <code>flüsternde Alien-Stimmen in einer Höhle</code>. Spiele mit hoher Temperatur (z.B. 1.2-1.8) für überraschende und unvorhersehbare Ergebnisse.</li>
-              <li><strong>Storytelling mit Musik:</strong> Untermale eine Geschichte, ein Hörspiel oder ein Rollenspiel live mit passender Musik. Ändere die Prompts dynamisch, um die Stimmung der jeweiligen Szene widerzuspiegeln – von <code>spannungsgeladener Verfolgungsmusik mit schnellen Drums</code> bis zu <code>friedlicher Melodie bei Sonnenaufgang mit sanften Streichern</code>.</li>
-              <li><strong>Interaktive Jam-Session mit der KI:</strong> Verwende einen MIDI-Keyboard-Controller, um die Gewichte der Tracks wie Instrumente in einer Band zu 'spielen'. Erstelle einen Basis-Groove mit einem Prompt und improvisiere dann Melodien, Harmonien oder Stimmungsänderungen, indem du andere Prompts über die Slider (oder MIDI CCs) ein- und ausblendest.</li>
-              <li><strong>Genre-Mashups:</strong> Kombiniere gegensätzliche Genres! Was passiert, wenn du <code>Barockes Cembalo-Solo</code> mit <code>Heavy Dubstep Wobble Bass</code> mischst? Sei mutig und finde neue Klangkombinationen.</li>
-            </ul>
-          </section>
-          <section>
-            <h3>Tipps & Fehlerbehebung</h3>
-            <h4>"No MIDI Devices" / MIDI-Gerät nicht erkannt</h4>
-            <p>Stelle sicher, dass dein MIDI-Gerät korrekt angeschlossen und eingeschaltet ist, bevor du die Seite lädst. Manchmal hilft es, die Seite neu zu laden, nachdem das Gerät verbunden wurde. Überprüfe auch die Browser-Berechtigungen für MIDI.</p>
-            <h4>Ladeanzeige / Musik startet nicht sofort</h4>
-            <p>Es kann einen Moment dauern, bis die Verbindung zur Musik-Engine hergestellt und genügend Audio-Daten für eine stabile Wiedergabe gepuffert wurden.</p>
-            <h4>Verbindungsfehler / Musik stoppt</h4>
-            <p>Es kann zu Netzwerkproblemen oder serverseitigen Unterbrechungen kommen. Versuche, die Wiedergabe über den Play/Pause-Button neu zu starten. Eine Fehlermeldung gibt oft genauere Hinweise.</p>
-            <h4>"Filtered Prompt" Nachricht</h4>
-            <p>Manchmal werden Prompts aus Sicherheitsgründen oder aufgrund von Inhaltsrichtlinien gefiltert und nicht zur Musikgenerierung verwendet. In diesem Fall wird der entsprechende Prompt markiert und eine Nachricht angezeigt.</p>
-             <h4>Geteilter Link funktioniert nicht richtig</h4>
-            <p>Stelle sicher, dass der Link vollständig kopiert wurde. Sehr lange oder komplexe Prompts könnten in seltenen Fällen die maximale URL-Länge überschreiten, obwohl dies unwahrscheinlich ist.</p>
-          </section>
-        </div>
-      </div>
-    `;
-  }
-}
-
-@customElement('welcome-overlay')
-class WelcomeOverlay extends LitElement {
-  @query('#first-prompt-input') private firstPromptInput!: HTMLInputElement;
-
-  static override styles = css`
-    :host {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background-color: rgba(10, 10, 10, 0.85); 
-      z-index: 2000; 
-      backdrop-filter: blur(8px); 
-      -webkit-backdrop-filter: blur(8px);
-      opacity: 0;
-      animation: fadeInOverlay 0.5s 0.2s ease-out forwards;
-    }
-    @keyframes fadeInOverlay {
-      to { opacity: 1; }
-    }
-    .panel {
-      background-color: #2C2C2C; 
-      padding: 30px 40px;
-      border-radius: 16px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-      color: #e0e0e0;
-      width: clamp(320px, 90vw, 600px);
-      text-align: center;
-      border: 1px solid #444;
-      transform: scale(0.95);
-      opacity: 0;
-      animation: popInPanel 0.5s 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-    }
-    @keyframes popInPanel {
-      to { transform: scale(1); opacity: 1; }
-    }
-
-    .app-icon {
-      font-size: 3em; 
-      margin-bottom: 15px;
-    }
-
-    h1 {
-      font-size: 2em; 
-      font-weight: 600;
-      color: #fff;
-      margin-top: 0;
-      margin-bottom: 10px;
-    }
-    .tagline {
-      font-size: 1.1em;
-      color: #bbb;
-      margin-bottom: 25px;
-    }
-    .features {
-      list-style: none;
-      padding: 0;
-      margin: 0 0 25px 0;
-      text-align: left;
-    }
-    .features li {
-      display: flex;
-      align-items: center;
-      margin-bottom: 12px;
-      font-size: 1em;
-      color: #ccc;
-    }
-    .features li svg {
-      width: 22px;
-      height: 22px;
-      margin-right: 12px;
-      fill: #A0A0A0; 
-      flex-shrink: 0;
-    }
-
-    .prompt-section {
-      margin-bottom: 25px;
-    }
-    .prompt-section label {
-      display: block;
-      font-size: 1em;
-      color: #ddd;
-      margin-bottom: 10px;
-      font-weight: 500;
-    }
-    #first-prompt-input {
-      width: 100%;
-      padding: 12px 15px;
-      border-radius: 8px;
-      border: 1px solid #555;
-      background-color: #1e1e1e;
-      color: #fff;
-      font-size: 1em;
-      box-sizing: border-box;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    #first-prompt-input:focus {
-      outline: none;
-      border-color: #7e57c2;
-      box-shadow: 0 0 0 3px rgba(126, 87, 194, 0.3);
-    }
-    .start-button {
-      background: linear-gradient(45deg, #7e57c2, #AB47BC);
-      color: white;
-      border: none;
-      padding: 12px 25px;
-      border-radius: 8px;
-      font-size: 1.1em;
-      font-weight: 500;
-      cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
-      display: inline-block;
-      box-shadow: 0 4px 15px rgba(126, 87, 194, 0.3);
-    }
-    .start-button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(126, 87, 194, 0.4);
-    }
-    .start-button:active {
-      transform: translateY(0px);
-      box-shadow: 0 2px 10px rgba(126, 87, 194, 0.3);
-    }
-  `;
-
-  private _handleSubmit() {
-    const firstPromptText = this.firstPromptInput.value;
-    this.dispatchEvent(new CustomEvent('welcome-complete', {
-      detail: { firstPromptText },
-      bubbles: true,
-      composed: true
-    }));
-  }
-
-  private _handleKeyPress(e: KeyboardEvent) {
-    if (e.key === 'Enter') {
-      this._handleSubmit();
-    }
-  }
-
-  override render() {
-    return html`
-      <div class="panel" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
-        <div class="app-icon">🎵</div>
-        <h1 id="welcome-title">Willkommen bei Steppa's BeatLab!</h1>
-        <p class="tagline">Gestalte deinen Sound mit KI & MIDI</p>
-        
-        <ul class="features">
-          <li>${svg`<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>`} <span><strong>Beschreibe deine Musik:</strong> Tippe Stimmungen, Genres oder Instrumente ein.</span></li>
-          <li>${svg`<svg viewBox="0 0 24 24"><path d="M4 18h16v-2H4v2zm0-5h16v-2H4v2zm0-5h16V6H4v2z"/></svg>`} <span><strong>Mische deine Tracks:</strong> Passe die Slider an, um deine Sound-Ebenen zu mischen.</span></li>
-          <li>${svg`<svg viewBox="0 0 24 24"><path d="M20 18H4V6h16v12zM6 8h2v2H6V8zm0 4h2v2H6v-2zm0 4h2v2H6v-2zm10-8h2v2h-2V8zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2zM10 8h2v2h-2V8zm0 4h2v2h-2v-2zm0 4h2v2h-2v-2z"/></svg>`} <span><strong>MIDI-Steuerung:</strong> Verbinde deinen Controller für interaktives Mixen.</span></li>
-          <li>${svg`<svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>`} <span><strong>Drop & Share:</strong> Nutze den "Drop!"-Effekt und teile deine Kreationen.</span></li>
-        </ul>
-
-        <div class="prompt-section">
-          <label for="first-prompt-input">Starte mit deinem ersten Sound:</label>
-          <input 
-            type="text" 
-            id="first-prompt-input" 
-            value="Ambient Chill with a Lo-Fi Beat" 
-            @keydown=${this._handleKeyPress}
-            placeholder="z.B. Epic Movie Score, Funky Bassline, Relaxing Waves...">
-        </div>
-        <button class="start-button" @click=${this._handleSubmit}>Let's Go!</button>
-      </div>
-    `;
-  }
-}
 
 // Default styles
 const defaultStyles = css`
@@ -894,6 +255,18 @@ class PromptDj extends LitElement {
   private readonly CAST_UPLOAD_URL = 'https://chunkstreamer.onrender.com/upload-chunk';
   private readonly CAST_RESET_URL = 'https://chunkstreamer.onrender.com/reset-stream';
   private readonly CAST_NAMESPACE = 'urn:x-cast:com.google.cast.media';
+  private readonly FUNNY_LOADING_MESSAGES = [
+    "🎵 Synthesizer werden vorgewärmt...",
+    "🎧 Beats werden sorgfältig verteilt...",
+    "🎶 Noten werden liebevoll abgestaubt...",
+    "🎤 Mikrofone werden ausgerichtet...",
+    "🎛️ Regler werden aufgedreht...",
+    "✨ Magie wird in die Kabel geleitet...",
+    "🔊 Soundwellen machen sich startklar...",
+    "🚀 Der Countdown zum Groove läuft...",
+    "🎼 Komponiere epische Klanglandschaften...",
+    "🤖 Die KI-Musen küssen dich gleich...",
+  ];
 
 
   // --- LitElement State & Properties ---
@@ -929,6 +302,9 @@ class PromptDj extends LitElement {
   private midiController: MidiController;
   private sessionSetupComplete = false; 
   private boundHandleCastApiReady: (event: CustomEvent<{available: boolean, errorInfo?: any}>) => void;
+  private loadingMessageInterval: number | null = null;
+  private currentLoadingMessageIndex = 0;
+  private sliderJiggleTimeout: number | null = null;
 
 
   // --- Queries for DOM Elements ---
@@ -958,6 +334,7 @@ class PromptDj extends LitElement {
     this.handleSessionError = this.handleSessionError.bind(this);
     this.handleSessionClose = this.handleSessionClose.bind(this);
     this.boundHandleCastApiReady = this.handleCastApiReady.bind(this) as EventListener;
+    // Listen for the custom event dispatched by the HTML-defined __onGCastApiAvailable
     document.addEventListener('cast-api-ready', this.boundHandleCastApiReady);
     
     if (!localStorage.getItem('beatLabWelcomeShown')) {
@@ -996,6 +373,11 @@ class PromptDj extends LitElement {
     );
     document.removeEventListener('keydown', this.handleGlobalKeyDown);
     document.removeEventListener('cast-api-ready', this.boundHandleCastApiReady);
+    this.clearLoadingMessageInterval();
+    if (this.sliderJiggleTimeout) {
+        clearTimeout(this.sliderJiggleTimeout);
+        this.sliderJiggleTimeout = null;
+    }
   }
 
   override firstUpdated() {
@@ -1067,6 +449,7 @@ class PromptDj extends LitElement {
     }
 
     this.playbackState = 'loading';
+    this.startLoadingMessageSequence();
     this.sessionSetupComplete = false; 
 
     try {
@@ -1085,6 +468,7 @@ class PromptDj extends LitElement {
       console.error('Failed to connect to Lyria session:', error);
       this.toastMessageEl.show(`Error connecting: ${error.message || 'Unknown error'}`);
       this.playbackState = 'stopped';
+      this.clearLoadingMessageInterval();
       this.activeSession = null;
       return false;
     }
@@ -1117,7 +501,7 @@ class PromptDj extends LitElement {
           promptController.setAttribute('filtered', 'true');
         }
       }
-      this.toastMessageEl.show(`Prompt: "${filteredText}" was filtered. Reason: ${reason}. It will be ignored.`);
+      this.toastMessageEl.show(`Prompt: "${filteredText}" wurde gefiltert. Grund: ${reason}. Wird ignoriert.`);
       this.requestUpdate('filteredPrompts');
       this.sendPromptsToSession(); 
     }
@@ -1154,6 +538,7 @@ class PromptDj extends LitElement {
         if (this.nextAudioChunkStartTime < currentTime) {
           console.warn('Audio buffer underrun! Playback might be choppy.');
           this.playbackState = 'loading'; // Show loading indicator
+          this.startLoadingMessageSequence(); // Restart messages if underrun
           this.nextAudioChunkStartTime = currentTime + this.BUFFER_AHEAD_TIME_SECONDS; // Try to re-buffer
         }
         
@@ -1163,13 +548,20 @@ class PromptDj extends LitElement {
         // Transition to playing state if we were loading and setup is complete
         if (this.playbackState === 'loading' && this.sessionSetupComplete) {
             this.playbackState = 'playing';
+            this.clearLoadingMessageInterval();
+            this.toastMessageEl.show("▶️ Wiedergabe gestartet!", 2000);
+            if (this.sliderJiggleTimeout) {
+                clearTimeout(this.sliderJiggleTimeout);
+                this.sliderJiggleTimeout = null;
+            }
         }
 
       } catch (error) {
         console.error('Error processing audio chunk:', error);
-        this.toastMessageEl.show('Error processing audio.');
-         if (this.playbackState === 'loading') { // If stuck in loading due to error
-            this.playbackState = 'paused'; // or 'stopped'
+        this.toastMessageEl.show('Fehler bei der Audioverarbeitung.');
+         if (this.playbackState === 'loading') { 
+            this.playbackState = 'paused'; 
+            this.clearLoadingMessageInterval();
         }
       }
     }
@@ -1177,11 +569,16 @@ class PromptDj extends LitElement {
 
   private handleSessionError(error: any) { 
     console.error('LiveMusicSession Error:', error);
-    this.toastMessageEl.show(`Session error: ${error.message || 'Connection lost'}. Please try again.`);
+    this.toastMessageEl.show(`Session-Fehler: ${error.message || 'Verbindung verloren'}. Bitte erneut versuchen.`);
     this.playbackState = 'stopped';
+    this.clearLoadingMessageInterval();
+    if (this.sliderJiggleTimeout) {
+        clearTimeout(this.sliderJiggleTimeout);
+        this.sliderJiggleTimeout = null;
+    }
     this.activeSession = null;
     this.sessionSetupComplete = false;
-    this.nextAudioChunkStartTime = 0; // Reset for next attempt
+    this.nextAudioChunkStartTime = 0; 
   }
 
   private handleSessionClose(event: any) { 
@@ -1190,16 +587,21 @@ class PromptDj extends LitElement {
       // this.toastMessageEl.show('Music session closed.');
     }
     this.playbackState = 'stopped';
+    this.clearLoadingMessageInterval();
+    if (this.sliderJiggleTimeout) {
+        clearTimeout(this.sliderJiggleTimeout);
+        this.sliderJiggleTimeout = null;
+    }
     this.activeSession = null;
     this.sessionSetupComplete = false;
-    this.nextAudioChunkStartTime = 0; // Reset for next attempt
+    this.nextAudioChunkStartTime = 0; 
   }
 
 
   // --- Audio Playback Control ---
   private async togglePlayPause() {
     if (this.isDropEffectActive) {
-        this.toastMessageEl.show("Please wait for the 'Drop!' effect to finish.", 2000);
+        this.toastMessageEl.show("Bitte warte, bis der 'Drop!'-Effekt beendet ist.", 2000);
         return;
     }
 
@@ -1211,21 +613,23 @@ class PromptDj extends LitElement {
   }
 
   private async startAudioStream() {
-    if (!(await this.connectToSession())) {
+    if (this.playbackState === 'loading' && this.loadingMessageInterval) { 
+        return; // Already trying to load/connect and messages are showing
+    }
+    
+    if (!(await this.connectToSession())) { // connectToSession sets loading state and starts messages
       return;
     }
     
     if (this.activeSession) {
         try {
             console.log('Calling session.play()');
-            // Important: Ensure nextAudioChunkStartTime is reset if resuming from a full stop/pause
-            // This is now handled in pauseAudioStream and stopAudioStreamResetSession
             if (this.playbackState === 'paused' || this.playbackState === 'stopped') {
                 this.nextAudioChunkStartTime = 0; 
             }
 
             this.activeSession.play(); 
-            this.playbackState = 'loading'; 
+            // playbackState is already 'loading' from connectToSession
             this.audioContext.resume();
             this.outputGainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
             this.outputGainNode.gain.linearRampToValueAtTime(1, this.audioContext.currentTime + 0.2);
@@ -1233,17 +637,57 @@ class PromptDj extends LitElement {
             await this.sendPromptsToSession();
             await this.updatePlaybackParameters();
 
+            // "Slider Jiggle" logic
+            if (this.sliderJiggleTimeout) clearTimeout(this.sliderJiggleTimeout);
+            this.sliderJiggleTimeout = window.setTimeout(() => {
+                if (this.playbackState === 'loading' && this.prompts.size > 0 && this.activeSession && this.sessionSetupComplete) {
+                    console.log("Playback stuck in loading, attempting 'slider jiggle' fix...");
+                    const firstPromptEntry = Array.from(this.prompts.entries())[0];
+                    if (firstPromptEntry) {
+                        const [promptId, prompt] = firstPromptEntry;
+                        const originalWeight = prompt.weight;
+                        let newWeight = originalWeight + 0.0011; // Small nudge
+                        if (newWeight > 2.0) newWeight = originalWeight - 0.0011; // Nudge down if at max
+                        if (newWeight < 0) newWeight = 0.0011; // Nudge up if at min
+
+                        const updatedPrompt = { ...prompt, weight: newWeight };
+                        this.prompts = new Map(this.prompts).set(promptId, updatedPrompt);
+                        this.sendPromptsToSession();
+                        this.savePromptsToLocalStorage();
+
+                        // Revert after a very short delay
+                        setTimeout(() => {
+                            const currentPrompt = this.prompts.get(promptId);
+                            if (currentPrompt && currentPrompt.weight !== originalWeight) { // Check if it wasn't changed by user
+                                const revertedPrompt = { ...currentPrompt, weight: originalWeight };
+                                this.prompts = new Map(this.prompts).set(promptId, revertedPrompt);
+                                this.sendPromptsToSession();
+                                this.savePromptsToLocalStorage();
+                                console.log("'Slider jiggle' completed.");
+                            }
+                        }, 50);
+                    }
+                }
+                this.sliderJiggleTimeout = null;
+            }, 3000); // Try jiggle after 3 seconds if still loading
+
         } catch (error: any) {
             console.error("Error trying to play session:", error);
-            this.toastMessageEl.show(`Playback error: ${error.message}`);
+            this.toastMessageEl.show(`Playback-Fehler: ${error.message}`);
             this.playbackState = 'stopped';
-            this.nextAudioChunkStartTime = 0; // Reset on error
+            this.clearLoadingMessageInterval();
+            if (this.sliderJiggleTimeout) clearTimeout(this.sliderJiggleTimeout);
+            this.sliderJiggleTimeout = null;
+            this.nextAudioChunkStartTime = 0; 
         }
     } else {
         console.error("Cannot start audio stream: session not active.");
-        this.toastMessageEl.show("Error: Music session not available.");
+        this.toastMessageEl.show("Fehler: Musik-Session nicht verfügbar.");
         this.playbackState = 'stopped';
-        this.nextAudioChunkStartTime = 0; // Reset
+        this.clearLoadingMessageInterval();
+        if (this.sliderJiggleTimeout) clearTimeout(this.sliderJiggleTimeout);
+        this.sliderJiggleTimeout = null;
+        this.nextAudioChunkStartTime = 0; 
     }
   }
 
@@ -1256,9 +700,11 @@ class PromptDj extends LitElement {
     this.outputGainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.2);
     
     this.playbackState = 'paused';
-    // DO NOT reset nextAudioChunkStartTime here if we want smooth resume.
-    // However, if resume causes issues, resetting it might be necessary, but then buffering re-occurs.
-    // For now, let's test NOT resetting it on pause, but DO reset on full STOP.
+    this.clearLoadingMessageInterval();
+    if (this.sliderJiggleTimeout) {
+        clearTimeout(this.sliderJiggleTimeout);
+        this.sliderJiggleTimeout = null;
+    }
   }
 
   private stopAudioStreamResetSession() {
@@ -1268,11 +714,42 @@ class PromptDj extends LitElement {
       this.activeSession.resetContext(); 
     }
     this.outputGainNode.gain.setValueAtTime(0, this.audioContext.currentTime); 
-    this.nextAudioChunkStartTime = 0; // Crucial reset for next play
+    this.nextAudioChunkStartTime = 0; 
     this.playbackState = 'stopped';
+    this.clearLoadingMessageInterval();
+    if (this.sliderJiggleTimeout) {
+        clearTimeout(this.sliderJiggleTimeout);
+        this.sliderJiggleTimeout = null;
+    }
     this.activeSession = null; 
     this.sessionSetupComplete = false; 
     this.requestUpdate();
+  }
+
+  private startLoadingMessageSequence() {
+    this.clearLoadingMessageInterval(); // Clear any existing interval
+    this.currentLoadingMessageIndex = 0; // Reset index
+    
+    // Show the first message immediately, make it stay until next one or cleared
+    this.toastMessageEl.show(this.FUNNY_LOADING_MESSAGES[this.currentLoadingMessageIndex], 0); 
+    this.currentLoadingMessageIndex = (this.currentLoadingMessageIndex + 1) % this.FUNNY_LOADING_MESSAGES.length;
+
+    this.loadingMessageInterval = window.setInterval(() => {
+        if (this.playbackState === 'loading') {
+            this.toastMessageEl.show(this.FUNNY_LOADING_MESSAGES[this.currentLoadingMessageIndex], 0);
+            this.currentLoadingMessageIndex = (this.currentLoadingMessageIndex + 1) % this.FUNNY_LOADING_MESSAGES.length;
+        } else {
+            this.clearLoadingMessageInterval(); // Stop if no longer loading
+        }
+    }, 3500); // Change message every 3.5 seconds
+  }
+
+  private clearLoadingMessageInterval() {
+    if (this.loadingMessageInterval) {
+        clearInterval(this.loadingMessageInterval);
+        this.loadingMessageInterval = null;
+        // Do not hide the toast here, handleSessionMessage or other state changes will show a new one or it will time out.
+    }
   }
 
 
@@ -1295,13 +772,13 @@ class PromptDj extends LitElement {
   private handleAddPromptClick() {
     if (this.isDropEffectActive) return;
     if (this.prompts.size >= 7) {
-      this.toastMessageEl.show('Maximum of 7 prompts reached.', 3000);
+      this.toastMessageEl.show('Maximal 7 Prompts erreicht.', 3000);
       return;
     }
     const newId = this.generateNewPromptId();
     const newPrompt: Prompt = {
       promptId: newId,
-      text: 'New Prompt',
+      text: 'Neuer Prompt',
       weight: 0.0, 
       color: this.getUnusedRandomColor(Array.from(this.prompts.values()).map(p => p.color)),
     };
@@ -1376,7 +853,7 @@ class PromptDj extends LitElement {
       await this.activeSession.setWeightedPrompts({ weightedPrompts: promptsToSendForAPI });
     } catch (error: any) {
       console.error('Error setting weighted prompts:', error);
-      this.toastMessageEl.show(`Error updating prompts: ${error.message}`);
+      this.toastMessageEl.show(`Fehler beim Aktualisieren der Prompts: ${error.message}`);
     }
   }
 
@@ -1427,7 +904,7 @@ class PromptDj extends LitElement {
         await this.activeSession.setMusicGenerationConfig({ musicGenerationConfig: definedConfig });
       } catch (error: any) {
         console.error('Error setting music generation config:', error);
-        this.toastMessageEl.show(`Error updating parameters: ${error.message}`);
+        this.toastMessageEl.show(`Fehler beim Aktualisieren der Parameter: ${error.message}`);
       }
     }
   }
@@ -1448,16 +925,16 @@ class PromptDj extends LitElement {
   // --- "Drop!" Effect ---
   private async handleDropClick() {
     if (!this.activeSession || !this.sessionSetupComplete || this.playbackState !== 'playing') {
-      this.toastMessageEl.show("Please start playback first to use 'Drop!'", 3000);
+      this.toastMessageEl.show("Bitte starte zuerst die Wiedergabe, um 'Drop!' zu nutzen.", 3000);
       return;
     }
     if (this.isDropEffectActive) {
-        this.toastMessageEl.show("'Drop!' effect already in progress.", 2000);
+        this.toastMessageEl.show("'Drop!'-Effekt läuft bereits.", 2000);
         return;
     }
 
     this.isDropEffectActive = true;
-    this.toastMessageEl.show("Drop incoming!", 1500);
+    this.toastMessageEl.show("Drop im Anflug!", 1500);
     try {
       if (this.activeSession.resetContext) { 
         this.activeSession.resetContext(); 
@@ -1474,7 +951,7 @@ class PromptDj extends LitElement {
 
     } catch (error) {
       console.error("Error during 'Drop!' effect:", error);
-      this.toastMessageEl.show("Error triggering 'Drop!' effect.", 3000);
+      this.toastMessageEl.show("Fehler beim Auslösen des 'Drop!'-Effekts.", 3000);
     } finally {
         setTimeout(() => {
             this.isDropEffectActive = false;
@@ -1498,6 +975,12 @@ class PromptDj extends LitElement {
       if (this.isDropEffectActive) return; 
       const customEvent = e as CustomEvent<{ccNumber: number, value: number, rawValue: number}>;
       const { ccNumber, value, rawValue } = customEvent.detail;
+      
+      if (this.isMidiLearning && this.midiLearnTarget) {
+        this.assignMidiCcToLearnTarget(ccNumber);
+        return; // Don't process the CC value for control if we just learned it
+      }
+      
       const targetId = this.midiCcMap.get(ccNumber);
 
       if (targetId) {
@@ -1533,17 +1016,17 @@ class PromptDj extends LitElement {
         const success = await this.midiController.requestMidiAccessAndListDevices();
         if (success) {
             this.midiController.selectMidiInput(newId);
-            this.toastMessageEl.show(`MIDI device ${this.availableMidiInputs.find(i => i.id === newId)?.name || newId} selected.`, 2000);
+            this.toastMessageEl.show(`MIDI-Gerät ${this.availableMidiInputs.find(i => i.id === newId)?.name || newId} ausgewählt.`, 2000);
         } else if (this.midiController.isMidiSupported()){
-            this.toastMessageEl.show('MIDI access denied or no devices found. Please check browser permissions.', 4000);
+            this.toastMessageEl.show('MIDI-Zugriff verweigert oder keine Geräte gefunden. Bitte Browser-Berechtigungen prüfen.', 4000);
             this.selectedMidiInputId = null; 
         } else {
-            this.toastMessageEl.show('Web MIDI API not supported in this browser.', 4000);
+            this.toastMessageEl.show('Web MIDI API nicht unterstützt in diesem Browser.', 4000);
             this.selectedMidiInputId = null;
         }
     } else {
         this.midiController.selectMidiInput(''); 
-        this.toastMessageEl.show('MIDI input deselected.', 2000);
+        this.toastMessageEl.show('MIDI-Eingang abgewählt.', 2000);
     }
     this.isMidiLearning = false; 
     this.midiLearnTarget = null;
@@ -1553,42 +1036,43 @@ class PromptDj extends LitElement {
 
   private toggleMidiLearnMode() {
     if (!this.selectedMidiInputId && !this.isMidiLearning) {
-        this.toastMessageEl.show('Please select a MIDI input device first.', 3000);
+        this.toastMessageEl.show('Bitte zuerst ein MIDI-Eingangsgerät auswählen.', 3000);
         return;
     }
     this.isMidiLearning = !this.isMidiLearning;
     if (!this.isMidiLearning) { 
       this.midiLearnTarget = null; 
       this.saveMidiMappings();
+      this.toastMessageEl.hide(); // Hide any "move a control" messages
+    } else {
+      // Initial message for learn mode will be set by handleMidiLearnTargetClick or displayed by default
     }
     this.updateMidiLearnButtonState();
   }
   
   private handleMidiLearnTargetClick(targetType: 'prompt' | 'dropbutton' | 'playpausebutton', id: string, e: Event) {
-    // Check if the event originated from the prompt-controller's main div specifically for MIDI learn
-    // This logic might need refinement if clicks on internal elements of prompt-controller should not trigger this.
-    // The `prompt-interaction` event from `prompt-controller` is intended for this.
-    // For global buttons, the click handler is directly on them.
-
     if (!this.isMidiLearning) return;
-    e.stopPropagation(); // Prevent event from bubbling further if handled here
+    e.stopPropagation(); 
 
     if (this.midiLearnTarget === id) { 
       this.midiLearnTarget = null; 
+      this.toastMessageEl.show(`Zielauswahl aufgehoben. Klicke ein Element an oder Esc zum Beenden.`, 0);
     } else {
       this.midiLearnTarget = id;
       const targetName = 
         id === MIDI_LEARN_TARGET_DROP_BUTTON ? "Drop! Button" :
         id === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON ? "Play/Pause Button" :
         `Prompt "${this.prompts.get(id)?.text}"`;
-      this.toastMessageEl.show(`Selected ${targetName}. Move a MIDI control.`, 0); // duration 0, no auto hide
+      this.toastMessageEl.show(`"${targetName}" ausgewählt. Jetzt einen MIDI-Controller bewegen. (Esc zum Abbrechen)`, 0); 
     }
   }
   
   private assignMidiCcToLearnTarget(ccNumber: number) {
     if (!this.isMidiLearning || !this.midiLearnTarget) return;
 
+    // Remove existing assignment for this CC number
     this.midiCcMap.delete(ccNumber);
+    // Remove existing assignment for this target
     this.midiCcMap.forEach((target, cc) => {
         if (target === this.midiLearnTarget) {
             this.midiCcMap.delete(cc);
@@ -1599,16 +1083,16 @@ class PromptDj extends LitElement {
     const targetName = this.midiLearnTarget === MIDI_LEARN_TARGET_DROP_BUTTON ? "Drop! Button" 
                      : this.midiLearnTarget === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON ? "Play/Pause Button"
                      : `Prompt "${this.prompts.get(this.midiLearnTarget)?.text}"`;
-    this.toastMessageEl.show(`MIDI CC ${ccNumber} assigned to ${targetName}.`, 2500);
+    this.toastMessageEl.show(`MIDI CC ${ccNumber} zugewiesen zu ${targetName}. Klicke nächstes Ziel an.`, 2500);
     
-    this.midiLearnTarget = null; 
+    this.midiLearnTarget = null; // Deselect target, ready for next
     this.saveMidiMappings(); 
   }
 
   private updateMidiLearnButtonState() {
     if (!this.learnMidiButtonEl) return;
     if (this.isMidiLearning) {
-      this.learnMidiButtonEl.textContent = 'Learning... (Cancel)';
+      this.learnMidiButtonEl.textContent = 'Learning... (Abbrechen)';
       this.learnMidiButtonEl.classList.add('learning');
     } else {
       this.learnMidiButtonEl.textContent = 'Learn MIDI';
@@ -1626,11 +1110,11 @@ class PromptDj extends LitElement {
       if (e.key === 'Escape') {
         if (this.midiLearnTarget) {
           this.midiLearnTarget = null; 
-          this.toastMessageEl.show('MIDI learn target deselected. Choose another or Esc to exit.', 2000);
+          this.toastMessageEl.show('MIDI-Lernziel abgewählt. Wähle ein anderes oder Esc zum Beenden.', 0);
         } else {
           this.isMidiLearning = false; 
           this.updateMidiLearnButtonState();
-          this.toastMessageEl.show('MIDI learn mode exited.', 2000);
+          this.toastMessageEl.show('MIDI-Lernmodus beendet.', 2000);
           this.saveMidiMappings();
         }
       }
@@ -1659,7 +1143,6 @@ class PromptDj extends LitElement {
   
   private boundHandleMidiLearnClearLongPress = () => {
     this.clearMidiMappingsAndSelection(true, true); 
-    this.toastMessageEl.show('All MIDI assignments for this device cleared.', 3000);
   }
 
 
@@ -1689,14 +1172,16 @@ class PromptDj extends LitElement {
   }
 
   private clearMidiMappingsAndSelection(alsoDeselectDevice = false, showToast = false) {
+    const oldMappingsCount = this.midiCcMap.size;
     this.midiCcMap.clear();
+    
     if (this.selectedMidiInputId) {
         localStorage.removeItem(`midiMappings_${this.selectedMidiInputId}`);
-        if (showToast && this.midiDeviceSelectEl) {
-            const selectedOption = this.midiDeviceSelectEl.options[this.midiDeviceSelectEl.selectedIndex];
-            const deviceName = selectedOption ? selectedOption.text : 'the selected device';
-            if (deviceName !== '-- Select MIDI Device --') {
-                 this.toastMessageEl.show(`MIDI assignments cleared for ${deviceName}.`, 2500);
+        if (showToast && oldMappingsCount > 0) { // Only show toast if mappings were actually cleared
+            const selectedOption = this.midiDeviceSelectEl?.options[this.midiDeviceSelectEl.selectedIndex];
+            const deviceName = selectedOption ? selectedOption.text : 'das ausgewählte Gerät';
+            if (deviceName !== '-- Select MIDI Device --') { // Check if a device was actually selected
+                 this.toastMessageEl.show(`Alle MIDI-Zuweisungen für ${deviceName} gelöscht.`, 2500);
             }
         }
     }
@@ -1757,10 +1242,10 @@ class PromptDj extends LitElement {
 
     try {
       navigator.clipboard.writeText(`${base}?${params.toString()}`);
-      this.toastMessageEl.show('Link copied to clipboard! Playback will start automatically.', 3000);
+      this.toastMessageEl.show('Link in Zwischenablage kopiert! Wiedergabe startet automatisch.', 3000);
     } catch (err) {
       console.error('Failed to copy link:', err);
-      this.toastMessageEl.show('Failed to copy link. See console.', 3000);
+      this.toastMessageEl.show('Fehler beim Kopieren des Links. Siehe Konsole.', 3000);
     }
   }
 
@@ -1817,7 +1302,7 @@ class PromptDj extends LitElement {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    this.toastMessageEl.show('Preset saved!', 2000);
+    this.toastMessageEl.show('Preset gespeichert!', 2000);
   }
 
   private handleLoadPresetClick() {
@@ -1833,7 +1318,7 @@ class PromptDj extends LitElement {
                 this.applyPreset(preset);
             } catch (err: any) {
                 console.error("Error loading or parsing preset:", err);
-                this.toastMessageEl.show(`Error loading preset: ${err.message}`, 4000);
+                this.toastMessageEl.show(`Fehler beim Laden des Presets: ${err.message}`, 4000);
             }
         }
     };
@@ -1842,7 +1327,7 @@ class PromptDj extends LitElement {
 
   private applyPreset(preset: Preset) {
     if (!preset.version || preset.version !== CURRENT_PRESET_VERSION) {
-        this.toastMessageEl.show(`Preset version mismatch. Expected ${CURRENT_PRESET_VERSION}, got ${preset.version}. Applying best effort.`, 4000);
+        this.toastMessageEl.show(`Preset Version nicht kompatibel. Erwartet ${CURRENT_PRESET_VERSION}, erhalten ${preset.version}. Versuche bestmögliche Anwendung.`, 4000);
     }
 
     const newPrompts = new Map<string, Prompt>();
@@ -1862,10 +1347,10 @@ class PromptDj extends LitElement {
     
     this.savePromptsToLocalStorage(); 
     this.updatePlaybackParameters(); 
-    this.toastMessageEl.show('Preset loaded!', 2000);
+    this.toastMessageEl.show('Preset geladen!', 2000);
     if (this.playbackState === 'playing' || this.playbackState === 'loading') {
-        this.stopAudioStreamResetSession(); // Reset fully to apply new config
-        this.nextAudioChunkStartTime = 0; // Ensure buffering logic resets
+        this.stopAudioStreamResetSession(); 
+        this.nextAudioChunkStartTime = 0; 
         setTimeout(() => this.startAudioStream(), 200);
     }
   }
@@ -1874,13 +1359,12 @@ class PromptDj extends LitElement {
   private handleCastApiReady(event: CustomEvent<{available: boolean, errorInfo?: any}>) {
     const { available, errorInfo } = event.detail;
     if (available) {
-        console.log('Cast API is available. Initializing CastContext.');
+        console.log('Cast API is available via event. Initializing CastContext.');
         try {
-            // Ensure 'cast' and 'chrome' are available in the global scope here
             if (typeof cast === 'undefined' || typeof chrome === 'undefined' || !chrome.cast || !cast.framework) {
-                console.error("Critical: 'cast' or 'chrome' global not defined even after __onGCastApiAvailable(true).");
+                console.error("Critical: 'cast' or 'chrome' global not defined even after SDK reported 'available'. This indicates a deeper issue with Cast SDK loading or environment.");
                 this.isCastingAvailable = false;
-                this.toastMessageEl?.show('Cast initialization failed (globals missing).', 5000);
+                this.toastMessageEl?.show('Cast-Initialisierung fehlgeschlagen (SDK-Globale fehlen).', 5000);
                 return;
             }
 
@@ -1911,15 +1395,15 @@ class PromptDj extends LitElement {
             console.log('CastContext initialized successfully.');
 
         } catch (e: any) {
-            console.error("Error initializing CastContext even after API ready signal:", e);
-            this.toastMessageEl?.show(`Error initializing Cast: ${e.message || 'Unknown error'}. Try refreshing.`, 5000);
+            console.error("Error initializing CastContext (post-API ready event):", e);
+            this.toastMessageEl?.show(`Fehler bei Cast-Initialisierung: ${e.message || 'Unbekannter Fehler'}. Aktualisiere die Seite.`, 5000);
             this.isCastingAvailable = false;
         }
     } else {
-        console.error("Cast API not available.", errorInfo);
+        console.error("Cast API not available (reported by SDK via event).", errorInfo);
         this.isCastingAvailable = false;
         if (this.toastMessageEl) {
-          this.toastMessageEl.show(`Google Cast API not available. ${errorInfo?.description || errorInfo?.errorType || ''}`, 3000);
+          this.toastMessageEl.show(`Google Cast API nicht verfügbar. ${errorInfo?.description || errorInfo?.errorType || ''}`, 3000);
         }
     }
   }
@@ -1930,18 +1414,17 @@ class PromptDj extends LitElement {
     this.isCastingActive = this.castSession?.getSessionState() === cast.framework.SessionState.SESSION_STARTED;
     this.updateMuteState();
     if (this.isCastingActive && this.castSession) {
-        this.toastMessageEl.show(`Casting to ${this.castSession.getCastDevice().friendlyName}`, 3000);
+        this.toastMessageEl.show(`Casting zu ${this.castSession.getCastDevice().friendlyName}`, 3000);
         this.resetCastStream(); 
-        this.castMediaSession = null; // Reset media session on new cast session
-        // If playback is active, start casting it.
+        this.castMediaSession = null; 
         if (this.playbackState === 'playing' || this.playbackState === 'loading') {
             this.startCastPlaybackIfNeeded();
         }
     } else if (event.sessionState === cast.framework.SessionState.SESSION_ENDED) {
-        this.toastMessageEl.show('Casting ended.', 2000);
+        this.toastMessageEl.show('Casting beendet.', 2000);
         this.castMediaSession = null;
     } else if (event.sessionState === cast.framework.SessionState.SESSION_START_FAILED) {
-        this.toastMessageEl.show('Casting failed to start.', 3000);
+        this.toastMessageEl.show('Casting konnte nicht gestartet werden.', 3000);
         this.castMediaSession = null;
     }
   }
@@ -1957,7 +1440,7 @@ class PromptDj extends LitElement {
 
   private async toggleCast() {
     if (!this.castContext) {
-        this.toastMessageEl.show('Cast not initialized. Try refreshing.', 3000);
+        this.toastMessageEl.show('Cast nicht initialisiert. Bitte Seite neu laden.', 3000);
         console.error('CastContext not initialized, cannot toggle cast.');
         return;
     }
@@ -1965,21 +1448,19 @@ class PromptDj extends LitElement {
     if (this.isCastingActive && this.castSession) {
         try {
             await this.castSession.endSession(true);
-            // State updates will be handled by SESSION_STATE_CHANGED event
         } catch (error: any) {
             console.error('Error ending cast session:', error);
-            this.toastMessageEl.show(`Error stopping cast: ${error.description || error.code || 'Unknown'}`, 3000);
+            this.toastMessageEl.show(`Fehler beim Beenden des Castings: ${error.description || error.code || 'Unbekannt'}`, 3000);
         }
     } else if (this.isCastingAvailable) {
         try {
             await this.castContext.requestSession();
-            // State updates will be handled by SESSION_STATE_CHANGED event
         } catch (error: any) {
             console.error('Error requesting cast session:', error);
-            this.toastMessageEl.show(`Cast connect error: ${error.description || error.code || 'Unknown error'}`, 3000);
+            this.toastMessageEl.show(`Cast Verbindungsfehler: ${error.description || error.code || 'Unbekannter Fehler'}`, 3000);
         }
     } else {
-        this.toastMessageEl.show('No Cast devices available.', 3000);
+        this.toastMessageEl.show('Keine Cast-Geräte verfügbar.', 3000);
     }
   }
 
@@ -2019,7 +1500,7 @@ class PromptDj extends LitElement {
         this.startCastPlaybackIfNeeded();
     } catch (error) {
         console.error('Error sending chunk to cast server:', error);
-        this.toastMessageEl.show('Casting connection error.', 2000);
+        this.toastMessageEl.show('Casting-Verbindungsfehler.', 2000);
     }
   }
   
@@ -2027,31 +1508,23 @@ class PromptDj extends LitElement {
 
   private startCastPlaybackIfNeeded() {
     if (!this.castSession) {
-        // console.log('Cast: No active session, cannot start playback.');
         return; 
     }
 
-    // Check if media is already playing or buffering on the Cast device
     if (this.castMediaSession && typeof this.castMediaSession.getPlayerState === 'function') {
         const playerState = this.castMediaSession.getPlayerState();
         if (playerState === chrome.cast.media.PlayerState.PLAYING || 
             playerState === chrome.cast.media.PlayerState.BUFFERING) {
-            // console.log('Cast media already playing or buffering.');
             return; 
         }
     }
-    // If we reach here, it means either:
-    // 1. No active media session (this.castMediaSession is null, or getPlayerState is not a function)
-    // OR
-    // 2. Media session exists but is not PLAYING or BUFFERING (e.g., IDLE, PAUSED).
-    // In these cases, we should (re)load the media.
-
+    
     console.log('Cast: Attempting to load media for playback.');
     const mediaInfo = new chrome.cast.media.MediaInfo(this.CAST_STREAM_URL, 'audio/wav');
     mediaInfo.streamType = chrome.cast.media.StreamType.LIVE;
     mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
     mediaInfo.metadata.title = "Steppa's BeatLab Live Stream";
-    mediaInfo.duration = null; // For live streams
+    mediaInfo.duration = null; 
 
     const loadRequest = new chrome.cast.media.LoadRequest(mediaInfo);
     loadRequest.autoplay = true;
@@ -2063,15 +1536,15 @@ class PromptDj extends LitElement {
             if (this.castMediaSession) {
               this.castMediaSession.addUpdateListener((isAlive) => {
                   if (!isAlive) {
-                      this.castMediaSession = null; // Media session ended
+                      this.castMediaSession = null; 
                       console.log('Cast media session ended (isAlive is false).');
                   }
               });
             }
         })
-        .catch((error: any) => { // error is of type chrome.cast.Error
+        .catch((error: any) => { 
             console.error('Error loading media on Cast device:', error);
-            this.toastMessageEl.show(`Cast playback error: ${error.description || error.code || 'Unknown'}`, 3000);
+            this.toastMessageEl.show(`Cast Wiedergabefehler: ${error.description || error.code || 'Unbekannt'}`, 3000);
             this.castMediaSession = null;
         });
   }
@@ -2115,7 +1588,7 @@ class PromptDj extends LitElement {
             <div class="midi-selector-group">
                 <label for="midi-device-select">MIDI:</label>
                 <select id="midi-device-select" @change=${this.handleMidiDeviceChange} .value=${this.selectedMidiInputId || ''}>
-                <option value="">-- Select MIDI Device --</option>
+                <option value="">-- MIDI-Gerät wählen --</option>
                 ${this.availableMidiInputs.map(input => html`<option value=${input.id}>${input.name}</option>`)}
                 </select>
                 <button 
@@ -2126,12 +1599,12 @@ class PromptDj extends LitElement {
                     @mouseleave=${this.handleMidiLearnButtonMouseUpOrLeave}
                     @touchstart=${this.handleMidiLearnButtonMouseDown}
                     @touchend=${this.handleMidiLearnButtonMouseUpOrLeave}
-                    title="Click to toggle learn mode. Long press (1.5s) to clear all assignments for selected device."
+                    title="Klicken zum Lernmodus. Lang drücken (1.5s) zum Löschen aller Zuweisungen für das Gerät."
                 >Learn MIDI</button>
             </div>
-            <settings-button title="Settings" @click=${this.toggleSettingsPanel} .isMidiLearnTarget=${false}></settings-button>
-            <cast-button title="Cast Audio" @click=${this.toggleCast} .isCastingActive=${this.isCastingActive} ?disabled=${!this.isCastingAvailable}></cast-button>
-            <help-button title="Help" @click=${this.toggleHelpPanel}></help-button>
+            <settings-button title="Einstellungen" @click=${this.toggleSettingsPanel} .isMidiLearnTarget=${false}></settings-button>
+            <cast-button title="Audio Casten" @click=${this.toggleCast} .isCastingActive=${this.isCastingActive} ?disabled=${!this.isCastingAvailable}></cast-button>
+            <help-button title="Hilfe" @click=${this.toggleHelpPanel}></help-button>
         </div>
       </header>
 
@@ -2139,8 +1612,8 @@ class PromptDj extends LitElement {
         ${this.isMidiLearning ? html`
             <div class="midi-learn-instructions">
                 ${this.midiLearnTarget 
-                    ? `Listening for MIDI CC on "${this.midiLearnTarget === MIDI_LEARN_TARGET_DROP_BUTTON ? "Drop! Button" : this.midiLearnTarget === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON ? "Play/Pause Button" : this.prompts.get(this.midiLearnTarget)?.text || 'Unknown Target'}"... (Press Esc to deselect)`
-                    : "Click a slider, Drop! button, or Play/Pause button, then move a MIDI control. (Press Esc to exit learn mode)"
+                    ? `Höre auf MIDI CC für "${this.midiLearnTarget === MIDI_LEARN_TARGET_DROP_BUTTON ? "Drop! Button" : this.midiLearnTarget === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON ? "Play/Pause Button" : this.prompts.get(this.midiLearnTarget)?.text || 'Unbekanntes Ziel'}"... (Esc zum Abwählen)`
+                    : "Klicke einen Slider, Drop!- oder Play/Pause-Button an, dann bewege einen MIDI-Controller. (Esc zum Beenden des Lernmodus)"
                 }
             </div>
         ` : ''}
@@ -2159,21 +1632,21 @@ class PromptDj extends LitElement {
             ></prompt-controller>
           `)}
         </div>
-        <add-prompt-button class="add-prompt-main" title="Add new prompt" @click=${this.handleAddPromptClick} ?disabled=${this.isDropEffectActive}></add-prompt-button>
+        <add-prompt-button class="add-prompt-main" title="Neuen Prompt hinzufügen" @click=${this.handleAddPromptClick} ?disabled=${this.isDropEffectActive}></add-prompt-button>
       </main>
       
       <div id="settings-panel" class=${classMap({visible: this.showSettings})}>
-        <h3>Settings</h3>
+        <h3>Einstellungen</h3>
         <parameter-slider
-            label="Temperature"
+            label="Temperatur"
             .value=${this.temperature}
             min="0.1" max="2.0" step="0.05"
             @input=${this.handleTemperatureChange}
             ?disabled=${this.isDropEffectActive}
         ></parameter-slider>
         <div class="preset-buttons">
-            <save-preset-button title="Save current state as preset" @click=${this.handleSavePreset}></save-preset-button>
-            <load-preset-button title="Load preset from file" @click=${this.handleLoadPresetClick}></load-preset-button>
+            <save-preset-button title="Aktuellen Zustand als Preset speichern" @click=${this.handleSavePreset}></save-preset-button>
+            <load-preset-button title="Preset aus Datei laden" @click=${this.handleLoadPresetClick}></load-preset-button>
         </div>
       </div>
 
@@ -2183,16 +1656,16 @@ class PromptDj extends LitElement {
             .playbackState=${this.playbackState}
             @click=${(e: Event) => { if (this.isMidiLearning) this.handleMidiLearnTargetClick('playpausebutton', MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON, e); else this.togglePlayPause(); }}
             ?ismidilearntarget=${this.isMidiLearning && this.midiLearnTarget === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON}
-            title="Play/Pause Music (Spacebar)"
+            title="Musik Start/Pause (Leertaste)"
             ?disabled=${this.isDropEffectActive}
             >
         </play-pause-button>
         <div class="spacer"></div>
-        <share-button title="Share current configuration" @click=${this.generateShareLink}></share-button>
+        <share-button title="Aktuelle Konfiguration teilen" @click=${this.generateShareLink}></share-button>
         <drop-button 
             @click=${(e: Event) => { if (this.isMidiLearning) this.handleMidiLearnTargetClick('dropbutton', MIDI_LEARN_TARGET_DROP_BUTTON, e); else this.handleDropClick(); }}
             ?ismidilearntarget=${this.isMidiLearning && this.midiLearnTarget === MIDI_LEARN_TARGET_DROP_BUTTON}
-            title="Trigger 'Drop!' effect"
+            title="'Drop!'-Effekt auslösen"
             ?disabled=${this.isDropEffectActive || this.playbackState !== 'playing'}
             >
         </drop-button>
@@ -2308,24 +1781,25 @@ class PromptDj extends LitElement {
       display: flex;
       flex-direction: column; 
       align-items: center; 
-      justify-content: flex-start; /* Align items to the start (top) */
+      justify-content: flex-start; 
       flex-grow: 1;
       width: 100%;
       padding: 80px 20px 20px 20px; 
       box-sizing: border-box;
-      gap: 20px; /* Increased gap */
+      gap: 20px;
       overflow: hidden; 
+      position: relative; /* Added for absolute positioning of add-prompt-button */
     }
     #prompts-container {
       display: flex;
-      flex-direction: column; /* Stack prompts vertically */
+      flex-direction: column; 
       gap: 15px; 
       padding: 10px; 
-      overflow-y: auto; /* Allow vertical scrolling */
-      overflow-x: hidden; /* Hide horizontal scrollbar */
-      width: clamp(350px, 60vw, 550px); /* Responsive width for vertical layout */
-      max-height: calc(100vh - 220px); /* Adjust max-height based on header/footer */
-      min-height: 200px; /* Minimum height */
+      overflow-y: auto; 
+      overflow-x: hidden; 
+      width: clamp(350px, 60vw, 550px); 
+      max-height: calc(100vh - 170px); /* Adjusted max-height */
+      min-height: 200px; 
       align-items: stretch; 
       scrollbar-width: thin;
       scrollbar-color: #5200ff #2c2c2c;
@@ -2338,8 +1812,6 @@ class PromptDj extends LitElement {
     #prompts-container::-webkit-scrollbar-thumb { background-color: #5200ff; border-radius: 4px;}
     
     .midi-learn-instructions {
-        /* Positioned absolutely relative to main-content or a specific wrapper if needed */
-        /* For now, let's assume it's just above prompts-container if active */
         text-align: center;
         background-color: rgba(40,40,40,0.9);
         color: #FFD700;
@@ -2347,20 +1819,25 @@ class PromptDj extends LitElement {
         border-radius: 6px;
         font-size: 0.9em;
         z-index: 5; 
-        white-space: nowrap;
-        margin-bottom: -5px; /* Pull it closer to the container below */
+        white-space: normal; 
+        word-break: break-word;
+        margin-bottom: -5px; 
     }
 
     prompt-controller {
-        width: 100%; /* Prompt controller takes full width of its parent */
-        /* Height will be auto based on its content */
-        flex-shrink: 0; /* Prevent shrinking if not enough space in scroll */
+        width: 100%; 
+        flex-shrink: 0; 
     }
 
     .add-prompt-main {
-      width: 60px; /* Slightly smaller add button */
+      position: absolute; /* Changed to absolute */
+      bottom: 30px;      /* Position from bottom of main-content */
+      left: 50%;         /* Center horizontally */
+      transform: translateX(-50%); /* Adjust for centering */
+      width: 60px; 
       height: 60px;
-      margin-top: 0; /* No specific margin here, gap from main-content handles it */
+      z-index: 10;       /* Ensure it's above prompts-container */
+      /* margin-top: 0; Removed as it's not relevant for absolute positioning */
     }
     
     #settings-panel {
@@ -2444,6 +1921,9 @@ document.body.appendChild(promptDjApp);
 declare global {
   interface HTMLElementTagNameMap {
     'prompt-dj': PromptDj;
-    // Add other custom elements here if needed for global type checking
+    'toast-message': ToastMessage; 
+    'help-guide-panel': HelpGuidePanel; 
+    'welcome-overlay': WelcomeOverlay; 
+    'drop-button': DropButton; 
   }
 }
