@@ -20,9 +20,9 @@ export type TutorialStepId =
   | 'creativePauseHint'
   | 'createSecondTrack_HighlightAdd'
   | 'createSecondTrack_EnterName'
-  | 'mixTrack_SetToOne' 
-  | 'mixTrack_ListenToOne' 
-  | 'mixTrack_SetToOnePointFour' 
+  | 'mixTrack_SetToOne'
+  | 'mixTrack_ListenToOne'
+  | 'mixTrack_SetToOnePointFour'
   | 'mixTrack_ListenToOnePointFourAndConclude'
   | 'completion';
 
@@ -179,7 +179,7 @@ export class TutorialController extends LitElement {
       id: 'mixTrack_ListenToOne',
       tooltipText: "Hörst du's? Gleich geht's weiter...",
       highlightTarget: () => this.targets.promptsContainer?.(),
-      autoAdvanceDelay: 8000,
+      autoAdvanceDelay: 10000, // Increased to 10 seconds
       onEnter: () => this.clearHighlightAndTooltip(false),
     },
     {
@@ -194,9 +194,9 @@ export class TutorialController extends LitElement {
     },
     {
       id: 'mixTrack_ListenToOnePointFourAndConclude',
-      tooltipText: "Hör genau! Merkst du den Unterschied? Spiel damit!",
+      tooltipText: "Hör genau! Merkst du den Unterschied? Füge weitere Spuren hinzu, sei kreativ und lass deiner Fantasie freien Lauf – alles ist möglich!",
       highlightTarget: () => this.targets.promptsContainer?.(),
-      autoAdvanceDelay: 8000,
+      autoAdvanceDelay: 10000, // Increased to 10 seconds
       onEnter: () => this.clearHighlightAndTooltip(false),
     },
     {
