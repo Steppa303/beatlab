@@ -1,4 +1,3 @@
-
 /**
  * @fileoverview Control real time music with text prompts - Minimal Demo
  * @license
@@ -301,14 +300,14 @@ export class ShareButton extends IconButton {
 
   private renderShareText() {
     return svg`
-      <text
-        x="50%"
-        y="50%"
-        dominant-baseline="middle"
-        text-anchor="middle"
+      <text 
+        x="50%" 
+        y="50%" 
+        dominant-baseline="middle" 
+        text-anchor="middle" 
         font-family="Arial, sans-serif"
         font-size="30"  /* Adjust as needed for "Share" */
-        font-weight="bold"
+        font-weight="bold" 
         fill="#FEFEFE">
         Share
       </text>
@@ -331,14 +330,14 @@ export class DropButton extends IconButton {
 
   private renderDropIcon() {
     return svg`
-      <text
-        x="50%"
-        y="50%"
-        dominant-baseline="middle"
-        text-anchor="middle"
+      <text 
+        x="50%" 
+        y="50%" 
+        dominant-baseline="middle" 
+        text-anchor="middle" 
         font-family="Arial, sans-serif"
         font-size="38"  /* Adjusted for "Drop!" */
-        font-weight="bold"
+        font-weight="bold" 
         fill="#FFD700">
         Drop!
       </text>
@@ -526,7 +525,7 @@ class HelpGuidePanel extends LitElement {
     .panel-content::-webkit-scrollbar { width: 8px; }
     .panel-content::-webkit-scrollbar-track { background: #282828; }
     .panel-content::-webkit-scrollbar-thumb { background-color: #555; border-radius: 4px; }
-
+    
     .panel-content h3 {
       color: #fff;
       margin-top: 1.5em;
@@ -830,7 +829,7 @@ class WelcomeOverlay extends LitElement {
         <div class="app-icon">🎵</div>
         <h1 id="welcome-title">Willkommen bei Steppa's BeatLab!</h1>
         <p class="tagline">Gestalte deinen Sound mit KI & MIDI</p>
-
+        
         <ul class="features">
           <li>${svg`<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>`} <span><strong>Beschreibe deine Musik:</strong> Tippe Stimmungen, Genres oder Instrumente ein.</span></li>
           <li>${svg`<svg viewBox="0 0 24 24"><path d="M4 18h16v-2H4v2zm0-5h16v-2H4v2zm0-5h16V6H4v2z"/></svg>`} <span><strong>Mische deine Tracks:</strong> Passe die Slider an, um deine Sound-Ebenen zu mischen.</span></li>
@@ -842,7 +841,7 @@ class WelcomeOverlay extends LitElement {
           <label for="first-prompt-input">Beginnen wir mit deinem ersten Sound. Welche Stimmung fühlst du gerade?</label>
           <input type="text" id="first-prompt-input" placeholder="z.B. Deep House Beat, Cinematic Strings, Lo-fi Hip Hop" @keypress=${this._handleKeyPress}>
         </div>
-
+        
         <button class="start-button" @click=${this._handleSubmit}>Musik erstellen!</button>
       </div>
     `;
@@ -866,7 +865,7 @@ class PromptDj extends LitElement {
       background: linear-gradient(45deg, #101010, #1a1a1a, #101010);
       background-size: 400% 400%;
       animation: subtleBgAnimation 25s ease infinite;
-      overflow: hidden;
+      overflow: hidden; 
     }
 
     @keyframes subtleBgAnimation {
@@ -882,15 +881,15 @@ class PromptDj extends LitElement {
       width: 100%;
       height: 100%;
       overflow: hidden;
-      z-index: 0;
-      pointer-events: none;
+      z-index: 0; 
+      pointer-events: none; 
     }
 
     .orb {
       position: absolute;
       border-radius: 50%;
       will-change: transform, opacity;
-      opacity: 0;
+      opacity: 0; 
     }
 
     .orb1 {
@@ -911,7 +910,7 @@ class PromptDj extends LitElement {
       width: 45vmax;
       height: 45vmax;
       background: radial-gradient(circle, ${unsafeCSS(ORB_COLORS[1])} 0%, transparent 70%);
-      animation: floatOrb2 45s infinite ease-in-out 5s;
+      animation: floatOrb2 45s infinite ease-in-out 5s; 
       top: 40%; left: 60%;
     }
     @keyframes floatOrb2 {
@@ -920,12 +919,12 @@ class PromptDj extends LitElement {
       50% { transform: translate(15vw, 20vh) scale(1.2); opacity: 0.1; }
       75% { transform: translate(-10vw, -15vh) scale(0.9); opacity: 0.2; }
     }
-
+    
     .orb3 {
       width: 25vmax;
       height: 25vmax;
       background: radial-gradient(circle, ${unsafeCSS(ORB_COLORS[2])} 0%, transparent 65%);
-      animation: floatOrb3 30s infinite ease-in-out 2s;
+      animation: floatOrb3 30s infinite ease-in-out 2s; 
       top: 70%; left: 20%;
     }
     @keyframes floatOrb3 {
@@ -933,12 +932,12 @@ class PromptDj extends LitElement {
       33% { transform: translate(25vw, -30vh) scale(1.4); opacity: 0.35; }
       66% { transform: translate(-15vw, 10vh) scale(0.7); opacity: 0.15; }
     }
-
-    .orb4 {
+    
+    .orb4 { 
       width: 15vmax;
       height: 15vmax;
       background: radial-gradient(circle, ${unsafeCSS(ORB_COLORS[3])} 0%, transparent 75%);
-      animation: floatOrb4 55s infinite ease-in-out 8s;
+      animation: floatOrb4 55s infinite ease-in-out 8s; 
       top: 5%; left: 80%;
     }
     @keyframes floatOrb4 {
@@ -960,9 +959,9 @@ class PromptDj extends LitElement {
       align-items: center;
       box-sizing: border-box;
       flex-shrink: 0;
-      border-bottom: 1px solid #383838;
-      z-index: 100;
-      position: relative;
+      border-bottom: 1px solid #383838; 
+      z-index: 100; 
+      position: relative; 
       box-shadow: 0 2px 10px rgba(0,0,0,0.3);
     }
 
@@ -985,11 +984,11 @@ class PromptDj extends LitElement {
       padding: 0.8em 1em;
       border-radius: 6px;
       font-size: 2vmin;
-      min-width: 180px;
-      max-width: 280px;
+      min-width: 180px; 
+      max-width: 280px; 
       box-sizing: border-box;
       transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-      flex-shrink: 1;
+      flex-shrink: 1; 
       -webkit-appearance: none;
       -moz-appearance: none;
       appearance: none;
@@ -1051,23 +1050,23 @@ class PromptDj extends LitElement {
     .header-actions { /* Now only contains settings button */
       display: flex;
       align-items: center;
-      gap: 1.5vmin;
+      gap: 1.5vmin; 
     }
     .header-actions > settings-button,
     .header-actions > cast-button {
-      width: 7vmin;
+      width: 7vmin; 
       height: 7vmin;
-      max-width: 55px;
+      max-width: 55px; 
       max-height: 55px;
     }
 
 
     .advanced-settings-panel {
-      background-color: #222;
+      background-color: #222; 
       width: 100%;
-      padding: 0;
+      padding: 0; 
       box-sizing: border-box;
-      z-index: 99;
+      z-index: 99; 
       position: relative;
       overflow: hidden;
       max-height: 0;
@@ -1152,8 +1151,8 @@ class PromptDj extends LitElement {
       /* overflow: hidden; */ /* Removed for diagnostics and to prevent clipping */
       padding: 2vmin;
       box-sizing: border-box;
-      z-index: 10;
-      position: relative;
+      z-index: 10; 
+      position: relative; 
     }
     #prompts-container {
       display: flex;
@@ -1167,20 +1166,20 @@ class PromptDj extends LitElement {
       scrollbar-width: thin;
       scrollbar-color: #666 #1a1a1a;
       box-sizing: border-box;
-      padding-right: 8px;
-      padding-left: 3px;
+      padding-right: 8px; 
+      padding-left: 3px; 
     }
     #prompts-container::-webkit-scrollbar {
-      width: 10px;
+      width: 10px; 
     }
     #prompts-container::-webkit-scrollbar-track {
-      background: #181818;
+      background: #181818; 
       border-radius: 5px;
     }
     #prompts-container::-webkit-scrollbar-thumb {
-      background-color: #555;
+      background-color: #555; 
       border-radius: 5px;
-      border: 2px solid #181818;
+      border: 2px solid #181818; 
     }
     #prompts-container::-webkit-scrollbar-thumb:hover {
       background-color: #777;
@@ -1191,15 +1190,15 @@ class PromptDj extends LitElement {
       box-sizing: border-box;
       cursor: pointer; /* Indicate clickable for MIDI learn */
     }
-
+    
     .floating-add-button { /* Styles for the add-prompt-button when it's below prompts */
-      display: block;
+      display: block; 
       width: 21vmin;
       height: 21vmin;
       max-width: 150px;
       max-height: 150px;
-      margin: 3vmin auto 1vmin auto;
-      flex-shrink: 0;
+      margin: 3vmin auto 1vmin auto; 
+      flex-shrink: 0; 
     }
 
     .bottom-left-utility-cluster {
@@ -1225,14 +1224,14 @@ class PromptDj extends LitElement {
       position: fixed;
       bottom: 20px;
       right: 20px;
-      z-index: 1000;
+      z-index: 1000; 
       display: flex;
       flex-direction: column;
-      align-items: center;
-      gap: 15px;
+      align-items: center; 
+      gap: 15px; 
     }
 
-    .utility-button-cluster > drop-button {
+    .utility-button-cluster > drop-button { 
       width: 12vmin;
       height: 12vmin;
       max-width: 80px;
@@ -1242,9 +1241,9 @@ class PromptDj extends LitElement {
 
     .utility-button-cluster > share-button,
     .utility-button-cluster > help-button {
-      width: 7vmin;
+      width: 7vmin; 
       height: 7vmin;
-      max-width: 50px;
+      max-width: 50px; 
       max-height: 50px;
     }
 
@@ -1297,12 +1296,12 @@ class PromptDj extends LitElement {
   @state() private temperature = 1.0; // Default, Min: 0, Max: 2, Step: 0.1
   @state() private showHelpPanel = false;
   @state() private globalSystemInstruction = "You are an AI music DJ creating live, evolving soundscapes based on user prompts. Strive for musicality and coherence.";
-
+  
   // Advanced settings states (kept for preset/share functionality, not UI editable)
-  @state() private guidance = 4.0;
-  @state() private bpm = 120;
-  @state() private density = 0.5;
-  @state() private brightness = 0.5;
+  @state() private guidance = 4.0; 
+  @state() private bpm = 120; 
+  @state() private density = 0.5; 
+  @state() private brightness = 0.5; 
   @state() private muteBass = false;
   @state() private muteDrums = false;
   @state() private onlyBassAndDrums = false;
@@ -1337,10 +1336,10 @@ class PromptDj extends LitElement {
   @state() private castApiState: cast.framework.CastState | null = null;
   private remotePlayer: cast.framework.RemotePlayer | null = null;
   private remotePlayerController: cast.framework.RemotePlayerController | null = null;
-  @state() private isCastSessionReadyForMedia = false;
-  @state() private hasCastMediaBeenLoadedForCurrentSession = false;
-  @state() private isFirstChunkForCurrentCastSession = true;
-
+  @state() private isCastSessionReadyForMedia = false; 
+  @state() private hasCastMediaBeenLoadedForCurrentSession = false; 
+  @state() private isFirstChunkForCurrentCastSession = true; 
+  
   // Web service casting
   private readonly audioStreamWebServiceUrl: string;
   private readonly audioChunkUploadUrl: string;
@@ -1396,27 +1395,27 @@ class PromptDj extends LitElement {
 
   override async firstUpdated() {
     // Attempt to load shared state first, this will also handle auto-play if 'share' param exists
-    const sharedStateLoaded = await this._loadStateFromUrl();
+    const sharedStateLoaded = await this._loadStateFromUrl(); 
 
     const welcomeCompleted = localStorage.getItem('beatLabWelcomeCompleted') === 'true';
 
-    if (!welcomeCompleted && !sharedStateLoaded && this.prompts.size === 0) {
+    if (!welcomeCompleted && !sharedStateLoaded && this.prompts.size === 0) { 
       this.showWelcomeScreen = true;
-      this.prompts.clear();
+      this.prompts.clear(); 
       this.nextPromptId = 0;
     } else {
       this.showWelcomeScreen = false;
-      if (!welcomeCompleted && (sharedStateLoaded || this.prompts.size > 0)) {
+      if (!welcomeCompleted && (sharedStateLoaded || this.prompts.size > 0)) { 
         localStorage.setItem('beatLabWelcomeCompleted', 'true');
       }
       if (this.prompts.size === 0) { // Welcome was completed, or returning user, but no prompts (e.g. from URL)
-        this.createInitialPrompt("Synthwave Groove");
+        this.createInitialPrompt("Synthwave Groove"); 
       }
     }
-
-    this.midiController.initialize();
+    
+    this.midiController.initialize(); 
     this.isMidiSupported = this.midiController.isMidiSupported();
-
+    
     this.midiController.addEventListener('midi-cc-received', this.handleMidiCcReceived as EventListener);
     this.midiController.addEventListener('midi-inputs-changed', this.handleMidiInputsChanged as EventListener);
     this.addEventListener('prompt-interaction', this.handlePromptInteractionForLearn as EventListener);
@@ -1455,7 +1454,7 @@ class PromptDj extends LitElement {
       if (this.learnButtonLongPressTimeout) {
         clearTimeout(this.learnButtonLongPressTimeout);
       }
-
+      
       // Restore local audio output if muted for casting
       if (this.isLocalOutputMutedForCasting) {
           try {
@@ -1571,24 +1570,24 @@ class PromptDj extends LitElement {
     if (!this.isCastApiInitialized && !toastShown && this.toastMessage) {
         this.toastMessage.show("Google Cast API could not be initialized. Please ensure you are using a supported browser (e.g., Chrome).");
     }
-    this.requestUpdate();
+    this.requestUpdate(); 
   }
 
   private async handleCastClick() {
-    if (!this.isCastApiInitialized) {
-        if (this.toastMessage) this.toastMessage.show("Cast API not available or not initialized. Try refreshing or check browser support.");
+    if (!this.isCastApiInitialized) { 
+        this.toastMessage.show("Cast API not available or not initialized. Try refreshing or check browser support.");
         return;
     }
-     if (!window.cast || !window.chrome) {
-        if (this.toastMessage) this.toastMessage.show("Cast SDK objects (window.cast/chrome) missing.");
+     if (!window.cast || !window.chrome) { 
+        this.toastMessage.show("Cast SDK objects (window.cast/chrome) missing.");
         return;
     }
     if (this.isMidiLearnActive) {
-        if (this.toastMessage) this.toastMessage.show("Cannot cast while MIDI Learn is active.");
+        this.toastMessage.show("Cannot cast while MIDI Learn is active.");
         return;
     }
      if (this.isDropActive) {
-        if (this.toastMessage) this.toastMessage.show("Cannot cast during Drop sequence.");
+        this.toastMessage.show("Cannot cast during Drop sequence.");
         return;
     }
 
@@ -1596,11 +1595,11 @@ class PromptDj extends LitElement {
         const castContext = cast.framework.CastContext.getInstance();
         const castSession = castContext.getCurrentSession();
 
-        if (castSession) {
+        if (castSession) { 
             await castSession.endSession(true);
             // Toast message will be handled by SESSION_ENDED
-        } else {
-            if (this.toastMessage) this.toastMessage.show("Searching for Cast devices...");
+        } else { 
+            this.toastMessage.show("Searching for Cast devices...");
             await castContext.requestSession();
             // Toast message for successful connection will be handled by SESSION_STARTED
             // and media loading logic in handleCastSessionStateChange
@@ -1608,10 +1607,10 @@ class PromptDj extends LitElement {
     } catch (error: any) {
         console.error('Cast session request/end failed:', error);
         let message = "Cast operation failed.";
-        if (error && error.code === 'cancel') message = "Cast selection cancelled.";
+        if (error && error.code === 'cancel') message = "Cast selection cancelled."; 
         else if (error && error.message) message = `Cast error: ${error.message}`;
         else if (typeof error === 'string' && error === 'cancel') message = "Cast selection cancelled.";
-        if (this.toastMessage) this.toastMessage.show(message);
+        this.toastMessage.show(message);
         if (cast && cast.framework && cast.framework.CastContext.getInstance()){
             this.updateCastButtonVisualState(cast.framework.CastContext.getInstance().getCastState());
         }
@@ -1619,14 +1618,14 @@ class PromptDj extends LitElement {
   }
 
   private async sendAudioChunkToWebService(chunkData: Uint8Array) {
-    if (!this.isCastingActive || !this.audioChunkUploadUrl) return;
+    if (!this.isCastingActive) return;
 
     let currentUploadUrl = this.audioChunkUploadUrl;
     if (this.isFirstChunkForCurrentCastSession) {
       const params = new URLSearchParams({
         sampleRate: this.sampleRate.toString(),
-        numChannels: '2', // Hardcoded to 2 as per decodeAudioData logic for stereo
-        bitsPerSample: '16' // Hardcoded to 16 as per Int16Array usage in decodeAudioData
+        numChannels: '2', // Matches decodeAudioData
+        bitsPerSample: '16' // Matches Int16Array usage in decodeAudioData
       });
       currentUploadUrl = `${this.audioChunkUploadUrl}?${params.toString()}`;
       console.log('Sending first chunk with params to:', currentUploadUrl);
@@ -1644,28 +1643,19 @@ class PromptDj extends LitElement {
       if (response.ok) {
         // console.log('Audio chunk sent successfully to web service.'); // Can be too verbose
         if (this.isFirstChunkForCurrentCastSession) {
-          this.isFirstChunkForCurrentCastSession = false;
+          this.isFirstChunkForCurrentCastSession = false; 
         }
 
         if (this.isCastSessionReadyForMedia && !this.hasCastMediaBeenLoadedForCurrentSession) {
-          const castContext = cast.framework.CastContext.getInstance();
-          if (!castContext) {
-            console.warn("CastContext not available when trying to load media.");
-            return;
-          }
-          const castSession = castContext.getCurrentSession();
+          const castSession = cast.framework.CastContext.getInstance().getCurrentSession();
           if (castSession) {
-            if (this.toastMessage) this.toastMessage.show(`Audio data sent. Starting stream on ${castSession.getCastDevice().friendlyName}...`, 3000);
-            
-            const cacheBuster = `sid=${castSession.getSessionId()}&ts=${Date.now()}`;
-            const mediaUrlWithCacheBuster = `${this.audioStreamWebServiceUrl}?${cacheBuster}`;
-            
+            this.toastMessage.show(`Audio data sent. Starting stream on ${castSession.getCastDevice().friendlyName}...`, 3000);
             const mediaInfo = new chrome.cast.media.MediaInfo(
-              mediaUrlWithCacheBuster,
+              this.audioStreamWebServiceUrl, 
               'audio/wav'
             );
             mediaInfo.streamType = chrome.cast.media.StreamType.LIVE;
-
+            
             const metadata = new chrome.cast.media.GenericMediaMetadata();
             metadata.title = "Steppa's BeatLab Live Mix";
             metadata.artist = "Prompt DJ";
@@ -1679,14 +1669,14 @@ class PromptDj extends LitElement {
             castSession.loadMedia(request).then(
               () => {
                 this.hasCastMediaBeenLoadedForCurrentSession = true;
-                if (this.toastMessage) this.toastMessage.show(`Streaming to ${castSession.getCastDevice().friendlyName}.`);
+                this.toastMessage.show(`Streaming to ${castSession.getCastDevice().friendlyName}.`);
                 console.log('Successfully started live stream on Cast device from web service.');
               },
               (errorCode: any) => {
                 console.error('Failed to load live stream on Cast device:', errorCode);
-                if (this.toastMessage) this.toastMessage.show(`Error starting Cast stream: ${errorCode?.description || errorCode?.code || 'Unknown error'}`);
-                this.hasCastMediaBeenLoadedForCurrentSession = false;
-                this.isFirstChunkForCurrentCastSession = true; // Allow resending params on next attempt
+                this.toastMessage.show(`Error starting Cast stream: ${errorCode?.description || errorCode?.code || 'Unknown error'}`);
+                this.hasCastMediaBeenLoadedForCurrentSession = false; 
+                this.isFirstChunkForCurrentCastSession = true; 
               }
             );
           }
@@ -1694,73 +1684,38 @@ class PromptDj extends LitElement {
       } else {
         console.error(`Error sending audio chunk to web service: ${response.status} ${response.statusText}`);
         const responseText = await response.text().catch(() => "Could not get error details.");
-        if (this.toastMessage) this.toastMessage.show(`Chunk upload error: ${response.statusText} - ${responseText}. Check console for CORS/Network issues.`, 8000);
-        // Do not reset isFirstChunkForCurrentCastSession on non-OK response if it was true, to allow retry with params.
+        this.toastMessage.show(`Chunk upload error: ${response.statusText} - ${responseText}. Check console for CORS/Network issues.`, 8000);
+        if (this.isFirstChunkForCurrentCastSession && !this.hasCastMediaBeenLoadedForCurrentSession) {
+            // Allow retry with params
+        }
       }
     } catch (error: any) {
       console.error('Network error sending audio chunk:', error);
-      if (this.toastMessage) this.toastMessage.show(`Network error sending audio chunk: ${error.message || 'Failed to fetch'}. Check console (CORS, Mixed Content, Network).`, 8000);
-      // Do not reset isFirstChunkForCurrentCastSession on network error if it was true, to allow retry with params.
+      this.toastMessage.show(`Network error sending audio chunk: ${error.message || 'Failed to fetch'}. Check console (CORS, Mixed Content, Network).`, 8000);
+       if (this.isFirstChunkForCurrentCastSession && !this.hasCastMediaBeenLoadedForCurrentSession) {
+            // Allow retry with params
+       }
     }
   }
 
-  private async resetAudioStreamOnServer(): Promise<void> {
-    if (!this.audioChunkUploadUrl) {
-        console.warn("Audio chunk upload URL is not set. Cannot determine reset URL.");
-        if (this.toastMessage) this.toastMessage.show("Configuration error: Cannot reset server stream.");
-        return;
-    }
-
-    // Derive the base URL from audioChunkUploadUrl
-    const baseUrl = this.audioChunkUploadUrl.substring(0, this.audioChunkUploadUrl.lastIndexOf('/'));
-    const resetUrl = `${baseUrl}/reset-stream`;
-
-    console.log(`Attempting to reset audio stream on server at: ${resetUrl}`);
-    try {
-        const response = await fetch(resetUrl, {
-            method: 'POST',
-            // No body needed for this endpoint as per current server.js
-        });
-
-        if (response.ok) {
-            console.log('Successfully signaled server to reset audio stream.');
-            if (this.toastMessage) this.toastMessage.show('Server audio stream reset for new session.', 2000);
-        } else {
-            const errorText = await response.text().catch(() => "Unknown server error");
-            console.error(`Failed to reset audio stream on server: ${response.status} ${response.statusText}`, errorText);
-            if (this.toastMessage) this.toastMessage.show(`Server stream reset failed: ${response.statusText}`, 5000);
-        }
-    } catch (error: any) {
-        console.error('Network error while trying to reset audio stream on server:', error);
-        if (this.toastMessage) this.toastMessage.show(`Network error resetting server stream: ${error.message}`, 5000);
-    }
-  }
-
-
-  private async handleCastSessionStateChange(eventData: cast.framework.SessionStateEventData | cast.framework.CastStateEventData) {
-    const event = eventData as cast.framework.SessionStateEventData;
-    if (!window.cast || !window.chrome ) { // Removed event.session check for NO_SESSION case
+  private handleCastSessionStateChange(eventData: cast.framework.SessionStateEventData | cast.framework.CastStateEventData) {
+    const event = eventData as cast.framework.SessionStateEventData; 
+    if (!window.cast || !window.chrome || !event.session) {
         if (event.sessionState === cast.framework.SessionState.NO_SESSION) {
              this.isCastingActive = false;
              this.isCastSessionReadyForMedia = false;
              this.hasCastMediaBeenLoadedForCurrentSession = false;
-             this.isFirstChunkForCurrentCastSession = true;
+             this.isFirstChunkForCurrentCastSession = true; 
              if (this.isLocalOutputMutedForCasting) {
                 try { this.outputNode.connect(this.audioContext.destination); } catch(e) { /* ignore */ }
                 this.isLocalOutputMutedForCasting = false;
                 console.log("Local audio output restored (no session).");
              }
         }
-        // Update button state even if session is null for NO_SESSION
-        const castContext = cast?.framework?.CastContext?.getInstance();
-        if (castContext) {
-            this.updateCastButtonVisualState(castContext.getCastState());
-        }
         return;
     }
 
-
-    const castSession = event.session; // Now we know event.session exists or we would have returned earlier for NO_SESSION
+    const castSession = event.session;
     let deviceName = "device";
     if (castSession && castSession.getCastDevice() && castSession.getCastDevice().friendlyName) {
         deviceName = castSession.getCastDevice().friendlyName;
@@ -1769,12 +1724,10 @@ class PromptDj extends LitElement {
     switch (event.sessionState) {
         case cast.framework.SessionState.SESSION_STARTED:
         case cast.framework.SessionState.SESSION_RESUMED:
-            await this.resetAudioStreamOnServer(); // Ensure server stream is reset
-
             this.isCastingActive = true;
             this.isCastSessionReadyForMedia = true;
             this.hasCastMediaBeenLoadedForCurrentSession = false;
-            this.isFirstChunkForCurrentCastSession = true;
+            this.isFirstChunkForCurrentCastSession = true; 
 
             if (this.audioContext.state === 'running' && !this.isLocalOutputMutedForCasting) {
                 try {
@@ -1785,16 +1738,16 @@ class PromptDj extends LitElement {
                 this.isLocalOutputMutedForCasting = true;
                 console.log("Local audio output muted for casting.");
             }
-            if (this.toastMessage) this.toastMessage.show(`Connected to ${deviceName}. Waiting for audio data to start stream...`, 0);
+            this.toastMessage.show(`Connected to ${deviceName}. Waiting for audio data to start stream...`, 0); 
             break;
         case cast.framework.SessionState.SESSION_ENDED:
         case cast.framework.SessionState.SESSION_START_FAILED:
             const endedMessage = event.sessionState === cast.framework.SessionState.SESSION_ENDED ? "Casting session ended." : "Failed to start casting session.";
-            if (this.toastMessage) this.toastMessage.show(endedMessage);
+            this.toastMessage.show(endedMessage);
             this.isCastingActive = false;
             this.isCastSessionReadyForMedia = false;
             this.hasCastMediaBeenLoadedForCurrentSession = false;
-            this.isFirstChunkForCurrentCastSession = true;
+            this.isFirstChunkForCurrentCastSession = true; 
 
             if (this.isLocalOutputMutedForCasting) {
                  try {
@@ -1805,31 +1758,19 @@ class PromptDj extends LitElement {
             }
             break;
         case cast.framework.SessionState.SESSION_ENDING:
-            if (this.toastMessage) this.toastMessage.show("Ending cast session...");
+            this.toastMessage.show("Ending cast session...");
             break;
-        case cast.framework.SessionState.NO_SESSION: // Explicitly handle NO_SESSION again here after session checks
-             this.isCastingActive = false;
-             this.isCastSessionReadyForMedia = false;
-             this.hasCastMediaBeenLoadedForCurrentSession = false;
-             this.isFirstChunkForCurrentCastSession = true;
-             if (this.isLocalOutputMutedForCasting) {
-                try { this.outputNode.connect(this.audioContext.destination); } catch(e) { /* ignore */ }
-                this.isLocalOutputMutedForCasting = false;
-                console.log("Local audio output restored (explicit NO_SESSION).");
-             }
-             break;
     }
-    const currentCastContext = cast?.framework?.CastContext?.getInstance();
-    if (currentCastContext){
-      this.updateCastButtonVisualState(currentCastContext.getCastState());
+    if (cast && cast.framework && cast.framework.CastContext.getInstance()){
+      this.updateCastButtonVisualState(cast.framework.CastContext.getInstance().getCastState());
     }
   }
 
   private handleCastStateChange(eventData: cast.framework.SessionStateEventData | cast.framework.CastStateEventData) {
-    const event = eventData as cast.framework.CastStateEventData;
+    const event = eventData as cast.framework.CastStateEventData; 
     this.updateCastButtonVisualState(event.castState);
   }
-
+  
   private updateCastButtonVisualState(currentCastApiState: cast.framework.CastState | null) {
     this.castApiState = currentCastApiState;
     if (this.castButtonElement) {
@@ -1909,10 +1850,10 @@ class PromptDj extends LitElement {
 
     if (!this.midiAccessAttempted || (this.midiAccessAttempted && !this.midiAccessGranted) ) {
         this.isRequestingMidiAccess = true;
-        this.requestUpdate();
+        this.requestUpdate(); 
 
         const success = await this.midiController.requestMidiAccessAndListDevices();
-
+        
         this.midiAccessGranted = success;
         this.midiAccessAttempted = true;
         this.isRequestingMidiAccess = false;
@@ -1930,7 +1871,7 @@ class PromptDj extends LitElement {
 
     if (newInputs.length > 0) {
         const currentSelectedStillExists = this.selectedMidiInputId && newInputs.some(input => input.id === this.selectedMidiInputId);
-
+        
         if (currentSelectedStillExists) {
             newSelectedIdToSet = this.selectedMidiInputId; // Keep current
         } else {
@@ -1939,7 +1880,7 @@ class PromptDj extends LitElement {
     } else { // No inputs available
         newSelectedIdToSet = null;
     }
-
+    
     if (newSelectedIdToSet !== oldSelectedId) {
         this.selectedMidiInputId = newSelectedIdToSet;
         this.midiController.selectMidiInput(this.selectedMidiInputId || '');
@@ -1984,7 +1925,7 @@ class PromptDj extends LitElement {
                 ...this.filteredPrompts,
                 e.filteredPrompt.text,
                 ]);
-                if (this.toastMessage) this.toastMessage.show(e.filteredPrompt.filteredReason);
+                this.toastMessage.show(e.filteredPrompt.filteredReason);
             }
             if (e.serverContent?.audioChunks !== undefined) {
                 if (this.playbackState === 'paused' || this.playbackState === 'stopped') {
@@ -1992,29 +1933,29 @@ class PromptDj extends LitElement {
                 }
 
                 const audioChunk = e.serverContent.audioChunks[0];
-                if (!audioChunk) return;
+                if (!audioChunk) return; 
 
                 const rawChunkDataForService = decode(audioChunk.data);
                 if (this.isCastingActive) { // This implies a cast session is active
                   await this.sendAudioChunkToWebService(rawChunkDataForService);
                 }
-
+                
                 // Local playback logic
                 if (!this.isLocalOutputMutedForCasting) {
                     const audioBuffer = await decodeAudioData(
                         rawChunkDataForService, // Use the already decoded data
                         this.audioContext,
                         this.sampleRate,
-                        2,
+                        2, 
                     );
                     const source = this.audioContext.createBufferSource();
                     source.buffer = audioBuffer;
-                    source.connect(this.outputNode);
+                    source.connect(this.outputNode); 
 
                     const currentTime = this.audioContext.currentTime;
 
                     if (this.playbackState === 'loading') {
-                        if (this.firstChunkReceivedTimestamp === 0) {
+                        if (this.firstChunkReceivedTimestamp === 0) { 
                             this.firstChunkReceivedTimestamp = currentTime;
                             this.nextStartTime = currentTime + this.bufferTime;
                             console.log(`Initial buffer: first chunk received, scheduling for ${(this.nextStartTime ?? 0).toFixed(2)}s`);
@@ -2023,18 +1964,18 @@ class PromptDj extends LitElement {
 
                     if ((this.nextStartTime ?? 0) < currentTime) {
                         console.warn(`Audio under run: nextStartTime ${(this.nextStartTime ?? 0).toFixed(2)}s < currentTime ${currentTime.toFixed(2)}s. Resetting playback target.`);
-                        this.playbackState = 'loading';
-                        this.firstChunkReceivedTimestamp = currentTime;
+                        this.playbackState = 'loading'; 
+                        this.firstChunkReceivedTimestamp = currentTime; 
                         this.nextStartTime = currentTime + this.bufferTime;
                     }
 
                     source.start(this.nextStartTime ?? 0);
-
+                    
                     if (this.playbackState === 'loading') {
-                        if (this.firstChunkReceivedTimestamp > 0 && (currentTime >= this.firstChunkReceivedTimestamp + this.bufferTime - 0.1)) {
+                        if (this.firstChunkReceivedTimestamp > 0 && (currentTime >= this.firstChunkReceivedTimestamp + this.bufferTime - 0.1)) { 
                             console.log("Buffer period elapsed, transitioning to playing state.");
                             this.playbackState = 'playing';
-                            this.firstChunkReceivedTimestamp = 0;
+                            this.firstChunkReceivedTimestamp = 0; 
                         }
                     }
                     this.nextStartTime = (this.nextStartTime ?? 0) + audioBuffer.duration;
@@ -2057,13 +1998,13 @@ class PromptDj extends LitElement {
             console.error('Error occurred during session:', e);
             this.connectionError = true;
             this.stopAudio();
-            if (this.toastMessage) this.toastMessage.show(`Connection error: ${e.message}. Please try again.`);
+            this.toastMessage.show(`Connection error: ${e.message}. Please try again.`);
             },
             onclose: (e: CloseEvent) => {
             console.log('Connection closed.');
             this.connectionError = true;
             this.stopAudio();
-            if (this.toastMessage) this.toastMessage.show('Connection closed. Please restart audio.');
+            this.toastMessage.show('Connection closed. Please restart audio.');
             },
         },
         });
@@ -2074,7 +2015,7 @@ class PromptDj extends LitElement {
         console.error("Failed to connect to session:", error);
         this.connectionError = true;
         this.playbackState = 'stopped';
-        if (this.toastMessage) this.toastMessage.show(`Failed to connect: ${error.message}`);
+        this.toastMessage.show(`Failed to connect: ${error.message}`);
     } finally {
         this.isConnecting = false;
     }
@@ -2099,7 +2040,7 @@ class PromptDj extends LitElement {
 
     if (this.isDropActive) {
         const activePrompts = Array.from(this.prompts.values())
-            .filter(p => p.weight > 0.05 && p.promptId !== this.temporaryDropPromptId);
+            .filter(p => p.weight > 0.05 && p.promptId !== this.temporaryDropPromptId); 
 
         let currentPlayingStyleDescription = "the current soundscape";
         if (activePrompts.length > 0) {
@@ -2108,7 +2049,7 @@ class PromptDj extends LitElement {
                  currentPlayingStyleDescription += ", and other elements";
             }
         }
-
+        
         musicGenConfig.systemInstruction = `You are a master DJ. Execute the following musical drop sequence, making it fit cohesively with the existing musical style, described as: ${currentPlayingStyleDescription}. Emphasize its impact and musicality.`;
     } else {
         musicGenConfig.systemInstruction = this.globalSystemInstruction;
@@ -2118,7 +2059,7 @@ class PromptDj extends LitElement {
         await this.session.setMusicGenerationConfig({ musicGenerationConfig: musicGenConfig });
         // console.log("Generation config sent to session:", musicGenConfig); // Can be too verbose
     } catch (e: any) {
-        if (this.toastMessage) this.toastMessage.show(`Error setting generation config: ${e.message}`);
+        this.toastMessage.show(`Error setting generation config: ${e.message}`);
     }
   }, 300);
 
@@ -2141,7 +2082,7 @@ class PromptDj extends LitElement {
       });
       // console.log("Prompts sent to session:", promptsToSend); // Can be too verbose
     } catch (e: any) {
-      if (this.toastMessage) this.toastMessage.show(`Error setting prompts: ${e.message}`);
+      this.toastMessage.show(`Error setting prompts: ${e.message}`);
       this.pauseAudio();
     }
   }, 200);
@@ -2169,7 +2110,7 @@ class PromptDj extends LitElement {
 
   private async handlePlayPause() {
     if (this.isConnecting && (this.playbackState === 'stopped' || this.playbackState === 'paused')) {
-        if (this.toastMessage) this.toastMessage.show("Connecting... please wait.");
+        this.toastMessage.show("Connecting... please wait.");
         return;
     }
 
@@ -2215,8 +2156,8 @@ class PromptDj extends LitElement {
         }
     }
     this.playbackState = 'paused';
-    this.nextStartTime = 0;
-    this.firstChunkReceivedTimestamp = 0;
+    this.nextStartTime = 0; 
+    this.firstChunkReceivedTimestamp = 0; 
   }
 
 
@@ -2229,7 +2170,7 @@ class PromptDj extends LitElement {
             this.session.play();
         } catch (e) {
             console.error("Error playing session:", e);
-            if (this.toastMessage) this.toastMessage.show("Error trying to play. Session might be in an invalid state.");
+            this.toastMessage.show("Error trying to play. Session might be in an invalid state.");
             this.playbackState = 'stopped';
             this.firstChunkReceivedTimestamp = 0;
             return;
@@ -2239,7 +2180,7 @@ class PromptDj extends LitElement {
             this.playbackState = 'stopped';
             this.firstChunkReceivedTimestamp = 0;
         }
-        if (this.toastMessage) this.toastMessage.show("Cannot play: Not connected or connection error.");
+        this.toastMessage.show("Cannot play: Not connected or connection error.");
         return;
     }
   }
@@ -2256,17 +2197,17 @@ class PromptDj extends LitElement {
     }
     this.playbackState = 'stopped';
     this.nextStartTime = 0;
-    this.firstChunkReceivedTimestamp = 0;
+    this.firstChunkReceivedTimestamp = 0; 
   }
 
 
   private async handleAddPrompt() {
     if (this.isDropActive) {
-        if (this.toastMessage) this.toastMessage.show("Cannot add prompt during Drop sequence.");
+        this.toastMessage.show("Cannot add prompt during Drop sequence.");
         return;
     }
     if (this.isMidiLearnActive) {
-        if (this.toastMessage) this.toastMessage.show("Cannot add prompt while MIDI Learn is active.");
+        this.toastMessage.show("Cannot add prompt while MIDI Learn is active.");
         return;
     }
     const newPromptId = `prompt-${this.nextPromptId}`;
@@ -2275,7 +2216,7 @@ class PromptDj extends LitElement {
 
     const newPrompt: Prompt = {
       promptId: newPromptId,
-      text: 'New Prompt',
+      text: 'New Prompt', 
       weight: 0,
       color: newColor,
     };
@@ -2321,8 +2262,8 @@ class PromptDj extends LitElement {
   private actuallyRemovePrompt(promptIdToRemove: string) {
     const newPrompts = new Map(this.prompts);
     newPrompts.delete(promptIdToRemove);
-    this.prompts = newPrompts;
-
+    this.prompts = newPrompts; 
+    
     if (this.isDropActive && this.originalPromptWeightsBeforeDrop?.has(promptIdToRemove)) {
         this.originalPromptWeightsBeforeDrop.delete(promptIdToRemove);
     }
@@ -2336,7 +2277,7 @@ class PromptDj extends LitElement {
     if (this.isMidiLearnActive && this.midiLearnTargetId) {
       // Check if this CC is already mapped to something else
       if (this.midiCcToTargetMap.has(ccNumber) && this.midiCcToTargetMap.get(ccNumber) !== this.midiLearnTargetId) {
-        if (this.toastMessage) this.toastMessage.show(`MIDI CC ${ccNumber} is already assigned. Clear it first or use another control.`);
+        this.toastMessage.show(`MIDI CC ${ccNumber} is already assigned. Clear it first or use another control.`);
         return;
       }
 
@@ -2349,7 +2290,7 @@ class PromptDj extends LitElement {
       } else if (this.midiLearnTargetId === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON) {
         targetName = 'Play/Pause Button';
       }
-      if (this.toastMessage) this.toastMessage.show(`MIDI CC ${ccNumber} assigned to ${targetName}.`);
+      this.toastMessage.show(`MIDI CC ${ccNumber} assigned to ${targetName}.`);
       this.midiLearnTargetId = null;
       this.updateLearnModeMessage();
       this.requestUpdate(); // Update UI (highlights)
@@ -2384,8 +2325,8 @@ class PromptDj extends LitElement {
   }
 
   private handleTemperatureChange(e: CustomEvent<number>) {
-    if (this.isDropActive) {
-        if (this.toastMessage) this.toastMessage.show("Cannot change temperature during Drop sequence.");
+    if (this.isDropActive) { 
+        this.toastMessage.show("Cannot change temperature during Drop sequence.");
         const slider = e.target as ParameterSlider;
         if (slider) slider.value = this.temperature;
         return;
@@ -2396,37 +2337,37 @@ class PromptDj extends LitElement {
 
   // Keep other handlers (handleGuidanceChange etc.) for preset/share even if UI is removed
   private handleGuidanceChange(e: CustomEvent<number>) {
-    if (this.isDropActive) { if (this.toastMessage) this.toastMessage.show("Settings locked during Drop."); (e.target as ParameterSlider).value = this.guidance; return; }
+    if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as ParameterSlider).value = this.guidance; return; }
     this.guidance = e.detail;
     this.setGenerationConfiguration();
   }
   private handleBpmChange(e: CustomEvent<number>) {
-    if (this.isDropActive) { if (this.toastMessage) this.toastMessage.show("Settings locked during Drop."); (e.target as ParameterSlider).value = this.bpm; return; }
+    if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as ParameterSlider).value = this.bpm; return; }
     this.bpm = e.detail;
     this.setGenerationConfiguration();
   }
   private handleDensityChange(e: CustomEvent<number>) {
-    if (this.isDropActive) { if (this.toastMessage) this.toastMessage.show("Settings locked during Drop."); (e.target as ParameterSlider).value = this.density; return; }
+    if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as ParameterSlider).value = this.density; return; }
     this.density = e.detail;
     this.setGenerationConfiguration();
   }
   private handleBrightnessChange(e: CustomEvent<number>) {
-    if (this.isDropActive) { if (this.toastMessage) this.toastMessage.show("Settings locked during Drop."); (e.target as ParameterSlider).value = this.brightness; return; }
+    if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as ParameterSlider).value = this.brightness; return; }
     this.brightness = e.detail;
     this.setGenerationConfiguration();
   }
   private handleMuteBassToggle(e: CustomEvent<{checked: boolean}>) {
-    if (this.isDropActive) { if (this.toastMessage) this.toastMessage.show("Settings locked during Drop."); (e.target as ToggleSwitch).checked = this.muteBass; return; }
+    if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as ToggleSwitch).checked = this.muteBass; return; }
     this.muteBass = e.detail.checked;
     this.setGenerationConfiguration();
   }
   private handleMuteDrumsToggle(e: CustomEvent<{checked: boolean}>) {
-    if (this.isDropActive) { if (this.toastMessage) this.toastMessage.show("Settings locked during Drop."); (e.target as ToggleSwitch).checked = this.muteDrums; return; }
+    if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as ToggleSwitch).checked = this.muteDrums; return; }
     this.muteDrums = e.detail.checked;
     this.setGenerationConfiguration();
   }
   private handleOnlyBassAndDrumsToggle(e: CustomEvent<{checked: boolean}>) {
-    if (this.isDropActive) { if (this.toastMessage) this.toastMessage.show("Settings locked during Drop."); (e.target as ToggleSwitch).checked = this.onlyBassAndDrums; return; }
+    if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as ToggleSwitch).checked = this.onlyBassAndDrums; return; }
     this.onlyBassAndDrums = e.detail.checked;
     if (this.onlyBassAndDrums) {
         this.muteBass = false;
@@ -2435,7 +2376,7 @@ class PromptDj extends LitElement {
     this.setGenerationConfiguration();
   }
   private handleMusicGenerationModeChange(e: Event) {
-    if (this.isDropActive) { if (this.toastMessage) this.toastMessage.show("Settings locked during Drop."); (e.target as HTMLSelectElement).value = this.musicGenerationMode; return; }
+    if (this.isDropActive) { this.toastMessage.show("Settings locked during Drop."); (e.target as HTMLSelectElement).value = this.musicGenerationMode; return; }
     this.musicGenerationMode = (e.target as HTMLSelectElement).value as 'QUALITY' | 'DIVERSITY';
     this.setGenerationConfiguration();
   }
@@ -2444,7 +2385,7 @@ class PromptDj extends LitElement {
   private toggleHelpPanel() {
     this.showHelpPanel = !this.showHelpPanel;
   }
-
+  
   private _selectDropPromptText(): string {
     const activePrompts = Array.from(this.prompts.values())
         .filter(p => p.weight > 0.05 && (!this.isDropActive || p.promptId !== this.temporaryDropPromptId));
@@ -2466,69 +2407,69 @@ class PromptDj extends LitElement {
   private async handleDropClick() {
     if (this.isMidiLearnActive) { this.setMidiLearnTarget(MIDI_LEARN_TARGET_DROP_BUTTON); return; }
     if (this.isDropActive) {
-      if (this.toastMessage) this.toastMessage.show("Drop sequence already in progress!");
+      this.toastMessage.show("Drop sequence already in progress!");
       return;
     }
 
     const selectedDropText = this._selectDropPromptText(); // Select drop text based on current music
-
+    
     this.isDropActive = true; // Set state FIRST
-    if (this.toastMessage) this.toastMessage.show("Drop sequence initiated! Brace yourself!");
+    this.toastMessage.show("Drop sequence initiated! Brace yourself!");
 
-    this.setGenerationConfiguration();
+    this.setGenerationConfiguration(); 
 
     this.originalPromptWeightsBeforeDrop = new Map();
     const newPromptsForDrop = new Map<string, Prompt>();
 
     this.prompts.forEach((prompt, id) => {
       this.originalPromptWeightsBeforeDrop!.set(id, prompt.weight);
-      newPromptsForDrop.set(id, { ...prompt, weight: 0.05 });
+      newPromptsForDrop.set(id, { ...prompt, weight: 0.05 }); 
     });
 
     this.temporaryDropPromptId = `drop-prompt-${Date.now()}`;
     newPromptsForDrop.set(this.temporaryDropPromptId, {
       promptId: this.temporaryDropPromptId,
-      text: selectedDropText,
-      weight: 2.0,
-      color: TRACK_COLORS[4],
+      text: selectedDropText, 
+      weight: 2.0, 
+      color: TRACK_COLORS[4], 
     });
 
     this.prompts = newPromptsForDrop;
-    this.setSessionPrompts();
+    this.setSessionPrompts(); 
 
     this.dropTimeoutId = window.setTimeout(async () => {
       const newPromptsAfterDrop = new Map<string, Prompt>();
       this.originalPromptWeightsBeforeDrop?.forEach((originalWeight, promptId) => {
-        const currentPromptState = this.prompts.get(promptId);
-        if (currentPromptState && promptId !== this.temporaryDropPromptId) {
+        const currentPromptState = this.prompts.get(promptId); 
+        if (currentPromptState && promptId !== this.temporaryDropPromptId) { 
            newPromptsAfterDrop.set(promptId, { ...currentPromptState, weight: originalWeight });
         }
       });
-
-      this.prompts = newPromptsAfterDrop;
-
-      this.isDropActive = false;
-
-      this.setGenerationConfiguration();
-
-      this.setSessionPrompts();
+      
+      this.prompts = newPromptsAfterDrop; 
+      
+      this.isDropActive = false; 
+      
+      this.setGenerationConfiguration(); 
+      
+      this.setSessionPrompts(); 
 
       this.originalPromptWeightsBeforeDrop = null;
       this.temporaryDropPromptId = null;
       this.dropTimeoutId = null;
-      if (this.toastMessage) this.toastMessage.show("Drop sequence complete!");
-    }, 8000);
+      this.toastMessage.show("Drop sequence complete!");
+    }, 8000); 
   }
 
 
   private _applyConfiguration(configData: Preset, source: 'preset' | 'share-link') {
     if (this.isDropActive) {
-        if (this.toastMessage) this.toastMessage.show(`Cannot load ${source} during Drop sequence.`);
+        this.toastMessage.show(`Cannot load ${source} during Drop sequence.`);
         return;
     }
-
+    
     if (
-        typeof configData.version !== 'string' ||
+        typeof configData.version !== 'string' || 
         !Array.isArray(configData.prompts) ||
         // configData.temperature can be undefined if missing, so check its type only if present
         (configData.temperature !== undefined && typeof configData.temperature !== 'number') ||
@@ -2536,14 +2477,14 @@ class PromptDj extends LitElement {
     ) {
         throw new Error('Invalid configuration data structure.');
     }
-
-    this.stopAudio();
+    
+    this.stopAudio(); 
     this.prompts.clear();
     this.nextPromptId = 0;
     this.filteredPrompts.clear();
 
     const newPromptsMap = new Map<string, Prompt>();
-    configData.prompts.forEach((p: PresetPrompt) => {
+    configData.prompts.forEach((p: PresetPrompt) => { 
         const newPromptId = `prompt-${this.nextPromptId}`;
         const newColor = TRACK_COLORS[this.nextPromptId % TRACK_COLORS.length];
         this.nextPromptId++;
@@ -2555,7 +2496,7 @@ class PromptDj extends LitElement {
         });
     });
     this.prompts = newPromptsMap;
-
+    
     // Apply other settings from preset/share link, using component defaults if not present in configData
     this.temperature = configData.temperature ?? 1.0;
     this.guidance = configData.guidance ?? 4.0;
@@ -2572,22 +2513,22 @@ class PromptDj extends LitElement {
         this.muteDrums = false;
     }
 
-    this.setGenerationConfiguration();
-    this.setSessionPrompts();
-
-    this.requestUpdate();
-
+    this.setGenerationConfiguration(); 
+    this.setSessionPrompts();          
+    
+    this.requestUpdate(); 
+    
     if (source === 'preset') {
-        if (this.toastMessage) this.toastMessage.show('Preset loaded successfully!');
+        this.toastMessage.show('Preset loaded successfully!');
     } else if (source === 'share-link') {
-        if (this.toastMessage) this.toastMessage.show('Shared configuration loaded!');
+        this.toastMessage.show('Shared configuration loaded!');
     }
   }
 
 
   private handleSavePreset() {
     if (this.isDropActive) {
-        if (this.toastMessage) this.toastMessage.show("Cannot save preset during Drop sequence.");
+        this.toastMessage.show("Cannot save preset during Drop sequence.");
         return;
     }
     const presetPrompts: PresetPrompt[] = Array.from(this.prompts.values()).map(p => ({
@@ -2614,17 +2555,17 @@ class PromptDj extends LitElement {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'steppas_beatlab_preset_v1.1.json';
+    a.download = 'steppas_beatlab_preset_v1.1.json'; 
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    if (this.toastMessage) this.toastMessage.show('Preset saved!');
+    this.toastMessage.show('Preset saved!');
   }
 
   private handleLoadPresetClick() {
     if (this.isDropActive) {
-        if (this.toastMessage) this.toastMessage.show("Cannot load preset during Drop sequence.");
+        this.toastMessage.show("Cannot load preset during Drop sequence.");
         return;
     }
     if (this.fileInputForPreset) {
@@ -2646,13 +2587,13 @@ class PromptDj extends LitElement {
         this._applyConfiguration(parsedPreset, 'preset');
       } catch (e: any) {
         console.error('Error loading preset:', e);
-        if (this.toastMessage) this.toastMessage.show(`Error loading preset: ${e.message || 'Invalid file format.'}`);
+        this.toastMessage.show(`Error loading preset: ${e.message || 'Invalid file format.'}`);
       } finally {
         input.value = '';
       }
     };
     reader.onerror = () => {
-      if (this.toastMessage) this.toastMessage.show('Error reading preset file.');
+      this.toastMessage.show('Error reading preset file.');
        input.value = '';
     };
     reader.readAsText(file);
@@ -2667,7 +2608,7 @@ class PromptDj extends LitElement {
             const sharedStateBase64 = decodeURIComponent(encodedSharedStateBase64);
             const jsonString = atob(sharedStateBase64);
             const parsedConfig = JSON.parse(jsonString) as Preset;
-
+            
             this._applyConfiguration(parsedConfig, 'share-link');
             history.replaceState(null, '', window.location.pathname); // Clean URL
 
@@ -2685,21 +2626,21 @@ class PromptDj extends LitElement {
                             return true; // Shared state was processed, but playback failed
                         }
                     } else {
-                        this.setGenerationConfiguration();
-                        this.setSessionPrompts();
+                        this.setGenerationConfiguration(); 
+                        this.setSessionPrompts();          
                     }
 
                     if (this.audioContext.state === 'suspended') {
                         await this.audioContext.resume().catch(err => console.error("Audio context resume failed:", err));
                     }
-                    this.loadAudio();
-                    if (this.toastMessage) this.toastMessage.show('Playing shared session...');
+                    this.loadAudio(); 
+                    this.toastMessage.show('Playing shared session...');
                 }
             }
             return true; // Shared state loaded
         } catch (e: any) {
             console.error('Error loading shared state from URL:', e);
-            if (this.toastMessage) this.toastMessage.show(`Failed to load shared state: ${e.message || 'Invalid link'}`);
+            this.toastMessage.show(`Failed to load shared state: ${e.message || 'Invalid link'}`);
             history.replaceState(null, '', window.location.pathname);
             return false; // Error loading shared state
         }
@@ -2709,7 +2650,7 @@ class PromptDj extends LitElement {
 
   private async handleShareClick() {
     if (this.isDropActive) {
-        if (this.toastMessage) this.toastMessage.show("Cannot share configuration during Drop sequence.");
+        this.toastMessage.show("Cannot share configuration during Drop sequence.");
         return;
     }
     const currentPrompts: PresetPrompt[] = Array.from(this.prompts.values()).map(p => ({
@@ -2735,29 +2676,29 @@ class PromptDj extends LitElement {
       const jsonString = JSON.stringify(shareableState);
       const base64State = btoa(jsonString);
       const encodedBase64State = encodeURIComponent(base64State);
-
-      const baseUrl = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+      
+      const baseUrl = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") 
           ? window.location.origin + window.location.pathname
-          : 'https://steppas-beatlab.onrender.com/';
+          : 'https://steppas-beatlab.onrender.com/'; 
 
       const shareUrl = `${baseUrl}?share=${encodedBase64State}`;
 
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(shareUrl);
-        if (this.toastMessage) this.toastMessage.show('Share link copied to clipboard!');
+        this.toastMessage.show('Share link copied to clipboard!');
       } else {
-        if (this.toastMessage) this.toastMessage.show('Could not copy link. Please copy manually.');
+        this.toastMessage.show('Could not copy link. Please copy manually.');
         console.warn('Share URL (copy manually):', shareUrl);
       }
     } catch (e: any) {
       console.error('Error creating share link:', e);
-      if (this.toastMessage) this.toastMessage.show('Error creating share link.');
+      this.toastMessage.show('Error creating share link.');
     }
   }
 
   private handleLearnButtonMouseDown() {
     if (this.isMidiLearnActive || !this.selectedMidiInputId) return; // Only for clearing, not when already learning or no MIDI
-
+    
     this.learnButtonLongPressTimeout = window.setTimeout(() => {
       this.clearAllMidiMappings("All MIDI assignments cleared via long press.");
     }, 2000); // 2 seconds for long press
@@ -2772,15 +2713,15 @@ class PromptDj extends LitElement {
 
   private toggleMidiLearnMode() {
     if (!this.selectedMidiInputId) {
-        if (this.toastMessage) this.toastMessage.show("Please select a MIDI device first.");
+        this.toastMessage.show("Please select a MIDI device first.");
         return;
     }
     this.isMidiLearnActive = !this.isMidiLearnActive;
     if (!this.isMidiLearnActive) {
       this.midiLearnTargetId = null; // Clear target if exiting learn mode
-      if (this.toastMessage) this.toastMessage.show("MIDI Learn mode deactivated.");
+      this.toastMessage.show("MIDI Learn mode deactivated.");
     } else {
-        if (this.toastMessage) this.toastMessage.show("MIDI Learn mode activated!");
+        this.toastMessage.show("MIDI Learn mode activated!");
     }
     this.updateLearnModeMessage();
     this.requestUpdate(); // To update button text and highlights
@@ -2812,14 +2753,14 @@ class PromptDj extends LitElement {
     this.updateLearnModeMessage();
     this.requestUpdate(); // To update highlights
   }
-
+  
   // Called when a prompt-controller's main div is clicked
   private handlePromptInteractionForLearn(e: CustomEvent<{promptId: string; text: string}>) {
     if (this.isMidiLearnActive) {
       this.setMidiLearnTarget(e.detail.promptId);
     }
   }
-
+  
   private handlePlayPauseButtonClickForLearn() {
     if (this.isMidiLearnActive) {
       this.setMidiLearnTarget(MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON);
@@ -2831,7 +2772,7 @@ class PromptDj extends LitElement {
   private clearAllMidiMappings(toastMessageText = "All MIDI assignments cleared.") {
     if (this.midiCcToTargetMap.size > 0) {
         this.midiCcToTargetMap.clear();
-        if (this.toastMessage) this.toastMessage.show(toastMessageText);
+        this.toastMessage.show(toastMessageText);
     }
      if (this.isMidiLearnActive && this.midiLearnTargetId) {
         this.midiLearnTargetId = null;
@@ -2890,7 +2831,7 @@ class PromptDj extends LitElement {
               ${midiSelectorOptions}
               </select>
               ${this.selectedMidiInputId ? html`
-                  <button
+                  <button 
                       class="midi-learn-button ${classMap({learning: this.isMidiLearnActive})}"
                       @click=${this.toggleMidiLearnMode}
                       @mousedown=${this.handleLearnButtonMouseDown}
@@ -2903,8 +2844,8 @@ class PromptDj extends LitElement {
               ` : ''}
           </div>
           <div class="header-actions">
-            <cast-button
-                @click=${this.handleCastClick}
+            <cast-button 
+                @click=${this.handleCastClick} 
                 ?disabled=${!this.isCastApiInitialized || this.isDropActive || this.showWelcomeScreen || (this.castApiState === cast.framework.CastState.CONNECTING)}
                 aria-label=${this.isCastingActive ? "Stop Casting" : "Cast to device"}
                 title=${this.isCastingActive ? "Stop Casting" : "Cast to device"}
@@ -2934,19 +2875,19 @@ class PromptDj extends LitElement {
             ${this.renderPrompts()}
           </div>
           ${!this.showWelcomeScreen ? html`
-            <add-prompt-button
+            <add-prompt-button 
               class="floating-add-button"
-              @click=${this.handleAddPrompt}
+              @click=${this.handleAddPrompt} 
               aria-label="Add new prompt track">
             </add-prompt-button>
           ` : ''}
         </div>
         <toast-message .message=${this.toastMessage?.message || ''} .showing=${this.toastMessage?.showing || false}></toast-message>
-
+        
         ${!this.showWelcomeScreen ? html`
           <div class="bottom-left-utility-cluster">
             <play-pause-button
-                id="play-pause-main-button"
+                id="play-pause-main-button" 
                 @click=${this.handlePlayPauseButtonClickForLearn}
                 .playbackState=${this.playbackState}
                 .isMidiLearnTarget=${this.isMidiLearnActive && this.midiLearnTargetId === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON}
@@ -2955,9 +2896,9 @@ class PromptDj extends LitElement {
           </div>
 
           <div class="utility-button-cluster">
-            <drop-button
+            <drop-button 
                 id="drop-main-button"
-                @click=${this.handleDropClick}
+                @click=${this.handleDropClick} 
                 .isMidiLearnTarget=${this.isMidiLearnActive && this.midiLearnTargetId === MIDI_LEARN_TARGET_DROP_BUTTON}
                 aria-label="Trigger Drop Effect">
             </drop-button>
@@ -2965,9 +2906,9 @@ class PromptDj extends LitElement {
             <help-button @click=${this.toggleHelpPanel} aria-label="Open help guide"></help-button>
           </div>
         ` : ''}
-
+        
         <help-guide-panel .isOpen=${this.showHelpPanel} @close-help=${this.toggleHelpPanel}></help-guide-panel>
-
+        
         <input type="file" id="presetFileInput" accept=".json" style="display: none;" @change=${this.handlePresetFileSelected}>
       </div> <!-- End of main-ui-content -->
       `;
@@ -3030,7 +2971,7 @@ declare global {
     'toggle-switch': ToggleSwitch;
     'toast-message': ToastMessage;
     'help-guide-panel': HelpGuidePanel;
-    'drop-button': DropButton;
+    'drop-button': DropButton; 
     'welcome-overlay': WelcomeOverlay;
   }
 
