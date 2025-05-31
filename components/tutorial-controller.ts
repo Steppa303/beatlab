@@ -113,7 +113,7 @@ export class TutorialController extends LitElement {
     {
       id: 'createFirstTrack_EnterName',
       highlightTarget: () => this.firstPromptId ? this.targets.getPromptTextInput?.(this.firstPromptId) : null,
-      tooltipText: "Benenn ihn (z.B. 'Trompete', 'tek house', '20er Swing') & Enter!",
+      tooltipText: "Benenn ihn (z.B. 'Saxophon', 'Trompete', '20er Swing') & Enter!",
       waitForEvent: 'promptTextChanged',
       eventDetailCondition: (detail) => detail.promptId === this.firstPromptId && detail.newText.trim() !== '' && detail.newText.trim().toLowerCase() !== 'neuer prompt' && detail.newText.trim().toLowerCase() !== 'untitled prompt',
       onEnter: () => {
@@ -163,7 +163,7 @@ export class TutorialController extends LitElement {
     {
       id: 'createSecondTrack_EnterName',
       highlightTarget: () => this.secondPromptId ? this.targets.getPromptTextInput?.(this.secondPromptId) : null,
-      tooltipText: "Benenn ihn (z.B. '70s Funk Bassline', 'Indie Pop Gitarre', 'Hyperpop Synth Lead') & Enter!",
+      tooltipText: "Benenn ihn (z.B. 'Tek House', '90er Jahre Hiphop', 'Hyperpop Synth Lead') & Enter!",
       waitForEvent: 'promptTextChanged',
       eventDetailCondition: (detail) => detail.promptId === this.secondPromptId && detail.newText.trim() !== '' && detail.newText.trim().toLowerCase() !== 'neuer prompt' && detail.newText.trim().toLowerCase() !== 'untitled prompt',
     },
