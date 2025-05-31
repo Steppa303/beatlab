@@ -1,3 +1,5 @@
+
+
 /**
  * @fileoverview Shared type definitions for the application.
  * @license
@@ -17,6 +19,9 @@ export type PlaybackState = 'stopped' | 'playing' | 'loading' | 'paused';
 
 // Extend LiveMusicGenerationConfig to include new parameters
 export interface AppLiveMusicGenerationConfig extends GenAiLiveMusicGenerationConfig {
+  // GenAiLiveMusicGenerationConfig is expected to have a 'prompts' field.
+  // This interface adds or refines other custom fields if necessary.
+  
   guidance?: number;
   bpm?: number;
   density?: number;
@@ -36,7 +41,7 @@ export interface PresetPrompt {
 
 export interface Preset {
   version: string;
-  prompts: PresetPrompt[];
+  prompts: PresetPrompt[]; // Presets still use 'prompts' for clarity in saved files
   temperature: number;
   guidance?: number;
   bpm?: number;
