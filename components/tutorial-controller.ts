@@ -81,6 +81,8 @@ export class TutorialController extends LitElement {
   @state() private tooltipText = '';
   @state() private currentPopup: TutorialStepConfig['popup'] | null = null;
   @state() private showSkipButton = false;
+  @state() private dontShowAgainChecked = false;
+
 
   private resizeObserver!: ResizeObserver;
   private firstPromptId: string | null = null;
@@ -179,7 +181,7 @@ export class TutorialController extends LitElement {
       id: 'mixTrack_ListenToOne',
       tooltipText: "Hörst du's? Gleich geht's weiter...",
       highlightTarget: () => this.targets.promptsContainer?.(),
-      autoAdvanceDelay: 10000, // Increased to 10 seconds
+      autoAdvanceDelay: 10000, 
       onEnter: () => this.clearHighlightAndTooltip(false),
     },
     {
@@ -196,7 +198,7 @@ export class TutorialController extends LitElement {
       id: 'mixTrack_ListenToOnePointFourAndConclude',
       tooltipText: "Hör genau! Merkst du den Unterschied? Füge weitere Spuren hinzu, sei kreativ und lass deiner Fantasie freien Lauf – alles ist möglich!",
       highlightTarget: () => this.targets.promptsContainer?.(),
-      autoAdvanceDelay: 10000, // Increased to 10 seconds
+      autoAdvanceDelay: 10000, 
       onEnter: () => this.clearHighlightAndTooltip(false),
     },
     {
@@ -252,7 +254,7 @@ export class TutorialController extends LitElement {
   protected override firstUpdated() {
     if (this.isActive) {
       setTimeout(() => {
-        if (this.isActive) {
+        if (this.isActive) { // Double check isActive in case it changed during the timeout
             this.startTutorial();
         }
       }, 0); // Yield to browser, then start tutorial
@@ -263,6 +265,7 @@ export class TutorialController extends LitElement {
     this.currentStepIndex = 0;
     this.firstPromptId = null;
     this.secondPromptId = null;
+    this.dontShowAgainChecked = false; // Reset for new tutorial session
     this.executeStep();
   }
 
@@ -284,6 +287,8 @@ export class TutorialController extends LitElement {
       this.currentStepIndex++;
       this.executeStep();
     } else {
+      // This case should ideally be handled by the completion popup logic
+      // but as a fallback, treat as normal completion.
       this.finishTutorial(false);
     }
   }
@@ -311,7 +316,7 @@ export class TutorialController extends LitElement {
             this.tooltipStyle = { display: 'block', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
         }
       }
-    } else if (stepConfig.tooltipText) {
+    } else if (stepConfig.tooltipText) { // Centered tooltip if no highlight target but text exists
         this.tooltipText = stepConfig.tooltipText;
         this.tooltipStyle = { display: 'block', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' };
     }
@@ -323,6 +328,7 @@ export class TutorialController extends LitElement {
 
     if (stepConfig.autoAdvanceDelay && !stepConfig.waitForEvent) {
       setTimeout(() => {
+        // Check if we are still on the same step before auto-advancing
         if (this.steps[this.currentStepIndex]?.id === stepConfig.id) {
             this.advanceStep();
         }
@@ -337,11 +343,13 @@ export class TutorialController extends LitElement {
     const stepConfig = this.steps[this.currentStepIndex];
 
     if (stepConfig && stepConfig.waitForEvent === eventType) {
+       // If there's a condition, it must be met
        if (stepConfig.eventDetailCondition && !stepConfig.eventDetailCondition(detail)) {
         return;
       }
+      // Store prompt IDs if applicable
       if (eventType === 'promptCreated') {
-          if (detail.isEmpty && !this.firstPromptId) {
+          if (detail.isEmpty && !this.firstPromptId) { // Assuming 'isEmpty' means it's the first prompt
             this.firstPromptId = detail.promptId;
           } else if (!detail.isEmpty && this.firstPromptId && detail.promptId !== this.firstPromptId && !this.secondPromptId) {
             this.secondPromptId = detail.promptId;
@@ -364,17 +372,23 @@ export class TutorialController extends LitElement {
 
   private setupHighlightAndTooltip(targetElement: HTMLElement, text: string) {
     this.tooltipText = text;
-    this.resizeObserver.disconnect();
+    this.resizeObserver.disconnect(); // Stop observing old targets
     this.resizeObserver.observe(targetElement);
-    this.resizeObserver.observe(this.ownerDocument.body);
-    this.updateHighlightInternal();
+    this.resizeObserver.observe(this.ownerDocument.body); // Also observe body for global layout changes
+    this.updateHighlightInternal(); // Initial positioning
   }
 
   private updateHighlightInternal = () => {
     let currentTargetElement: HTMLElement | null = null;
     const stepConfig = this.steps[this.currentStepIndex];
 
-    if (stepConfig && stepConfig.highlightTarget) {
+    // Ensure we only proceed if the tutorial is active and the current step configuration exists
+    if (!this.isActive || !stepConfig) {
+      this.clearHighlightAndTooltip();
+      return;
+    }
+    
+    if (stepConfig.highlightTarget) {
         currentTargetElement = stepConfig.highlightTarget();
     }
 
@@ -384,12 +398,15 @@ export class TutorialController extends LitElement {
     }
 
     const rect = currentTargetElement.getBoundingClientRect();
+    // If element is not visible or has no dimensions, clear and return
     if (rect.width === 0 && rect.height === 0 && rect.top === 0 && rect.left === 0) {
         this.clearHighlightAndTooltip();
         return;
     }
 
-    const padding = (stepConfig?.id.startsWith('createFirstTrack_ConfirmCreation') || stepConfig?.id.startsWith('mixTrack_ListenToOne') || stepConfig?.id.startsWith('mixTrack_ListenToOnePointFourAndConclude')) ? 8 : 4;
+    // Determine padding based on the step ID to make the highlight box slightly larger
+    // for confirmation steps or steps where interaction is less direct.
+    const padding = (stepConfig?.id.startsWith('createFirstTrack_ConfirmCreation') || stepConfig?.id.startsWith('mixTrack_ListenTo') || stepConfig?.id.startsWith('mixTrack_ListenToOnePointFourAndConclude')) ? 8 : 4;
     this.highlightStyle = {
       display: 'block',
       top: `${rect.top - padding + window.scrollY}px`,
@@ -404,6 +421,7 @@ export class TutorialController extends LitElement {
         return;
     }
 
+    // Calculate tooltip position (logic from before)
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
@@ -456,23 +474,33 @@ export class TutorialController extends LitElement {
     this.highlightStyle = { display: 'none' };
     this.tooltipStyle = { display: 'none' };
     if(clearText) this.tooltipText = '';
-    this.resizeObserver.disconnect();
+    this.resizeObserver.disconnect(); // Important to stop observing when cleared
     this.requestUpdate();
   }
 
   private handlePopupAction() {
     const currentStepConfig = this.steps[this.currentStepIndex];
     if (currentStepConfig.popup) {
-        this.currentPopup = null;
-        // Only advance if it's not the completion step's button,
-        // as completion button itself triggers finishTutorial.
-        if (currentStepConfig.id !== 'completion') {
-          this.advanceStep();
+      this.currentPopup = null; // Hide the popup
+      if (currentStepConfig.id === 'completion') {
+        if (this.dontShowAgainChecked) {
+          this.dispatchEvent(new CustomEvent('tutorial-request-permanent-skip', {
+            bubbles: true,
+            composed: true,
+          }));
+          // Clean up internal state as if tutorial is finishing
+          this.isActive = false;
+          this.clearHighlightAndTooltip();
         } else {
-           this.finishTutorial(false); // Directly finish if it's the completion popup.
+          this.finishTutorial(false); // Normal completion, dispatches 'tutorial-complete'
         }
+      } else {
+        // For other popups (like 'welcome'), just advance.
+        this.advanceStep();
+      }
     }
   }
+
 
   private skipTutorial() {
     this.finishTutorial(true);
@@ -531,6 +559,24 @@ export class TutorialController extends LitElement {
       font-size: 1em;
       line-height: 1.5;
       margin-bottom: 20px;
+    }
+    .popup-panel .checkbox-container {
+      margin-top: 15px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 0.9em;
+    }
+    .popup-panel .checkbox-container input[type="checkbox"] {
+      accent-color: #7e57c2;
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+    .popup-panel .checkbox-container label {
+      cursor: pointer;
     }
     .popup-panel button {
       background-color: #7e57c2;
@@ -639,10 +685,16 @@ export class TutorialController extends LitElement {
 
     return html`
       ${this.currentPopup ? html`
-        <div class="popup-overlay" @click=${(e: Event) => { if (e.target === e.currentTarget) this.handlePopupAction();}}>
+        <div class="popup-overlay" @click=${(e: Event) => { if (e.target === e.currentTarget && this.currentPopup?.buttonText) this.handlePopupAction();}}>
           <div class="popup-panel">
             <h3>${this.currentPopup.title}</h3>
             <p>${this.currentPopup.text}</p>
+            ${this.currentPopup.title === 'Nice!' /* Only show checkbox on completion popup */ ? html`
+              <div class="checkbox-container">
+                <input type="checkbox" id="dont-show-again" .checked=${this.dontShowAgainChecked} @change=${(e: Event) => this.dontShowAgainChecked = (e.target as HTMLInputElement).checked}>
+                <label for="dont-show-again">Nicht mehr anzeigen</label>
+              </div>
+            ` : nothing}
             <button @click=${this.handlePopupAction}>${this.currentPopup.buttonText}</button>
           </div>
         </div>

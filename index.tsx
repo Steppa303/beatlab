@@ -360,15 +360,14 @@ class PromptDj extends LitElement {
   }
 
   private checkTutorialStatusAndLoadPrompts() {
-    const tutorialCompleted = localStorage.getItem(TUTORIAL_STORAGE_KEY);
-    if (!tutorialCompleted) {
-      this.isTutorialActive = true;
-      // Start with 0 prompts for the tutorial. They will be added interactively.
-      this.prompts = new Map();
-      this.nextPromptIdCounter = 0;
-    } else {
+    const permanentlySkipTutorial = localStorage.getItem(TUTORIAL_STORAGE_KEY) === 'true';
+    if (permanentlySkipTutorial) {
       this.isTutorialActive = false;
       this.loadInitialPrompts();
+    } else {
+      this.isTutorialActive = true;
+      this.prompts = new Map(); // Start fresh for tutorial
+      this.nextPromptIdCounter = 0;
     }
   }
 
@@ -1660,14 +1659,26 @@ class PromptDj extends LitElement {
         });
   }
 
-  private handleTutorialComplete() {
-    this.isTutorialActive = false;
-    localStorage.setItem(TUTORIAL_STORAGE_KEY, 'true');
-    // If no prompts were created during tutorial, load defaults.
+  private commonTutorialEndLogic() {
     if (this.prompts.size === 0) {
-        this.createDefaultPrompts("Ambient Chill with a Lo-Fi Beat"); // Suggest a first prompt
+      this.createDefaultPrompts("Ambient Chill with a Lo-Fi Beat"); // This calls savePromptsToLocalStorage
+    } else {
+      this.savePromptsToLocalStorage(); // Explicitly save if prompts were created
     }
   }
+  
+  private handleTutorialSessionEnd() { // Called by 'tutorial-complete' or 'tutorial-skip'
+    this.isTutorialActive = false;
+    this.commonTutorialEndLogic();
+    // No localStorage.setItem(TUTORIAL_STORAGE_KEY, 'true');
+  }
+  
+  private handleTutorialPermanentlySkip() { // Called by 'tutorial-request-permanent-skip'
+    this.isTutorialActive = false;
+    localStorage.setItem(TUTORIAL_STORAGE_KEY, 'true');
+    this.commonTutorialEndLogic();
+  }
+
 
   private getTutorialTargets() {
     return {
@@ -1724,8 +1735,9 @@ class PromptDj extends LitElement {
         <tutorial-controller
             .targets=${this.getTutorialTargets()}
             .initialPromptsCount=${this.prompts.size}
-            @tutorial-complete=${this.handleTutorialComplete}
-            @tutorial-skip=${this.handleTutorialComplete}
+            @tutorial-complete=${this.handleTutorialSessionEnd}
+            @tutorial-skip=${this.handleTutorialSessionEnd}
+            @tutorial-request-permanent-skip=${this.handleTutorialPermanentlySkip}
             ?isActive=${this.isTutorialActive}
         ></tutorial-controller>
       ` : ''}
