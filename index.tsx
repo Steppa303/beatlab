@@ -208,8 +208,8 @@ declare global {
   }
 
   interface Window {
-    cast: typeof cast;
-    chrome: typeof chrome;
+    cast?: typeof cast; // Make optional as it might not be loaded
+    chrome?: typeof chrome; // Make optional
     __onGCastApiAvailable?: (available: boolean, errorInfo?: any) => void;
     // webkitAudioContext for Safari
     webkitAudioContext: typeof AudioContext;
@@ -359,18 +359,22 @@ class PromptDj extends LitElement {
       this.audioContext.close();
     }
     this.midiController.destroy();
-    this.castContext?.removeEventListener(
-        cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
-        this.handleCastSessionStateChange
-    );
-    this.castContext?.removeEventListener(
-        cast.framework.CastContextEventType.CAST_STATE_CHANGED,
-        this.handleCastStateChange
-    );
-    this.remotePlayerController?.removeEventListener(
-        cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
-        this.handleRemotePlayerConnectChange
-    );
+    if (this.castContext) {
+        this.castContext.removeEventListener(
+            window.cast!.framework.CastContextEventType.SESSION_STATE_CHANGED,
+            this.handleCastSessionStateChange
+        );
+        this.castContext.removeEventListener(
+            window.cast!.framework.CastContextEventType.CAST_STATE_CHANGED,
+            this.handleCastStateChange
+        );
+    }
+    if (this.remotePlayerController) {
+        this.remotePlayerController.removeEventListener(
+            window.cast!.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
+            this.handleRemotePlayerConnectChange
+        );
+    }
     document.removeEventListener('keydown', this.handleGlobalKeyDown);
     document.removeEventListener('cast-api-ready', this.boundHandleCastApiReady);
     this.clearLoadingMessageInterval();
@@ -1361,35 +1365,36 @@ class PromptDj extends LitElement {
     if (available) {
         console.log('Cast API is available via event. Initializing CastContext.');
         try {
-            if (typeof cast === 'undefined' || typeof chrome === 'undefined' || !chrome.cast || !cast.framework) {
-                console.error("Critical: 'cast' or 'chrome' global not defined even after SDK reported 'available'. This indicates a deeper issue with Cast SDK loading or environment.");
+            if (typeof window.cast === 'undefined' || typeof window.chrome === 'undefined' || 
+                !window.chrome.cast || !window.cast.framework) {
+                console.error("Critical: 'window.cast' or 'window.chrome' global not defined even after SDK reported 'available'. This indicates a deeper issue with Cast SDK loading or environment.");
                 this.isCastingAvailable = false;
                 this.toastMessageEl?.show('Cast-Initialisierung fehlgeschlagen (SDK-Globale fehlen).', 5000);
                 return;
             }
 
-            this.castContext = cast.framework.CastContext.getInstance();
+            this.castContext = window.cast.framework.CastContext.getInstance();
             const castOptions: cast.framework.CastOptions = {
-                receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
-                autoJoinPolicy: chrome.cast.AutoJoinPolicy.TAB_AND_ORIGIN_SCOPED
+                receiverApplicationId: window.chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+                autoJoinPolicy: window.chrome.cast.AutoJoinPolicy.TAB_AND_ORIGIN_SCOPED
             };
             this.castContext.setOptions(castOptions);
             
-            this.isCastingAvailable = this.castContext.getCastState() !== cast.framework.CastState.NO_DEVICES_AVAILABLE;
+            this.isCastingAvailable = this.castContext.getCastState() !== window.cast.framework.CastState.NO_DEVICES_AVAILABLE;
 
             this.castContext.addEventListener(
-                cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
+                window.cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
                 this.handleCastSessionStateChange.bind(this)
             );
             this.castContext.addEventListener(
-                cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+                window.cast.framework.CastContextEventType.CAST_STATE_CHANGED,
                 this.handleCastStateChange.bind(this)
             );
 
-            this.remotePlayer = new cast.framework.RemotePlayer();
-            this.remotePlayerController = new cast.framework.RemotePlayerController(this.remotePlayer);
+            this.remotePlayer = new window.cast.framework.RemotePlayer();
+            this.remotePlayerController = new window.cast.framework.RemotePlayerController(this.remotePlayer);
             this.remotePlayerController.addEventListener(
-                cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
+                window.cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
                 this.handleRemotePlayerConnectChange.bind(this)
             );
             console.log('CastContext initialized successfully.');
@@ -1411,7 +1416,7 @@ class PromptDj extends LitElement {
   private handleCastSessionStateChange(event: cast.framework.SessionStateEventData) {
     console.log('Cast session state changed:', event.sessionState);
     this.castSession = this.castContext?.getCurrentSession() || null;
-    this.isCastingActive = this.castSession?.getSessionState() === cast.framework.SessionState.SESSION_STARTED;
+    this.isCastingActive = this.castSession?.getSessionState() === window.cast!.framework.SessionState.SESSION_STARTED;
     this.updateMuteState();
     if (this.isCastingActive && this.castSession) {
         this.toastMessageEl.show(`Casting zu ${this.castSession.getCastDevice().friendlyName}`, 3000);
@@ -1420,10 +1425,10 @@ class PromptDj extends LitElement {
         if (this.playbackState === 'playing' || this.playbackState === 'loading') {
             this.startCastPlaybackIfNeeded();
         }
-    } else if (event.sessionState === cast.framework.SessionState.SESSION_ENDED) {
+    } else if (event.sessionState === window.cast!.framework.SessionState.SESSION_ENDED) {
         this.toastMessageEl.show('Casting beendet.', 2000);
         this.castMediaSession = null;
-    } else if (event.sessionState === cast.framework.SessionState.SESSION_START_FAILED) {
+    } else if (event.sessionState === window.cast!.framework.SessionState.SESSION_START_FAILED) {
         this.toastMessageEl.show('Casting konnte nicht gestartet werden.', 3000);
         this.castMediaSession = null;
     }
@@ -1431,7 +1436,7 @@ class PromptDj extends LitElement {
 
   private handleCastStateChange(event: cast.framework.CastStateEventData) {
     console.log('Cast state changed:', event.castState);
-    this.isCastingAvailable = event.castState !== cast.framework.CastState.NO_DEVICES_AVAILABLE;
+    this.isCastingAvailable = event.castState !== window.cast!.framework.CastState.NO_DEVICES_AVAILABLE;
   }
   
   private handleRemotePlayerConnectChange() {
@@ -1507,26 +1512,34 @@ class PromptDj extends LitElement {
   private castMediaSession: chrome.cast.media.Media | null = null;
 
   private startCastPlaybackIfNeeded() {
-    if (!this.castSession) {
+    if (!this.castSession || !window.chrome || !window.chrome.cast || !window.chrome.cast.media) {
+        console.warn('Cannot start cast playback: Cast session or chrome.cast.media not available.');
         return; 
+    }
+    
+    // Check if window.chrome.cast.media.PlayerState is available
+    const PlayerState = window.chrome.cast.media.PlayerState;
+    if (!PlayerState) {
+        console.warn('Cannot start cast playback: chrome.cast.media.PlayerState is not available.');
+        return;
     }
 
     if (this.castMediaSession && typeof this.castMediaSession.getPlayerState === 'function') {
         const playerState = this.castMediaSession.getPlayerState();
-        if (playerState === chrome.cast.media.PlayerState.PLAYING || 
-            playerState === chrome.cast.media.PlayerState.BUFFERING) {
+        if (playerState === PlayerState.PLAYING || 
+            playerState === PlayerState.BUFFERING) {
             return; 
         }
     }
     
     console.log('Cast: Attempting to load media for playback.');
-    const mediaInfo = new chrome.cast.media.MediaInfo(this.CAST_STREAM_URL, 'audio/wav');
-    mediaInfo.streamType = chrome.cast.media.StreamType.LIVE;
-    mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
+    const mediaInfo = new window.chrome.cast.media.MediaInfo(this.CAST_STREAM_URL, 'audio/wav');
+    mediaInfo.streamType = window.chrome.cast.media.StreamType.LIVE;
+    mediaInfo.metadata = new window.chrome.cast.media.GenericMediaMetadata();
     mediaInfo.metadata.title = "Steppa's BeatLab Live Stream";
     mediaInfo.duration = null; 
 
-    const loadRequest = new chrome.cast.media.LoadRequest(mediaInfo);
+    const loadRequest = new window.chrome.cast.media.LoadRequest(mediaInfo);
     loadRequest.autoplay = true;
 
     this.castSession.loadMedia(loadRequest)
@@ -1632,7 +1645,6 @@ class PromptDj extends LitElement {
             ></prompt-controller>
           `)}
         </div>
-        <add-prompt-button class="add-prompt-main" title="Neuen Prompt hinzufügen" @click=${this.handleAddPromptClick} ?disabled=${this.isDropEffectActive}></add-prompt-button>
       </main>
       
       <div id="settings-panel" class=${classMap({visible: this.showSettings})}>
@@ -1660,7 +1672,13 @@ class PromptDj extends LitElement {
             ?disabled=${this.isDropEffectActive}
             >
         </play-pause-button>
-        <div class="spacer"></div>
+        <div class="footer-center-spacer">
+            <add-prompt-button 
+                title="Neuen Prompt hinzufügen" 
+                @click=${this.handleAddPromptClick} 
+                ?disabled=${this.isDropEffectActive || this.prompts.size >= 7}>
+            </add-prompt-button>
+        </div>
         <share-button title="Aktuelle Konfiguration teilen" @click=${this.generateShareLink}></share-button>
         <drop-button 
             @click=${(e: Event) => { if (this.isMidiLearning) this.handleMidiLearnTargetClick('dropbutton', MIDI_LEARN_TARGET_DROP_BUTTON, e); else this.handleDropClick(); }}
@@ -1784,11 +1802,12 @@ class PromptDj extends LitElement {
       justify-content: flex-start; 
       flex-grow: 1;
       width: 100%;
-      padding: 80px 20px 20px 20px; 
+      padding: 80px 20px 20px 20px; /* Adjusted top padding for fixed header */
+      padding-bottom: 100px; /* Space for fixed footer */
       box-sizing: border-box;
       gap: 20px;
       overflow: hidden; 
-      position: relative; /* Added for absolute positioning of add-prompt-button */
+      position: relative; 
     }
     #prompts-container {
       display: flex;
@@ -1798,7 +1817,7 @@ class PromptDj extends LitElement {
       overflow-y: auto; 
       overflow-x: hidden; 
       width: clamp(350px, 60vw, 550px); 
-      max-height: calc(100vh - 170px); /* Adjusted max-height */
+      max-height: calc(100vh - 200px); /* Adjusted for header and footer */
       min-height: 200px; 
       align-items: stretch; 
       scrollbar-width: thin;
@@ -1806,6 +1825,7 @@ class PromptDj extends LitElement {
       border-radius: 8px;
       background-color: rgba(0,0,0,0.1); 
       position: relative; 
+      /* padding-bottom: 70px; /* Removed Space for fixed add prompt button */
     }
     #prompts-container::-webkit-scrollbar { width: 8px; }
     #prompts-container::-webkit-scrollbar-track { background: #2c2c2c; border-radius: 4px; }
@@ -1827,17 +1847,6 @@ class PromptDj extends LitElement {
     prompt-controller {
         width: 100%; 
         flex-shrink: 0; 
-    }
-
-    .add-prompt-main {
-      position: absolute; /* Changed to absolute */
-      bottom: 30px;      /* Position from bottom of main-content */
-      left: 50%;         /* Center horizontally */
-      transform: translateX(-50%); /* Adjust for centering */
-      width: 60px; 
-      height: 60px;
-      z-index: 10;       /* Ensure it's above prompts-container */
-      /* margin-top: 0; Removed as it's not relevant for absolute positioning */
     }
     
     #settings-panel {
@@ -1899,15 +1908,20 @@ class PromptDj extends LitElement {
       bottom: 0;
       left: 0;
       z-index: 100;
+      height: 90px; /* Ensure footer has enough height */
     }
     .footer-controls play-pause-button,
     .footer-controls drop-button,
-    .footer-controls share-button {
+    .footer-controls share-button,
+    .footer-controls add-prompt-button {
       width: 70px; 
       height: 70px;
     }
-    .footer-controls .spacer {
+    .footer-center-spacer {
         flex-grow: 1; 
+        display: flex;
+        justify-content: center;
+        align-items: center;
     }
   `];
 }

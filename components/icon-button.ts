@@ -64,7 +64,7 @@ export class IconButton extends LitElement {
     return svg``;
   }
 
-  private renderSVG() {
+  protected renderSVG() {
     return html` <svg
       viewBox="0 0 100 100"
       fill="none"
