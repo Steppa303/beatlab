@@ -37,11 +37,164 @@ import './prompt-controller.js'; // Import PromptController to ensure it's regis
 // SettingsButton, HelpButton, ShareButton, DropButton, SavePresetButton, LoadPresetButton,
 // ToastMessage, HelpGuidePanel, WelcomeOverlay.
 
+// Declare Cast SDK globals for TypeScript
+declare global {
+  // CHROME.CAST.MEDIA NAMESPACE
+  namespace chrome.cast.media {
+    const DEFAULT_MEDIA_RECEIVER_APP_ID: string;
+
+    enum StreamType {
+      BUFFERED = "BUFFERED",
+      LIVE = "LIVE",
+      NONE = "NONE",
+    }
+    enum PlayerState {
+      IDLE = "IDLE",
+      PLAYING = "PLAYING",
+      PAUSED = "PAUSED",
+      BUFFERING = "BUFFERING",
+    }
+
+    interface MediaInfo {
+      contentId: string;
+      contentType: string;
+      streamType: StreamType;
+      duration?: number | null;
+      metadata?: GenericMediaMetadata | any;
+    }
+    interface GenericMediaMetadata {
+      title?: string;
+      subtitle?: string;
+      artist?: string;
+      images?: Array<{ url: string }>;
+    }
+    interface LoadRequest {
+      media: MediaInfo;
+      autoplay?: boolean | null;
+      currentTime?: number | null;
+    }
+    interface Media {
+      addUpdateListener(listener: (isAlive: boolean) => void): void;
+      removeUpdateListener(listener: (isAlive: boolean) => void): void;
+      getEstimatedTime(): number;
+      getPlayerState(): PlayerState;
+    }
+
+    // Constructors for classes in chrome.cast.media
+    var MediaInfo: {
+      new(contentId: string, contentType: string): MediaInfo;
+      prototype: MediaInfo;
+    };
+    var GenericMediaMetadata: {
+      new(): GenericMediaMetadata;
+      prototype: GenericMediaMetadata;
+    };
+    var LoadRequest: {
+      new(mediaInfo: MediaInfo): LoadRequest;
+      prototype: LoadRequest;
+    };
+  }
+
+  // CHROME.CAST NAMESPACE
+  namespace chrome.cast {
+    enum AutoJoinPolicy {
+      TAB_AND_ORIGIN_SCOPED = "tab_and_origin_scoped",
+      ORIGIN_SCOPED = "origin_scoped",
+      PAGE_SCOPED = "page_scoped",
+    }
+    type SessionRequest = any; // Opaque type
+    type ApiConfig = any;    // Opaque type
+  }
+
+  // CAST.FRAMEWORK NAMESPACE
+  namespace cast.framework {
+    const VERSION: string;
+
+    enum CastContextEventType {
+      SESSION_STATE_CHANGED = "sessionstatechanged",
+      CAST_STATE_CHANGED = "caststatechanged",
+    }
+    enum SessionState {
+      NO_SESSION = "NO_SESSION",
+      SESSION_STARTING = "SESSION_STARTING",
+      SESSION_STARTED = "SESSION_STARTED",
+      SESSION_START_FAILED = "SESSION_START_FAILED",
+      SESSION_ENDING = "SESSION_ENDING",
+      SESSION_ENDED = "SESSION_ENDED",
+      SESSION_RESUMED = "SESSION_RESUMED",
+      SESSION_SUSPENDED = "SESSION_SUSPENDED",
+    }
+    enum CastState {
+      NO_DEVICES_AVAILABLE = "NO_DEVICES_AVAILABLE",
+      NOT_CONNECTED = "NOT_CONNECTED",
+      CONNECTING = "CONNECTING",
+      CONNECTED = "CONNECTED",
+    }
+    enum RemotePlayerEventType {
+      IS_CONNECTED_CHANGED = "isconnectedchanged",
+    }
+
+    interface SessionStateEventData {
+      session: CastSession;
+      sessionState: SessionState;
+      error?: any;
+    }
+    interface CastStateEventData {
+      castState: CastState;
+    }
+
+    interface CastContext {
+      setOptions(options: any): void;
+      addEventListener(type: CastContextEventType, handler: (event: SessionStateEventData | CastStateEventData) => void): void;
+      removeEventListener(type: CastContextEventType, handler: (event: SessionStateEventData | CastStateEventData) => void): void;
+      getCurrentSession(): CastSession | null;
+      getCastState(): CastState;
+      requestSession(): Promise<void | string>;
+    }
+    interface CastSession {
+      getCastDevice(): { friendlyName: string };
+      getSessionId(): string;
+      getSessionState(): SessionState;
+      addMessageListener(namespace: string, listener: (namespace: string, message: string) => void): void;
+      removeMessageListener(namespace: string, listener: (namespace: string, message: string) => void): void;
+      sendMessage(namespace: string, message: any): Promise<void | number>;
+      endSession(stopCasting: boolean): Promise<void | string>;
+      loadMedia(request: chrome.cast.media.LoadRequest): Promise<void | string>;
+      getMediaSession(): chrome.cast.media.Media | null;
+    }
+    interface RemotePlayer {
+      isConnected: boolean;
+    }
+    interface RemotePlayerController {
+      addEventListener(type: RemotePlayerEventType, handler: () => void): void;
+      removeEventListener(type: RemotePlayerEventType, handler: () => void): void;
+    }
+
+    // Constructors/Static parts for classes in cast.framework
+    var CastContext: {
+      getInstance(): CastContext;
+    };
+    var RemotePlayer: {
+      new(): RemotePlayer;
+      prototype: RemotePlayer;
+    };
+    var RemotePlayerController: {
+      new(player: RemotePlayer): RemotePlayerController;
+      prototype: RemotePlayerController;
+    };
+  }
+
+  interface Window {
+    cast: typeof cast;
+    chrome: typeof chrome;
+    __onGCastApiAvailable?: (available: boolean) => void;
+  }
+}
+
 
 // Use API_KEY as per guidelines
 const ai = new GoogleGenAI({
   apiKey: process.env.API_KEY,
-  apiVersion: 'v1alpha',
 });
 const model = 'lyria-realtime-exp';
 
@@ -70,6 +223,37 @@ export class SettingsButton extends IconButton {
   }
   override renderIcon() {
     return this.renderSettingsIcon();
+  }
+}
+
+// CastButton component
+@customElement('cast-button')
+export class CastButton extends IconButton {
+  static override styles = [
+    IconButton.styles,
+    css`
+      .icon-path-fill {
+        fill: #FEFEFE;
+      }
+      :host([iscastingactive]) .icon-path-fill {
+        fill: #64B5F6; /* Light blue when casting */
+      }
+    `
+  ];
+
+  @property({type: Boolean, reflect: true}) isCastingActive = false;
+
+  // Standard Cast Icon (Material Design Inspired)
+  private renderCastIconSvg() {
+    return svg`
+      <path class="icon-path-fill"
+        d="M87.5 25H12.5C10.25 25 8.33333 26.9167 8.33333 29.1667V37.5H16.6667V33.3333H83.3333V70.8333H54.1667V79.1667H83.3333C85.5833 79.1667 87.5 77.25 87.5 75V29.1667C87.5 26.9167 85.5833 25 87.5 25ZM8.33333 70.8333V79.1667H20.8333C20.8333 74.4167 16.25 70.8333 8.33333 70.8333ZM8.33333 58.3333V64.5833C22.5833 64.5833 29.1667 71.1667 29.1667 79.1667H35.4167C35.4167 66.0833 23.4167 58.3333 8.33333 58.3333ZM8.33333 45.8333V52.0833C29.25 52.0833 41.6667 64.5 41.6667 79.1667H47.9167C47.9167 57.9167 30.5833 45.8333 8.33333 45.8333Z"
+      />
+    `;
+  }
+
+  override renderIcon() {
+    return this.renderCastIconSvg();
   }
 }
 
@@ -236,6 +420,7 @@ class ToastMessage extends LitElement {
 
   @property({type: String}) message = '';
   @property({type: Boolean}) showing = false;
+  private hideTimeout: number | null = null;
 
   override render() {
     return html`<div class=${classMap({showing: this.showing, toast: true})}>
@@ -244,14 +429,22 @@ class ToastMessage extends LitElement {
     </div>`;
   }
 
-  show(message: string) {
+  show(message: string, duration = 5000) {
     this.showing = true;
     this.message = message;
-    // Auto-hide after some time
-    setTimeout(() => this.hide(), 5000);
+    if (this.hideTimeout) {
+        clearTimeout(this.hideTimeout);
+    }
+    if (duration > 0) {
+        this.hideTimeout = window.setTimeout(() => this.hide(), duration);
+    }
   }
 
   hide() {
+    if (this.hideTimeout) {
+        clearTimeout(this.hideTimeout);
+        this.hideTimeout = null;
+    }
     this.showing = false;
   }
 }
@@ -400,6 +593,9 @@ class HelpGuidePanel extends LitElement {
             <p>Verwende den großen <strong>Play/Pause-Button (▶️/⏸️ unten links)</strong>. Beim ersten Start oder nach einer Unterbrechung kann es einen Moment dauern (Lade-Symbol), bis die Musik beginnt. Auch dieser Button ist per MIDI CC steuerbar.</p>
             <h4>"Drop!"-Effekt</h4>
             <p>Klicke den <strong>Drop!-Button ( unten rechts)</strong> für einen dynamischen Effekt! Die Musik baut Spannung auf und entlädt sich dann. Der Stil des Drops (z.B. intensiv, sanft, groovig) passt sich nun automatisch an die aktuell gespielte Musik an, um Übergänge natürlicher und wirkungsvoller zu gestalten. Auch dieser Button ist per MIDI CC steuerbar.</p>
+            <h4>Cast-Funktion (Audio streamen)</h4>
+            <p>Klicke auf das <strong>Cast-Icon (oben rechts)</strong>, um die Audioausgabe an ein Google Cast-fähiges Gerät (z.B. Chromecast, Google Home Lautsprecher) zu streamen. Die Audio-Chunks werden an einen Webservice gesendet, der einen kontinuierlichen Stream für das Cast-Gerät bereitstellt. Wenn die Verbindung aktiv ist, wird das Icon blau. Klicke erneut, um das Casting zu beenden. Während des Castings wird der Ton lokal stummgeschaltet.</p>
+            <p><strong>Wichtig:</strong> Die Audioausgabe an das Cast-Gerät startet erst, nachdem die ersten Audio-Daten an den Webservice gesendet wurden. Dies kann zu einer kurzen Verzögerung führen. Die Qualität und Stabilität des Audio-Castings hängt von deiner Netzwerkverbindung, dem Cast-Gerät und dem Webservice (aktuell unter <code>https://chunkstreamer.onrender.com</code>) ab. Bei Problemen ("Failed to fetch"), prüfe die Browser-Konsole auf CORS- oder Mixed-Content-Fehler.</p>
           </section>
           <section>
             <h3>Konfiguration Teilen (via Link)</h3>
@@ -856,7 +1052,8 @@ class PromptDj extends LitElement {
       align-items: center;
       gap: 1.5vmin; 
     }
-    .header-actions > settings-button {
+    .header-actions > settings-button,
+    .header-actions > cast-button {
       width: 7vmin; 
       height: 7vmin;
       max-width: 55px; 
@@ -1090,6 +1287,7 @@ class PromptDj extends LitElement {
   @query('#presetFileInput') private fileInputForPreset!: HTMLInputElement;
   @query('#play-pause-main-button') private playPauseMainButton!: PlayPauseButton | null;
   @query('#drop-main-button') private dropMainButton!: DropButton | null;
+  @query('cast-button') private castButtonElement!: CastButton | null;
 
 
   @state() private availableMidiInputs: Array<{id: string, name: string}> = [];
@@ -1132,6 +1330,20 @@ class PromptDj extends LitElement {
   // Welcome Screen state
   @state() private showWelcomeScreen = false;
 
+  // Cast SDK states
+  @state() private isCastApiInitialized = false;
+  @state() private isCastingActive = false;
+  @state() private castApiState: cast.framework.CastState | null = null;
+  private remotePlayer: cast.framework.RemotePlayer | null = null;
+  private remotePlayerController: cast.framework.RemotePlayerController | null = null;
+  @state() private isCastSessionReadyForMedia = false; 
+  @state() private hasCastMediaBeenLoadedForCurrentSession = false; 
+  @state() private isFirstChunkForCurrentCastSession = true; 
+  
+  // Web service casting
+  private readonly audioStreamWebServiceUrl: string;
+  private readonly audioChunkUploadUrl: string;
+  private isLocalOutputMutedForCasting = false;
 
   // Define Drop Flavors
   private readonly DROP_FLAVORS = [
@@ -1169,6 +1381,16 @@ class PromptDj extends LitElement {
     this.handleKeyDown = this.handleKeyDown.bind(this);
     this.firstChunkReceivedTimestamp = 0;
     this.addEventListener('welcome-complete', this.handleWelcomeComplete as EventListener);
+
+    // Bind Cast API callback to `this` context and assign to window
+    const boundHandleCastApiAvailable = this.handleCastApiAvailable.bind(this);
+    window['__onGCastApiAvailable'] = (isAvailable: boolean) => {
+      boundHandleCastApiAvailable(isAvailable);
+    };
+
+    // Initialize Web Service URLs with fixed HTTPS
+    this.audioChunkUploadUrl = 'https://chunkstreamer.onrender.com/upload-chunk';
+    this.audioStreamWebServiceUrl = 'https://chunkstreamer.onrender.com/stream';
   }
 
   override async firstUpdated() {
@@ -1232,7 +1454,374 @@ class PromptDj extends LitElement {
       if (this.learnButtonLongPressTimeout) {
         clearTimeout(this.learnButtonLongPressTimeout);
       }
+      
+      // Restore local audio output if muted for casting
+      if (this.isLocalOutputMutedForCasting) {
+          try {
+            this.outputNode.connect(this.audioContext.destination);
+          } catch (e) {
+            console.warn("Error reconnecting outputNode on disconnect:", e);
+          }
+          this.isLocalOutputMutedForCasting = false;
+          console.log("Local audio output restored on disconnect.");
+      }
+
+
+      // Clean up Cast SDK context listeners
+      if (typeof cast !== 'undefined' && cast.framework && cast.framework.CastContext) {
+        const castContext = cast.framework.CastContext.getInstance();
+        if (castContext) {
+            castContext.removeEventListener(
+                cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
+                this.handleCastSessionStateChange
+            );
+            castContext.removeEventListener(
+                cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+                this.handleCastStateChange
+            );
+        }
+      }
+      if (this.remotePlayerController) {
+          this.remotePlayerController.removeEventListener(
+              cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
+              this.handleRemotePlayerConnectedChanged
+          );
+      }
+      window['__onGCastApiAvailable'] = undefined; // Clean up global callback
   }
+
+  private handleCastApiAvailable(isAvailable: boolean) {
+    this.isCastApiInitialized = false; // Assume not initialized until all checks pass
+    let toastShown = false;
+
+    if (isAvailable) {
+      if (
+        typeof window.cast !== 'undefined' &&
+        typeof window.cast.framework !== 'undefined' &&
+        typeof window.cast.framework.CastContext !== 'undefined' &&
+        typeof window.chrome !== 'undefined' &&
+        typeof window.chrome.cast !== 'undefined' &&
+        typeof window.chrome.cast.media !== 'undefined' &&
+        typeof chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID === 'string'
+      ) {
+        this.isCastApiInitialized = true; // Optimistically set to true
+        try {
+          const castContext = cast.framework.CastContext.getInstance();
+          castContext.setOptions({
+            receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+            autoJoinPolicy: chrome.cast.AutoJoinPolicy.TAB_AND_ORIGIN_SCOPED,
+          });
+
+          this.handleCastSessionStateChange = this.handleCastSessionStateChange.bind(this);
+          this.handleCastStateChange = this.handleCastStateChange.bind(this);
+          this.handleRemotePlayerConnectedChanged = this.handleRemotePlayerConnectedChanged.bind(this);
+
+          castContext.addEventListener(
+            cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
+            this.handleCastSessionStateChange as (event: cast.framework.SessionStateEventData | cast.framework.CastStateEventData) => void
+          );
+          castContext.addEventListener(
+            cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+            this.handleCastStateChange as (event: cast.framework.SessionStateEventData | cast.framework.CastStateEventData) => void
+          );
+
+          this.remotePlayer = new cast.framework.RemotePlayer();
+          this.remotePlayerController = new cast.framework.RemotePlayerController(this.remotePlayer);
+          this.remotePlayerController.addEventListener(
+            cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
+            this.handleRemotePlayerConnectedChanged
+          );
+
+          this.updateCastButtonVisualState(castContext.getCastState());
+          console.log('Cast API initialized successfully.');
+        } catch (err: any) {
+          console.error('CRITICAL CAST INIT ERROR: Failed to initialize CastContext or set options. Cast button will be disabled. Error:', err);
+          this.isCastApiInitialized = false; // Set back if specific init fails
+          if (this.toastMessage) {
+            this.toastMessage.show(`Cast API component init error: ${err.message || 'Unknown error'}`);
+            toastShown = true;
+          }
+        }
+      } else {
+        // isAvailable was true, but some specific parts are missing
+        if (this.toastMessage) {
+          let reason = "Google Cast API partially loaded but key components are missing.";
+          if (!(typeof window.cast !== 'undefined' && typeof window.cast.framework !== 'undefined' && typeof window.cast.framework.CastContext !== 'undefined')) {
+            reason = "Cast Framework (window.cast.framework.CastContext) is missing.";
+          } else if (!(typeof window.chrome !== 'undefined' && typeof window.chrome.cast !== 'undefined' && typeof window.chrome.cast.media !== 'undefined')) {
+            reason = "Required Chrome Cast API parts (window.chrome.cast.media) are missing.";
+          }
+          this.toastMessage.show(reason);
+          toastShown = true;
+        } else {
+          console.warn("Cast API status: Partially loaded but key components missing. (Toast not ready to display this).");
+        }
+      }
+    } else {
+      // isAvailable is false, SDK reported it's not available
+      if (this.toastMessage) {
+        this.toastMessage.show("Google Cast SDK reported: API not available. (May be unsupported browser or Cast is disabled/blocked).");
+        toastShown = true;
+      } else {
+        console.warn("Cast API status: SDK reported 'not available'. (Toast not ready to display this).");
+      }
+    }
+
+    if (!this.isCastApiInitialized && !toastShown && this.toastMessage) {
+        this.toastMessage.show("Google Cast API could not be initialized. Please ensure you are using a supported browser (e.g., Chrome).");
+    }
+    this.requestUpdate(); 
+  }
+
+  private async handleCastClick() {
+    if (!this.isCastApiInitialized) { 
+        this.toastMessage.show("Cast API not available or not initialized. Try refreshing or check browser support.");
+        return;
+    }
+     if (!window.cast || !window.chrome) { 
+        this.toastMessage.show("Cast SDK objects (window.cast/chrome) missing.");
+        return;
+    }
+    if (this.isMidiLearnActive) {
+        this.toastMessage.show("Cannot cast while MIDI Learn is active.");
+        return;
+    }
+     if (this.isDropActive) {
+        this.toastMessage.show("Cannot cast during Drop sequence.");
+        return;
+    }
+
+    try {
+        const castContext = cast.framework.CastContext.getInstance();
+        const castSession = castContext.getCurrentSession();
+
+        if (castSession) { 
+            await castSession.endSession(true);
+            // Toast message will be handled by SESSION_ENDED
+        } else { 
+            this.toastMessage.show("Searching for Cast devices...");
+            await castContext.requestSession();
+            // Toast message for successful connection will be handled by SESSION_STARTED
+            // and media loading logic in handleCastSessionStateChange
+        }
+    } catch (error: any) {
+        console.error('Cast session request/end failed:', error);
+        let message = "Cast operation failed.";
+        if (error && error.code === 'cancel') message = "Cast selection cancelled."; 
+        else if (error && error.message) message = `Cast error: ${error.message}`;
+        else if (typeof error === 'string' && error === 'cancel') message = "Cast selection cancelled.";
+        this.toastMessage.show(message);
+        if (cast && cast.framework && cast.framework.CastContext.getInstance()){
+            this.updateCastButtonVisualState(cast.framework.CastContext.getInstance().getCastState());
+        }
+    }
+  }
+
+  private async sendAudioChunkToWebService(chunkData: Uint8Array) {
+    if (!this.isCastingActive) return;
+
+    let currentUploadUrl = this.audioChunkUploadUrl;
+    if (this.isFirstChunkForCurrentCastSession) {
+      const params = new URLSearchParams({
+        sampleRate: this.sampleRate.toString(),
+        numChannels: '2', // Matches decodeAudioData
+        bitsPerSample: '16' // Matches Int16Array usage in decodeAudioData
+      });
+      currentUploadUrl = `${this.audioChunkUploadUrl}?${params.toString()}`;
+      console.log('Sending first chunk with params to:', currentUploadUrl);
+    }
+
+    try {
+      const response = await fetch(currentUploadUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream'
+        },
+        body: chunkData
+      });
+
+      if (response.ok) {
+        // console.log('Audio chunk sent successfully to web service.'); // Can be too verbose
+        if (this.isFirstChunkForCurrentCastSession) {
+          this.isFirstChunkForCurrentCastSession = false; 
+        }
+
+        if (this.isCastSessionReadyForMedia && !this.hasCastMediaBeenLoadedForCurrentSession) {
+          const castSession = cast.framework.CastContext.getInstance().getCurrentSession();
+          if (castSession) {
+            this.toastMessage.show(`Audio data sent. Starting stream on ${castSession.getCastDevice().friendlyName}...`, 3000);
+            const mediaInfo = new chrome.cast.media.MediaInfo(
+              this.audioStreamWebServiceUrl, 
+              'audio/wav'
+            );
+            mediaInfo.streamType = chrome.cast.media.StreamType.LIVE;
+            
+            const metadata = new chrome.cast.media.GenericMediaMetadata();
+            metadata.title = "Steppa's BeatLab Live Mix";
+            metadata.artist = "Prompt DJ";
+            const iconUrl = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🎵</text></svg>');
+            metadata.images = [{ url: iconUrl }];
+            mediaInfo.metadata = metadata;
+
+            const request = new chrome.cast.media.LoadRequest(mediaInfo);
+            request.autoplay = true;
+
+            castSession.loadMedia(request).then(
+              () => {
+                this.hasCastMediaBeenLoadedForCurrentSession = true;
+                this.toastMessage.show(`Streaming to ${castSession.getCastDevice().friendlyName}.`);
+                console.log('Successfully started live stream on Cast device from web service.');
+              },
+              (errorCode: any) => {
+                console.error('Failed to load live stream on Cast device:', errorCode);
+                this.toastMessage.show(`Error starting Cast stream: ${errorCode?.description || errorCode?.code || 'Unknown error'}`);
+                this.hasCastMediaBeenLoadedForCurrentSession = false; 
+                this.isFirstChunkForCurrentCastSession = true; 
+              }
+            );
+          }
+        }
+      } else {
+        console.error(`Error sending audio chunk to web service: ${response.status} ${response.statusText}`);
+        const responseText = await response.text().catch(() => "Could not get error details.");
+        this.toastMessage.show(`Chunk upload error: ${response.statusText} - ${responseText}. Check console for CORS/Network issues.`, 8000);
+        if (this.isFirstChunkForCurrentCastSession && !this.hasCastMediaBeenLoadedForCurrentSession) {
+            // Allow retry with params
+        }
+      }
+    } catch (error: any) {
+      console.error('Network error sending audio chunk:', error);
+      this.toastMessage.show(`Network error sending audio chunk: ${error.message || 'Failed to fetch'}. Check console (CORS, Mixed Content, Network).`, 8000);
+       if (this.isFirstChunkForCurrentCastSession && !this.hasCastMediaBeenLoadedForCurrentSession) {
+            // Allow retry with params
+       }
+    }
+  }
+
+  private async resetAudioStreamOnServer(): Promise<void> {
+    if (!this.audioChunkUploadUrl && this.toastMessage) {
+        console.warn("Audio chunk upload URL is not set. Cannot determine reset URL.");
+        this.toastMessage.show("Configuration error: Cannot reset server stream.");
+        return;
+    }
+
+    // Derive the base URL from audioChunkUploadUrl
+    const baseUrl = this.audioChunkUploadUrl.substring(0, this.audioChunkUploadUrl.lastIndexOf('/'));
+    const resetUrl = `${baseUrl}/reset-stream`;
+
+    console.log(`Attempting to reset audio stream on server at: ${resetUrl}`);
+    try {
+        const response = await fetch(resetUrl, {
+            method: 'POST',
+            // No body needed for this endpoint as per current server.js
+        });
+
+        if (response.ok) {
+            console.log('Successfully signaled server to reset audio stream.');
+            if (this.toastMessage) this.toastMessage.show('Server audio stream reset for new session.', 2000);
+        } else {
+            const errorText = await response.text().catch(() => "Unknown server error");
+            console.error(`Failed to reset audio stream on server: ${response.status} ${response.statusText}`, errorText);
+            if (this.toastMessage) this.toastMessage.show(`Server stream reset failed: ${response.statusText}`, 5000);
+        }
+    } catch (error: any) {
+        console.error('Network error while trying to reset audio stream on server:', error);
+        if (this.toastMessage) this.toastMessage.show(`Network error resetting server stream: ${error.message}`, 5000);
+    }
+  }
+
+
+  private async handleCastSessionStateChange(eventData: cast.framework.SessionStateEventData | cast.framework.CastStateEventData) {
+    const event = eventData as cast.framework.SessionStateEventData; 
+    if (!window.cast || !window.chrome || !event.session) {
+        if (event.sessionState === cast.framework.SessionState.NO_SESSION) {
+             this.isCastingActive = false;
+             this.isCastSessionReadyForMedia = false;
+             this.hasCastMediaBeenLoadedForCurrentSession = false;
+             this.isFirstChunkForCurrentCastSession = true; 
+             if (this.isLocalOutputMutedForCasting) {
+                try { this.outputNode.connect(this.audioContext.destination); } catch(e) { /* ignore */ }
+                this.isLocalOutputMutedForCasting = false;
+                console.log("Local audio output restored (no session).");
+             }
+        }
+        return;
+    }
+
+    const castSession = event.session;
+    let deviceName = "device";
+    if (castSession && castSession.getCastDevice() && castSession.getCastDevice().friendlyName) {
+        deviceName = castSession.getCastDevice().friendlyName;
+    }
+
+    switch (event.sessionState) {
+        case cast.framework.SessionState.SESSION_STARTED:
+        case cast.framework.SessionState.SESSION_RESUMED:
+            await this.resetAudioStreamOnServer(); // Ensure server stream is reset
+
+            this.isCastingActive = true;
+            this.isCastSessionReadyForMedia = true;
+            this.hasCastMediaBeenLoadedForCurrentSession = false;
+            this.isFirstChunkForCurrentCastSession = true; 
+
+            if (this.audioContext.state === 'running' && !this.isLocalOutputMutedForCasting) {
+                try {
+                    this.outputNode.disconnect(this.audioContext.destination);
+                } catch(e) {
+                    // Ignore if already disconnected
+                }
+                this.isLocalOutputMutedForCasting = true;
+                console.log("Local audio output muted for casting.");
+            }
+            this.toastMessage.show(`Connected to ${deviceName}. Waiting for audio data to start stream...`, 0); 
+            break;
+        case cast.framework.SessionState.SESSION_ENDED:
+        case cast.framework.SessionState.SESSION_START_FAILED:
+            const endedMessage = event.sessionState === cast.framework.SessionState.SESSION_ENDED ? "Casting session ended." : "Failed to start casting session.";
+            this.toastMessage.show(endedMessage);
+            this.isCastingActive = false;
+            this.isCastSessionReadyForMedia = false;
+            this.hasCastMediaBeenLoadedForCurrentSession = false;
+            this.isFirstChunkForCurrentCastSession = true; 
+
+            if (this.isLocalOutputMutedForCasting) {
+                 try {
+                    this.outputNode.connect(this.audioContext.destination);
+                } catch(e) { /* ignore */ }
+                this.isLocalOutputMutedForCasting = false;
+                console.log("Local audio output restored.");
+            }
+            break;
+        case cast.framework.SessionState.SESSION_ENDING:
+            this.toastMessage.show("Ending cast session...");
+            break;
+    }
+    if (cast && cast.framework && cast.framework.CastContext.getInstance()){
+      this.updateCastButtonVisualState(cast.framework.CastContext.getInstance().getCastState());
+    }
+  }
+
+  private handleCastStateChange(eventData: cast.framework.SessionStateEventData | cast.framework.CastStateEventData) {
+    const event = eventData as cast.framework.CastStateEventData; 
+    this.updateCastButtonVisualState(event.castState);
+  }
+  
+  private updateCastButtonVisualState(currentCastApiState: cast.framework.CastState | null) {
+    this.castApiState = currentCastApiState;
+    if (this.castButtonElement) {
+      this.castButtonElement.isCastingActive = this.isCastingActive;
+    }
+    this.requestUpdate();
+  }
+
+  private handleRemotePlayerConnectedChanged() {
+    if (this.remotePlayer && this.remotePlayer.isConnected) {
+        console.log('Remote player connected.');
+    } else {
+        console.log('Remote player disconnected.');
+    }
+  }
+
 
   private async handleWelcomeComplete(e: CustomEvent<{firstPromptText: string}>) {
     const firstPromptText = e.detail.firstPromptText.trim() || "Synthwave Groove"; // Default if empty
@@ -1379,53 +1968,65 @@ class PromptDj extends LitElement {
                 }
 
                 const audioChunk = e.serverContent.audioChunks[0];
-                if (!audioChunk) return; // Should not happen if audioChunks is defined and not empty
+                if (!audioChunk) return; 
 
-                const audioBuffer = await decodeAudioData(
-                    decode(audioChunk.data),
-                    this.audioContext,
-                    this.sampleRate,
-                    2, // Assume stereo (2 channels) as numChannels is not directly available on AudioChunk
-                );
-                const source = this.audioContext.createBufferSource();
-                source.buffer = audioBuffer;
-                source.connect(this.outputNode);
-
-                const currentTime = this.audioContext.currentTime;
-
-                if (this.playbackState === 'loading') {
-                    if (this.firstChunkReceivedTimestamp === 0) { // First chunk in this loading cycle
-                        this.firstChunkReceivedTimestamp = currentTime;
-                        // Set the target playout time for this very first chunk
-                        this.nextStartTime = currentTime + this.bufferTime;
-                        console.log(`Initial buffer: first chunk received, scheduling for ${(this.nextStartTime ?? 0).toFixed(2)}s`);
-                    }
-                }
-
-                // Handle underrun: if nextStartTime is in the past.
-                if ((this.nextStartTime ?? 0) < currentTime) {
-                    console.warn(`Audio under run: nextStartTime ${(this.nextStartTime ?? 0).toFixed(2)}s < currentTime ${currentTime.toFixed(2)}s. Resetting playback target.`);
-                    this.playbackState = 'loading'; // Ensure we are in loading state
-                    this.firstChunkReceivedTimestamp = currentTime; // Restart buffering period
-                    // Schedule this current buffer to play after bufferTime from now.
-                    this.nextStartTime = currentTime + this.bufferTime;
-                }
-
-                source.start(this.nextStartTime ?? 0);
-
-                // If we were loading, check if we can transition to 'playing'
-                if (this.playbackState === 'loading') {
-                    // Transition to playing if currentTime has caught up to when the first buffered chunk *should* start playing.
-                    // This means the initial bufferTime period has elapsed since receiving the first chunk for this loading cycle.
-                    if (this.firstChunkReceivedTimestamp > 0 && (currentTime >= this.firstChunkReceivedTimestamp + this.bufferTime - 0.1)) { // -0.1s for slight margin
-                        console.log("Buffer period elapsed, transitioning to playing state.");
-                        this.playbackState = 'playing';
-                        this.firstChunkReceivedTimestamp = 0; // Reset for next loading cycle
-                    }
+                const rawChunkDataForService = decode(audioChunk.data);
+                if (this.isCastingActive) { // This implies a cast session is active
+                  await this.sendAudioChunkToWebService(rawChunkDataForService);
                 }
                 
-                // Advance nextStartTime for the *next* buffer
-                this.nextStartTime = (this.nextStartTime ?? 0) + audioBuffer.duration;
+                // Local playback logic
+                if (!this.isLocalOutputMutedForCasting) {
+                    const audioBuffer = await decodeAudioData(
+                        rawChunkDataForService, // Use the already decoded data
+                        this.audioContext,
+                        this.sampleRate,
+                        2, 
+                    );
+                    const source = this.audioContext.createBufferSource();
+                    source.buffer = audioBuffer;
+                    source.connect(this.outputNode); 
+
+                    const currentTime = this.audioContext.currentTime;
+
+                    if (this.playbackState === 'loading') {
+                        if (this.firstChunkReceivedTimestamp === 0) { 
+                            this.firstChunkReceivedTimestamp = currentTime;
+                            this.nextStartTime = currentTime + this.bufferTime;
+                            console.log(`Initial buffer: first chunk received, scheduling for ${(this.nextStartTime ?? 0).toFixed(2)}s`);
+                        }
+                    }
+
+                    if ((this.nextStartTime ?? 0) < currentTime) {
+                        console.warn(`Audio under run: nextStartTime ${(this.nextStartTime ?? 0).toFixed(2)}s < currentTime ${currentTime.toFixed(2)}s. Resetting playback target.`);
+                        this.playbackState = 'loading'; 
+                        this.firstChunkReceivedTimestamp = currentTime; 
+                        this.nextStartTime = currentTime + this.bufferTime;
+                    }
+
+                    source.start(this.nextStartTime ?? 0);
+                    
+                    if (this.playbackState === 'loading') {
+                        if (this.firstChunkReceivedTimestamp > 0 && (currentTime >= this.firstChunkReceivedTimestamp + this.bufferTime - 0.1)) { 
+                            console.log("Buffer period elapsed, transitioning to playing state.");
+                            this.playbackState = 'playing';
+                            this.firstChunkReceivedTimestamp = 0; 
+                        }
+                    }
+                    this.nextStartTime = (this.nextStartTime ?? 0) + audioBuffer.duration;
+                } else if (this.playbackState === 'loading' && this.isCastingActive && this.hasCastMediaBeenLoadedForCurrentSession) {
+                    // If casting, locally muted, and media is loaded on Cast device,
+                    // we transition to 'playing' state for UI/session control based on time,
+                    // assuming the Cast device manages its own buffering.
+                     if (this.firstChunkReceivedTimestamp === 0) {
+                         this.firstChunkReceivedTimestamp = this.audioContext.currentTime; // Mark when loading started
+                     }
+                     if (this.audioContext.currentTime >= this.firstChunkReceivedTimestamp + this.bufferTime - 0.1) {
+                        this.playbackState = 'playing';
+                        this.firstChunkReceivedTimestamp = 0;
+                        console.log("Buffer period elapsed (while casting), transitioning to playing state for session control.");
+                     }
+                }
             }
             },
             onerror: (e: ErrorEvent) => {
@@ -1574,7 +2175,6 @@ class PromptDj extends LitElement {
       if (this.audioContext.state === 'suspended') {
         await this.audioContext.resume().catch(err => console.error("Audio context resume failed:", err));
       }
-      // setSessionPrompts is called within connectToSession or just above if already connected.
       this.loadAudio();
 
     } else if (this.playbackState === 'loading') {
@@ -1591,16 +2191,8 @@ class PromptDj extends LitElement {
         }
     }
     this.playbackState = 'paused';
-    this.nextStartTime = 0; // Reset for consistent re-buffering on resume
-    this.firstChunkReceivedTimestamp = 0; // Reset buffering state
-
-    if (this.audioContext.state === 'running') {
-        this.outputNode.gain.setValueAtTime(this.outputNode.gain.value, this.audioContext.currentTime);
-        this.outputNode.gain.linearRampToValueAtTime(
-        0,
-        this.audioContext.currentTime + 0.1,
-        );
-    }
+    this.nextStartTime = 0; 
+    this.firstChunkReceivedTimestamp = 0; 
   }
 
 
@@ -1626,13 +2218,6 @@ class PromptDj extends LitElement {
         this.toastMessage.show("Cannot play: Not connected or connection error.");
         return;
     }
-    this.outputNode.gain.setValueAtTime(this.outputNode.gain.value, this.audioContext.currentTime);
-    if (this.outputNode.gain.value === 0) {
-        this.outputNode.gain.linearRampToValueAtTime(
-        1,
-        this.audioContext.currentTime + 0.1,
-        );
-    }
   }
 
   private stopAudio() {
@@ -1647,15 +2232,7 @@ class PromptDj extends LitElement {
     }
     this.playbackState = 'stopped';
     this.nextStartTime = 0;
-    this.firstChunkReceivedTimestamp = 0; // Reset buffering state
-
-    if (this.audioContext.state === 'running') {
-        this.outputNode.gain.setValueAtTime(this.outputNode.gain.value, this.audioContext.currentTime);
-        this.outputNode.gain.linearRampToValueAtTime(
-        0,
-        this.audioContext.currentTime + 0.1,
-        );
-    }
+    this.firstChunkReceivedTimestamp = 0; 
   }
 
 
@@ -2302,7 +2879,14 @@ class PromptDj extends LitElement {
               ` : ''}
           </div>
           <div class="header-actions">
-            <settings-button @click=${this.toggleAdvancedSettings} ?disabled=${this.showWelcomeScreen} aria-label="Toggle advanced settings"></settings-button>
+            <cast-button 
+                @click=${this.handleCastClick} 
+                ?disabled=${!this.isCastApiInitialized || this.isDropActive || this.showWelcomeScreen || (this.castApiState === cast.framework.CastState.CONNECTING)}
+                aria-label=${this.isCastingActive ? "Stop Casting" : "Cast to device"}
+                title=${this.isCastingActive ? "Stop Casting" : "Cast to device"}
+                .isCastingActive=${this.isCastingActive} >
+            </cast-button>
+            <settings-button @click=${this.toggleAdvancedSettings} ?disabled=${this.isDropActive || this.showWelcomeScreen} aria-label="Toggle advanced settings"></settings-button>
           </div>
         </div>
         <div class="learn-mode-message-bar ${classMap({visible: this.isMidiLearnActive && this.learnModeMessage !== ''})}">
@@ -2411,6 +2995,7 @@ declare global {
     'prompt-controller': PromptController;
     'add-prompt-button': AddPromptButton;
     'settings-button': SettingsButton;
+    'cast-button': CastButton;
     'play-pause-button': PlayPauseButton;
     'help-button': HelpButton;
     'share-button': ShareButton;
@@ -2439,4 +3024,6 @@ declare global {
     'prompt-interaction': CustomEvent<{promptId: string; text: string}>;
     'welcome-complete': CustomEvent<{firstPromptText: string}>;
   }
+
+  // Window interface augmentation is now part of the main `declare global` block for Cast SDK types
 }

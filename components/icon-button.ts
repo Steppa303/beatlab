@@ -9,6 +9,7 @@ import {property} from 'lit/decorators.js';
 
 export class IconButton extends LitElement {
   @property({type: Boolean, reflect: true}) isMidiLearnTarget = false;
+  @property({type: Boolean, reflect: true}) disabled = false;
 
   static override styles = css`
     :host {
@@ -18,13 +19,21 @@ export class IconButton extends LitElement {
       justify-content: center;
       pointer-events: none; /* Host itself doesn't receive clicks */
       border-radius: 50%; /* Ensure border radius is circular for the host */
-      transition: box-shadow 0.2s ease-out, transform 0.2s ease-out;
+      transition: box-shadow 0.2s ease-out, transform 0.2s ease-out, opacity 0.2s ease-out;
     }
-    :host(:hover) svg {
+    :host([disabled]) {
+      opacity: 0.5;
+      pointer-events: none; /* Make sure the hitbox also becomes non-interactive */
+    }
+    :host([disabled]) .hitbox {
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    :host(:not([disabled]):hover) svg {
       transform: scale(1.2);
       filter: brightness(1.2);
     }
-    :host(:active) svg { /* Press down effect */
+    :host(:not([disabled]):active) svg { /* Press down effect */
       transform: scale(1.1);
       filter: brightness(0.9);
     }
