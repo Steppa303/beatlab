@@ -243,8 +243,8 @@ const defaultStyles = css`
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%; /* Changed from right: 0 */
-    height: 100%; /* Changed from bottom: 0 */
+    width: 100%; 
+    height: 100dvh; /* Use dynamic viewport height */
     background-color: #181818;
     color: #e0e0e0;
     font-family: 'Google Sans', sans-serif;
