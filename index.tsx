@@ -244,7 +244,7 @@ const defaultStyles = css`
     top: 0;
     left: 0;
     width: 100%; 
-    height: 100dvh; /* Use dynamic viewport height as base */
+    height: 100vh; /* Use static viewport height for keyboard overlay strategy */
     background-color: #181818;
     color: #e0e0e0;
     font-family: 'Google Sans', sans-serif;
@@ -323,7 +323,6 @@ class PromptDj extends LitElement {
   private sliderJiggleTimeout: number | null = null;
   private dropTrackId: string | null = null;
   private dropEffectTimer: number | null = null;
-  // private readonly boundVisualViewportResizeHandler: () => void; // Removed
 
 
   // --- Queries for DOM Elements ---
@@ -342,7 +341,6 @@ class PromptDj extends LitElement {
 
   constructor() {
     super();
-    // this.boundVisualViewportResizeHandler = this._handleVisualViewportResize.bind(this); // Removed
 
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('forceTutorial') === 'true') {
@@ -383,7 +381,6 @@ class PromptDj extends LitElement {
     }
   }
 
-  // Removed _handleVisualViewportResize method
 
   private checkTutorialStatusAndLoadPrompts() {
     if (this.forceTutorialFromUrl) {
@@ -411,12 +408,10 @@ class PromptDj extends LitElement {
     super.connectedCallback();
     this.audioContext.resume();
     document.addEventListener('keydown', this.handleGlobalKeyDown);
-    // Removed visualViewport listener setup
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
-    // Removed visualViewport listener cleanup
     if (this.activeSession) {
       this.activeSession.stop();
       this.activeSession = null;

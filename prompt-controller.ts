@@ -255,6 +255,10 @@ export class PromptController extends LitElement {
         if (this.textInputElement) {
           this.textInputElement.focus();
           this.textInputElement.select();
+          // Ensure the focused input scrolls into view if potentially obscured by an overlaying keyboard
+          setTimeout(() => {
+            this.textInputElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 150); // Delay to allow keyboard to potentially appear
         }
       });
     }
