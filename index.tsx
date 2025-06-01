@@ -244,7 +244,7 @@ const defaultStyles = css`
     top: 0;
     left: 0;
     width: 100%; 
-    height: 100dvh; /* Use dynamic viewport height */
+    height: 100dvh; /* Use dynamic viewport height as base */
     background-color: #181818;
     color: #e0e0e0;
     font-family: 'Google Sans', sans-serif;
@@ -317,12 +317,13 @@ class PromptDj extends LitElement {
   private nextAudioChunkStartTime = 0;
   private midiController: MidiController;
   private sessionSetupComplete = false;
-  private boundHandleCastApiReady: (event: CustomEvent<{available: boolean, errorInfo?: any}>) => void;
+  private boundHandleCastApiReadyEvent: (event: CustomEvent<{available: boolean, errorInfo?: any}>) => void;
   private loadingMessageInterval: number | null = null;
   private currentLoadingMessageIndex = 0;
   private sliderJiggleTimeout: number | null = null;
   private dropTrackId: string | null = null;
   private dropEffectTimer: number | null = null;
+  private readonly boundVisualViewportResizeHandler: () => void;
 
 
   // --- Queries for DOM Elements ---
@@ -341,6 +342,7 @@ class PromptDj extends LitElement {
 
   constructor() {
     super();
+    this.boundVisualViewportResizeHandler = this._handleVisualViewportResize.bind(this);
 
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('forceTutorial') === 'true') {
@@ -368,16 +370,22 @@ class PromptDj extends LitElement {
     this.handleSessionClose = this.handleSessionClose.bind(this);
     
     if (CAST_FEATURE_ENABLED) {
-        this.boundHandleCastApiReady = this.handleCastApiReady.bind(this) as EventListener;
-        document.addEventListener('cast-api-ready', this.boundHandleCastApiReady);
+        this.boundHandleCastApiReadyEvent = this.handleCastApiReady.bind(this) as EventListener;
+        document.addEventListener('cast-api-ready', this.boundHandleCastApiReadyEvent);
     } else {
-        this.boundHandleCastApiReady = () => {}; // No-op if Cast is disabled
+        this.boundHandleCastApiReadyEvent = () => {}; // No-op if Cast is disabled
     }
 
     if (this.forceTutorialFromUrl) {
       this.showWelcome = false; // Don't show welcome overlay if tutorial is forced
     } else if (!this.isTutorialActive && !localStorage.getItem('beatLabWelcomeShown')) {
         this.showWelcome = true;
+    }
+  }
+
+  private _handleVisualViewportResize() {
+    if (window.visualViewport) {
+      this.style.height = `${window.visualViewport.height}px`;
     }
   }
 
@@ -407,10 +415,17 @@ class PromptDj extends LitElement {
     super.connectedCallback();
     this.audioContext.resume();
     document.addEventListener('keydown', this.handleGlobalKeyDown);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', this.boundVisualViewportResizeHandler);
+      this._handleVisualViewportResize(); // Initial call
+    }
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
+    if (window.visualViewport) {
+      window.visualViewport.removeEventListener('resize', this.boundVisualViewportResizeHandler);
+    }
     if (this.activeSession) {
       this.activeSession.stop();
       this.activeSession = null;
@@ -437,7 +452,7 @@ class PromptDj extends LitElement {
                 this.handleRemotePlayerConnectChange.bind(this) // Ensure bound listener for removal
             );
         }
-        document.removeEventListener('cast-api-ready', this.boundHandleCastApiReady);
+        document.removeEventListener('cast-api-ready', this.boundHandleCastApiReadyEvent);
     }
     document.removeEventListener('keydown', this.handleGlobalKeyDown);
     this.clearLoadingMessageInterval();
