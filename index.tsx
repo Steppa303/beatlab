@@ -420,24 +420,37 @@ class PromptDj extends LitElement {
   }
 
   private handleViewportResize() {
-    if (this.initialAppHeight === 0) return; // Not yet initialized
+    if (this.initialAppHeight === 0) { // Not yet initialized, or shouldn't run
+        if (window.visualViewport) { // If visualViewport exists, try to initialize initialAppHeight now
+            this.initialAppHeight = window.innerHeight;
+            if (this.initialAppHeight === 0) return; // Still couldn't get a valid height
+        } else {
+            return; // No visualViewport and initialAppHeight is 0
+        }
+    }
 
     const visualViewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-    const currentWindowHeight = window.innerHeight;
+    const currentWindowInnerHeight = window.innerHeight;
 
     // Heuristic for orientation change or significant desktop resize:
-    // If visualViewport height is close to window.innerHeight (keyboard likely not up)
-    // AND window.innerHeight has changed significantly from our stored initialAppHeight.
-    const isLikelyOrientationOrDesktopResize = 
-        Math.abs(visualViewportHeight - currentWindowHeight) < 50 && 
-        Math.abs(currentWindowHeight - this.initialAppHeight) > 50;
+    // Check if visualViewport height is close to window.innerHeight (keyboard likely not the primary cause of resize)
+    // AND window.innerHeight itself has changed significantly from our stored initialAppHeight.
+    // The threshold (e.g., 50px) for "significantly changed" helps differentiate from minor adjustments.
+    const isLikelyGenuineResize = 
+        Math.abs(visualViewportHeight - currentWindowInnerHeight) < 50 && 
+        Math.abs(currentWindowInnerHeight - this.initialAppHeight) > 50;
 
-    if (isLikelyOrientationOrDesktopResize) {
-      this.initialAppHeight = currentWindowHeight; // Update to new full screen height
+    if (isLikelyGenuineResize) {
+      // This is likely an orientation change or a desktop browser resize.
+      // Update initialAppHeight to the new full screen height.
+      this.initialAppHeight = currentWindowInnerHeight;
     }
+    // If it's not a "genuine resize" (e.g., keyboard is up or down),
+    // initialAppHeight remains unchanged, thus preserving the original full screen height.
     
-    // Always set the host height. This will use the original initialAppHeight 
-    // or the updated one after an orientation change, and will fight keyboard resizes.
+    // Always call setHostHeight to apply the (potentially updated) initialAppHeight.
+    // This ensures the app container attempts to maintain the true full-screen height
+    // against keyboard-induced shrinking or adapts to new full-screen dimensions.
     this.setHostHeight();
   }
 
