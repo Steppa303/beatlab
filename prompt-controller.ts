@@ -5,10 +5,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {css, html, LitElement, svg} from 'lit';
+import {css, html, LitElement, svg, unsafeCSS} from 'lit';
 import {customElement, property, query, state} from 'lit/decorators.js';
+import {classMap} from 'lit/directives/class-map.js';
 import type { Prompt } from './types.js'; 
 import { WeightSlider } from './components/weight-slider.js';
+import { DROP_TRACK_COLOR } from './constants.js'; // Import for gold color
 
 @customElement('prompt-controller')
 export class PromptController extends LitElement {
@@ -38,22 +40,53 @@ export class PromptController extends LitElement {
       padding: 15px; /* Padding inside the card */
       animation: promptAppear 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
       box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-      transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, border 0.2s ease-out;
+      transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, border 0.2s ease-out, background-color 0.2s;
       border: 2px solid transparent;
     }
-    :host([ismidilearntarget]) .prompt {
-      border: 2px solid #FFD700;
+    :host([ismidilearntarget]) .prompt:not(.drop-track-active) {
+      border: 2px solid #FFD700; /* Gold border for MIDI learn target */
       box-shadow: 0 0 10px #FFD700, 0 5px 15px rgba(0,0,0,0.4);
-      transform: scale(1.02); /* Slightly larger when targeted */
+      transform: scale(1.02); 
     }
-    .prompt:not([ismidilearntarget]):hover {
+    .prompt:not(.drop-track-active):not([ismidilearntarget]):hover {
       transform: translateY(-2px);
       box-shadow: 0 6px 12px rgba(0,0,0,0.35);
     }
+
+    /* Styles for active drop track */
+    .prompt.drop-track-active {
+      background-color: ${unsafeCSS(DROP_TRACK_COLOR)}; /* Gold background */
+      border: 2px solid #B8860B; /* DarkGoldenRod border */
+      animation: promptAppear 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards, 
+                   dropTrackPulse 1.5s infinite ease-in-out 0.4s; /* Delay pulse */
+    }
+    @keyframes dropTrackPulse {
+      0% { transform: scale(1); box-shadow: 0 4px 8px rgba(0,0,0,0.3), 0 0 5px ${unsafeCSS(DROP_TRACK_COLOR)}; }
+      50% { transform: scale(1.015); box-shadow: 0 5px 10px rgba(0,0,0,0.35), 0 0 12px ${unsafeCSS(DROP_TRACK_COLOR)}, 0 0 18px #B8860B; }
+      100% { transform: scale(1); box-shadow: 0 4px 8px rgba(0,0,0,0.3), 0 0 5px ${unsafeCSS(DROP_TRACK_COLOR)}; }
+    }
+    .drop-track-text-display {
+      font-family: 'Arial Black', 'Impact', sans-serif;
+      font-size: 1.8em;
+      font-weight: 900;
+      color: #4A3B00; /* Dark gold/brown text for contrast on gold background */
+      text-align: center;
+      width: 100%;
+      padding: 5px 0; 
+      margin: auto 0; /* Vertically center if flex allows */
+      line-height: 1.2;
+      text-shadow: 1px 1px 0px rgba(255,255,255,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-grow: 1; /* Allow it to take space in header */
+    }
+
+
     .prompt-header {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: center; /* Align items vertically in the center */
       gap: 10px;
       margin-bottom: 12px; /* Space between header and slider */
       min-height: 2.5em; /* Ensure header has some min height */
@@ -63,7 +96,7 @@ export class PromptController extends LitElement {
       align-items: center;
       flex-grow: 1;
       overflow: hidden; /* Important for text ellipsis if not editing */
-      margin-right: 10px;
+      margin-right: 10px; /* Space before ratio/remove button */
     }
     #text-input, #static-text {
       font-family: 'Google Sans', sans-serif;
@@ -82,6 +115,16 @@ export class PromptController extends LitElement {
       min-width: 0; 
       line-height: 1.4;
     }
+    /* Text color for normal prompts on dark background */
+    :not(.drop-track-active) #static-text, 
+    :not(.drop-track-active) #text-input {
+        color: #fff;
+    }
+    /* Text color for drop track on gold background */
+    .drop-track-active #static-text { /* This is now handled by .drop-track-text-display */
+        /* color: #4A3B00; */ 
+    }
+
     #static-text {
       white-space: normal; /* Allow text to wrap */
       word-wrap: break-word; /* Ensure long words break */
@@ -119,7 +162,7 @@ export class PromptController extends LitElement {
       height: 32px;
       transition: background-color 0.2s, color 0.2s;
     }
-    .edit-save-button:hover {
+    .prompt:not(.drop-track-active) .edit-save-button:hover {
       background-color: rgba(255,255,255,0.1);
       color: #fff;
     }
@@ -137,6 +180,10 @@ export class PromptController extends LitElement {
       padding: 4px 8px;
       border-radius: 4px;
     }
+    .drop-track-active .ratio-display {
+        color: #4A3B00; /* Darker text on gold */
+        background-color: rgba(255,255,255,0.2); /* Lighter bg on gold */
+    }
     .remove-button {
       background: #D32F2F;
       color: #FFFFFF;
@@ -153,7 +200,15 @@ export class PromptController extends LitElement {
       opacity: 0.8;
       transition: opacity 0.15s, transform 0.15s, background-color 0.15s;
     }
-    .remove-button:hover {
+    .drop-track-active .remove-button {
+        background: #8B0000; /* Darker red on gold */
+    }
+    .drop-track-active .remove-button:hover {
+        background: #A52A2A; /* Brownish red on hover */
+        opacity: 1;
+        transform: scale(1.1);
+    }
+    .prompt:not(.drop-track-active) .remove-button:hover {
       opacity: 1;
       transform: scale(1.1);
       background-color: #E53935;
@@ -163,14 +218,11 @@ export class PromptController extends LitElement {
       height: 22px; /* Increased height for better touch interaction */
       /* cursor is handled by weight-slider itself */
     }
-    :host([filtered='true']) #static-text,
+    :host([filtered='true']) #static-text:not(.drop-track-text-display),
     :host([filtered='true']) #text-input {
       background-color: rgba(218, 32, 0, 0.7); /* More prominent filtered indication */
       color: #fff;
       border: 1px dashed #ff8a80;
-    }
-    :host([filtered='true']) {
-      /* box-shadow: 0 0 10px 2px rgba(218, 32, 0, 0.7); */
     }
   `;
 
@@ -180,6 +232,7 @@ export class PromptController extends LitElement {
   @property({type: String}) sliderColor = '#5200ff';
   @property({type: Boolean, reflect: true}) isMidiLearnTarget = false;
   @property({type: Boolean, reflect: true}) filtered = false;
+  @property({type: Boolean, reflect: true}) isDropTrack = false;
 
 
   @state() private isEditingText = false;
@@ -189,18 +242,15 @@ export class PromptController extends LitElement {
 
   override connectedCallback() {
     super.connectedCallback();
-    // Removed automatic edit mode based on default text.
-    // Parent component (PromptDj) now controls this via enterEditModeAfterCreation.
   }
 
   override firstUpdated() {
-    // Main .prompt div handles clicks for learn target selection
     this.addEventListener('click', this.dispatchPromptInteraction);
   }
 
   override updated(changedProperties: Map<string | number | symbol, unknown>) {
     super.updated(changedProperties);
-    if (changedProperties.has('isEditingText') && this.isEditingText) {
+    if (changedProperties.has('isEditingText') && this.isEditingText && !this.isDropTrack) {
       requestAnimationFrame(() => {
         if (this.textInputElement) {
           this.textInputElement.focus();
@@ -211,14 +261,8 @@ export class PromptController extends LitElement {
   }
 
   private dispatchPromptInteraction(e: Event) {
-    // Only dispatch if the click is on the prompt card itself, not on interactive elements within
-    // This is tricky because the slider is now part of it.
-    // A simpler way for MIDI learn is to attach learn handlers to specific elements in the parent.
-    // For now, clicking anywhere on the card except buttons/input might be okay.
     const target = e.target as HTMLElement;
     if (target.closest('button, input, weight-slider, [contenteditable="true"]')) {
-        // If the click was on a button, input, or the slider, don't treat it as a "select this prompt for MIDI learn"
-        // Let those elements handle their own click events.
         return;
     }
     this.dispatchEvent(new CustomEvent('prompt-interaction', {
@@ -236,7 +280,7 @@ export class PromptController extends LitElement {
           text: this.text,
           weight: this.weight,
         },
-        bubbles: true, // Ensure it bubbles up to prompt-dj
+        bubbles: true,
         composed: true,
       }),
     );
@@ -244,7 +288,6 @@ export class PromptController extends LitElement {
 
   private saveText() {
     const newText = this.textInputElement.value.trim();
-    // Only save and dispatch if text actually changed, or if it was the default "Neuer Prompt"
     if (newText === this.text && this.text !== 'Neuer Prompt') { 
       this.isEditingText = false;
       return;
@@ -256,6 +299,7 @@ export class PromptController extends LitElement {
 
   private handleToggleEditSave(e: Event) {
     e.stopPropagation(); 
+    if (this.isDropTrack) return; // Drop track text is not editable
     if (this.isEditingText) {
       this.saveText();
     } else {
@@ -266,22 +310,21 @@ export class PromptController extends LitElement {
 
   private handleTextInputKeyDown(e: KeyboardEvent) {
     e.stopPropagation(); 
-    if (e.key === 'Enter' && !e.shiftKey) { // Enter saves, Shift+Enter for newline (if textarea)
+    if (this.isDropTrack) return;
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       this.saveText();
     } else if (e.key === 'Escape') {
       e.preventDefault();
       this.text = this._originalTextBeforeEdit; 
-      this.textInputElement.value = this.text; // Reset input field value as well
+      this.textInputElement.value = this.text; 
       this.isEditingText = false;
     }
   }
   
   private handleTextInputBlur(e: FocusEvent) {
     e.stopPropagation();
-    // Save on blur only if it's a real blur, not just focus moving within component
-    // or if a save attempt via Enter/Esc already happened.
-    // For simplicity, always try to save if editing.
+    if (this.isDropTrack) return;
     if (this.isEditingText) {
         this.saveText();
     }
@@ -289,6 +332,7 @@ export class PromptController extends LitElement {
 
   private handleStaticTextClick(e: MouseEvent) {
     e.stopPropagation();
+    if (this.isDropTrack) return;
     if (!this.isEditingText) {
       this._originalTextBeforeEdit = this.text;
       this.isEditingText = true;
@@ -297,7 +341,7 @@ export class PromptController extends LitElement {
 
 
   private updateWeight(event: CustomEvent<number>) {
-    event.stopPropagation(); // Prevent this from being a promptInteraction event.
+    event.stopPropagation(); 
     const newWeight = event.detail;
     if (this.weight === newWeight) {
       return;
@@ -325,9 +369,8 @@ export class PromptController extends LitElement {
     return svg`<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>`;
   }
   
-  // Method to be called from parent if add button creates this prompt
   public enterEditModeAfterCreation() {
-    // "Neuer Prompt" is German, "New Prompt" might be from older versions or direct manipulation
+    if (this.isDropTrack) return;
     if (this.text === 'Neuer Prompt' || this.text === 'New Prompt') {
       this.isEditingText = true;
       this._originalTextBeforeEdit = this.text; 
@@ -336,32 +379,36 @@ export class PromptController extends LitElement {
 
 
   override render() {
-    const textContent = this.isEditingText
-      ? html`<input
-            type="text"
-            id="text-input"
-            .value=${this.text}
-            placeholder="Dein Sound-Prompt..."
-            @click=${(e: Event) => e.stopPropagation()}
-            @keydown=${this.handleTextInputKeyDown}
-            @blur=${this.handleTextInputBlur}
-            spellcheck="false"
-            aria-label="Prompt text input"
-          />`
-      : html`<span id="static-text" title="Click to edit: ${this.text}" @click=${this.handleStaticTextClick} aria-label="Prompt text: ${this.text}">${this.text}</span>`;
+    const textContent = this.isDropTrack
+      ? html`<span class="drop-track-text-display" aria-label="Drop in progress">Drop!</span>`
+      : this.isEditingText
+        ? html`<input
+              type="text"
+              id="text-input"
+              .value=${this.text}
+              placeholder="Dein Sound-Prompt..."
+              @click=${(e: Event) => e.stopPropagation()}
+              @keydown=${this.handleTextInputKeyDown}
+              @blur=${this.handleTextInputBlur}
+              spellcheck="false"
+              aria-label="Prompt text input"
+            />`
+        : html`<span id="static-text" title="Click to edit: ${this.text}" @click=${this.handleStaticTextClick} aria-label="Prompt text: ${this.text}">${this.text}</span>`;
 
     return html`
-    <div class="prompt">
+    <div class="prompt ${classMap({'drop-track-active': this.isDropTrack})}">
       <div class="prompt-header">
         <div class="text-and-edit">
             ${textContent}
-            <button 
-                class="edit-save-button" 
-                @click=${this.handleToggleEditSave} 
-                aria-label=${this.isEditingText ? 'Save prompt text' : 'Edit prompt text'}
-                title=${this.isEditingText ? 'Save (Enter)' : 'Edit (Click text or icon)'} >
-                ${this.isEditingText ? this.renderSaveIcon() : this.renderEditIcon()}
-            </button>
+            ${!this.isDropTrack ? html`
+              <button 
+                  class="edit-save-button" 
+                  @click=${this.handleToggleEditSave} 
+                  aria-label=${this.isEditingText ? 'Save prompt text' : 'Edit prompt text'}
+                  title=${this.isEditingText ? 'Save (Enter)' : 'Edit (Click text or icon)'} >
+                  ${this.isEditingText ? this.renderSaveIcon() : this.renderEditIcon()}
+              </button>
+            ` : ''}
         </div>
         <div class="controls-group">
           <div class="ratio-display">Ratio: ${(this.weight ?? 0).toFixed(1)}</div>

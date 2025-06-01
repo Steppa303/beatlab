@@ -19,7 +19,7 @@ import {
 import {decode, decodeAudioData as localDecodeAudioData, throttle} from './utils.js';
 import { MidiController, type MidiInputInfo } from './midi-controller.js';
 import type { Prompt, PlaybackState, AppLiveMusicGenerationConfig, PresetPrompt, Preset } from './types.js';
-import { TRACK_COLORS, ORB_COLORS, CURRENT_PRESET_VERSION, MIDI_LEARN_TARGET_DROP_BUTTON, MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON } from './constants.js';
+import { TRACK_COLORS, ORB_COLORS, CURRENT_PRESET_VERSION, MIDI_LEARN_TARGET_DROP_BUTTON, MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON, DROP_TRACK_DURATION, DROP_TRACK_INITIAL_WEIGHT, DROP_TRACK_COLOR, DROP_PROMPT_TEMPLATE } from './constants.js';
 
 // Import components
 import './components/weight-slider.js';
@@ -240,8 +240,8 @@ const defaultStyles = css`
   :host {
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    width: 100vw;
+    height: 100%; /* Changed from 100vh */
+    width: 100%;  /* Changed from 100vw */
     background-color: #181818;
     color: #e0e0e0;
     font-family: 'Google Sans', sans-serif;
@@ -304,6 +304,7 @@ class PromptDj extends LitElement {
 
   @state() private isTutorialActive = false;
   @state() private forceTutorialFromUrl = false;
+  @state() private hasHadFirstSuccessfulPlay = false;
 
 
   // --- Internal Class Members ---
@@ -318,6 +319,8 @@ class PromptDj extends LitElement {
   private loadingMessageInterval: number | null = null;
   private currentLoadingMessageIndex = 0;
   private sliderJiggleTimeout: number | null = null;
+  private dropTrackId: string | null = null;
+  private dropEffectTimer: number | null = null;
 
 
   // --- Queries for DOM Elements ---
@@ -330,8 +333,8 @@ class PromptDj extends LitElement {
   @query('#settings-panel') private settingsPanelEl!: HTMLElement;
   @query('help-guide-panel') private helpGuidePanelEl!: HelpGuidePanel;
   @query('welcome-overlay') private welcomeOverlayEl!: WelcomeOverlay;
-  @query('#midi-device-select') private midiDeviceSelectEl!: HTMLSelectElement;
-  @query('#learn-midi-button') private learnMidiButtonEl!: HTMLButtonElement;
+  @query('#midi-device-select') private midiDeviceSelectEl!: HTMLSelectElement; // Now inside settings panel
+  @query('#learn-midi-button') private learnMidiButtonEl!: HTMLButtonElement; // Now inside settings panel
 
 
   constructor() {
@@ -440,6 +443,10 @@ class PromptDj extends LitElement {
         clearTimeout(this.sliderJiggleTimeout);
         this.sliderJiggleTimeout = null;
     }
+    if (this.dropEffectTimer) {
+        clearTimeout(this.dropEffectTimer);
+        this.dropEffectTimer = null;
+    }
   }
 
   override firstUpdated() {
@@ -463,7 +470,7 @@ class PromptDj extends LitElement {
         const newPrompts = new Map<string, Prompt>();
         parsedPromptsArray.forEach(p => {
           const id = this.generateNewPromptId();
-          newPrompts.set(id, { ...p, promptId: id, color: this.getUnusedRandomColor(Array.from(newPrompts.values()).map(pr => pr.color)) });
+          newPrompts.set(id, { ...p, promptId: id, color: this.getUnusedRandomColor(Array.from(newPrompts.values()).map(pr => pr.color)), isDropTrack: false });
         });
         this.prompts = newPrompts;
         this.recalculateNextPromptIdCounter();
@@ -500,6 +507,7 @@ class PromptDj extends LitElement {
         text: defaultTexts[i],
         weight: i === 0 ? 1.0 : 0.0,
         color: this.getUnusedRandomColor(Array.from(newPrompts.values()).map(p => p.color)),
+        isDropTrack: false,
       });
     }
     this.prompts = newPrompts;
@@ -511,16 +519,19 @@ class PromptDj extends LitElement {
   private async connectToSession(): Promise<boolean> {
     if (this.activeSession && this.sessionSetupComplete) {
       console.log('Session already active and setup.');
+      // If session is already active and setup, playbackState is NOT changed here.
+      // The caller (startAudioStream) will handle setting to 'loading' if needed.
       return true;
     }
-    if (this.playbackState === 'loading') {
-        console.warn('Connection attempt skipped, already loading.');
-        return false;
+    // If we are already trying to load (e.g. multiple rapid clicks on play while it's connecting)
+    if (this.playbackState === 'loading' && this.loadingMessageInterval) {
+        console.warn('Connection attempt skipped, already loading (connectToSession guard).');
+        return false; // Indicate that we didn't proceed due to already loading
     }
 
-    this.playbackState = 'loading';
-    this.startLoadingMessageSequence();
-    this.sessionSetupComplete = false;
+    this.playbackState = 'loading'; // Set to loading *before* attempting connection
+    this.startLoadingMessageSequence(); // Start messages (will check hasHadFirstSuccessfulPlay)
+    this.sessionSetupComplete = false; // Must be reset before new connection attempt
 
     try {
       console.log(`Attempting to connect to Lyria session with model: ${activeModelName}`);
@@ -533,13 +544,16 @@ class PromptDj extends LitElement {
         }
       });
       console.log('Successfully called ai.live.music.connect. Waiting for setupComplete...');
+      // playbackState is now 'loading', sessionSetupComplete is false.
+      // It will transition to 'playing' in handleSessionMessage upon receiving the first audio chunk after setupComplete.
       return true;
     } catch (error: any) {
       console.error('Failed to connect to Lyria session:', error);
       this.toastMessageEl.show(`Error connecting: ${error.message || 'Unknown error'}`);
-      this.playbackState = 'stopped';
-      this.clearLoadingMessageInterval();
-      this.activeSession = null;
+      this.playbackState = 'stopped'; // On error, revert to stopped
+      this.clearLoadingMessageInterval(); // Stop loading messages
+      this.activeSession = null; // Clear session
+      this.sessionSetupComplete = false; // Ensure this is false
       return false;
     }
   }
@@ -608,7 +622,7 @@ class PromptDj extends LitElement {
         if (this.nextAudioChunkStartTime < currentTime) {
           console.warn('Audio buffer underrun! Playback might be choppy.');
           this.playbackState = 'loading'; // Show loading indicator
-          this.startLoadingMessageSequence(); // Restart messages if underrun
+          this.startLoadingMessageSequence(); // Restart messages if underrun, respects hasHadFirstSuccessfulPlay
           this.nextAudioChunkStartTime = currentTime + this.BUFFER_AHEAD_TIME_SECONDS; // Try to re-buffer
         }
 
@@ -619,11 +633,14 @@ class PromptDj extends LitElement {
         if (this.playbackState === 'loading' && this.sessionSetupComplete) {
             this.playbackState = 'playing';
             this.clearLoadingMessageInterval();
-            this.toastMessageEl.show("▶️ Wiedergabe gestartet!", 2000);
+            if (!this.hasHadFirstSuccessfulPlay) {
+                this.toastMessageEl.show("▶️ Wiedergabe gestartet!", 2000);
+            }
             if (this.sliderJiggleTimeout) {
                 clearTimeout(this.sliderJiggleTimeout);
                 this.sliderJiggleTimeout = null;
             }
+            this.hasHadFirstSuccessfulPlay = true; // Mark first successful play
              // Notify tutorial if active
             if (this.isTutorialActive && this.tutorialControllerEl) {
               this.tutorialControllerEl.notifyAppEvent('playbackStarted');
@@ -634,7 +651,7 @@ class PromptDj extends LitElement {
         console.error('Error processing audio chunk:', error);
         this.toastMessageEl.show('Fehler bei der Audioverarbeitung.');
          if (this.playbackState === 'loading') {
-            this.playbackState = 'paused';
+            this.playbackState = 'paused'; // Fallback to paused if audio processing fails during loading
             this.clearLoadingMessageInterval();
         }
       }
@@ -653,6 +670,7 @@ class PromptDj extends LitElement {
     this.activeSession = null;
     this.sessionSetupComplete = false;
     this.nextAudioChunkStartTime = 0;
+    // Do not reset hasHadFirstSuccessfulPlay here, as it's a session error, not a full UI reset.
   }
 
   private handleSessionClose(event: any) {
@@ -669,6 +687,7 @@ class PromptDj extends LitElement {
     this.activeSession = null;
     this.sessionSetupComplete = false;
     this.nextAudioChunkStartTime = 0;
+    // Do not reset hasHadFirstSuccessfulPlay here.
   }
 
 
@@ -686,24 +705,31 @@ class PromptDj extends LitElement {
     }
   }
 
-  private async startAudioStream() {
-    if (this.playbackState === 'loading' && this.loadingMessageInterval) {
-        return; // Already trying to load/connect and messages are showing
+ private async startAudioStream() {
+    if (this.playbackState === 'loading' && this.loadingMessageInterval && !this.hasHadFirstSuccessfulPlay) {
+        console.warn('Start audio stream attempt skipped, already showing initial loading messages.');
+        return;
     }
 
-    if (!(await this.connectToSession())) { // connectToSession sets loading state and starts messages
+    const wasPausedOrStopped = this.playbackState === 'paused' || this.playbackState === 'stopped';
+
+    if (!(await this.connectToSession())) {
       return;
     }
 
     if (this.activeSession) {
         try {
-            console.log('Calling session.play()');
-            if (this.playbackState === 'paused' || this.playbackState === 'stopped') {
+            if (this.playbackState !== 'playing' && this.playbackState !== 'loading') {
+                this.playbackState = 'loading';
+                this.startLoadingMessageSequence(); // Respects hasHadFirstSuccessfulPlay
+            }
+
+            if (wasPausedOrStopped) {
                 this.nextAudioChunkStartTime = 0;
             }
 
+            console.log('Calling session.play()');
             this.activeSession.play();
-            // playbackState is already 'loading' from connectToSession
             this.audioContext.resume();
             this.outputGainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
             this.outputGainNode.gain.linearRampToValueAtTime(1, this.audioContext.currentTime + 0.2);
@@ -711,7 +737,6 @@ class PromptDj extends LitElement {
             await this.sendPromptsToSession();
             await this.updatePlaybackParameters();
 
-            // "Slider Jiggle" logic
             if (this.sliderJiggleTimeout) clearTimeout(this.sliderJiggleTimeout);
             this.sliderJiggleTimeout = window.setTimeout(() => {
                 if (this.playbackState === 'loading' && this.prompts.size > 0 && this.activeSession && this.sessionSetupComplete) {
@@ -720,30 +745,26 @@ class PromptDj extends LitElement {
                     if (firstPromptEntry) {
                         const [promptId, prompt] = firstPromptEntry;
                         const originalWeight = prompt.weight;
-                        let newWeight = originalWeight + 0.0011; // Small nudge
-                        if (newWeight > 2.0) newWeight = originalWeight - 0.0011; // Nudge down if at max
-                        if (newWeight < 0) newWeight = 0.0011; // Nudge up if at min
+                        let newWeight = originalWeight + 0.0011;
+                        if (newWeight > 2.0) newWeight = originalWeight - 0.0011;
+                        if (newWeight < 0) newWeight = 0.0011;
 
                         const updatedPrompt = { ...prompt, weight: newWeight };
                         this.prompts = new Map(this.prompts).set(promptId, updatedPrompt);
                         this.sendPromptsToSession();
-                        this.savePromptsToLocalStorage();
-
-                        // Revert after a very short delay
                         setTimeout(() => {
                             const currentPrompt = this.prompts.get(promptId);
-                            if (currentPrompt && currentPrompt.weight !== originalWeight) { // Check if it wasn't changed by user
+                            if (currentPrompt && currentPrompt.weight !== originalWeight) {
                                 const revertedPrompt = { ...currentPrompt, weight: originalWeight };
                                 this.prompts = new Map(this.prompts).set(promptId, revertedPrompt);
                                 this.sendPromptsToSession();
-                                this.savePromptsToLocalStorage();
                                 console.log("'Slider jiggle' completed.");
                             }
                         }, 50);
                     }
                 }
                 this.sliderJiggleTimeout = null;
-            }, 3000); // Try jiggle after 3 seconds if still loading
+            }, 3000);
 
         } catch (error: any) {
             console.error("Error trying to play session:", error);
@@ -755,7 +776,7 @@ class PromptDj extends LitElement {
             this.nextAudioChunkStartTime = 0;
         }
     } else {
-        console.error("Cannot start audio stream: session not active.");
+        console.error("Cannot start audio stream: session not active after connectToSession call.");
         this.toastMessageEl.show("Fehler: Musik-Session nicht verfügbar.");
         this.playbackState = 'stopped';
         this.clearLoadingMessageInterval();
@@ -774,7 +795,7 @@ class PromptDj extends LitElement {
     this.outputGainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.2);
 
     this.playbackState = 'paused';
-    this.clearLoadingMessageInterval();
+    this.clearLoadingMessageInterval(); 
     if (this.sliderJiggleTimeout) {
         clearTimeout(this.sliderJiggleTimeout);
         this.sliderJiggleTimeout = null;
@@ -797,32 +818,49 @@ class PromptDj extends LitElement {
     }
     this.activeSession = null;
     this.sessionSetupComplete = false;
+    
+    // Clear drop effect state if a full reset happens
+    if (this.dropEffectTimer) {
+        clearTimeout(this.dropEffectTimer);
+        this.dropEffectTimer = null;
+    }
+    if (this.dropTrackId && this.prompts.has(this.dropTrackId)) {
+        // Remove from prompts map directly, UI will update on next render
+        this.prompts.delete(this.dropTrackId);
+        // No need to call new Map(this.prompts) if prompts is already being re-assigned or updated elsewhere
+        // that would trigger a Lit update. However, to be safe for isolated calls:
+        this.prompts = new Map(this.prompts);
+    }
+    this.dropTrackId = null;
+    this.isDropEffectActive = false; 
+
     this.requestUpdate();
   }
 
   private startLoadingMessageSequence() {
-    this.clearLoadingMessageInterval(); // Clear any existing interval
-    this.currentLoadingMessageIndex = 0; // Reset index
+    this.clearLoadingMessageInterval(); 
+    this.currentLoadingMessageIndex = 0; 
 
-    // Show the first message immediately, make it stay until next one or cleared
-    this.toastMessageEl.show(this.FUNNY_LOADING_MESSAGES[this.currentLoadingMessageIndex], 0);
-    this.currentLoadingMessageIndex = (this.currentLoadingMessageIndex + 1) % this.FUNNY_LOADING_MESSAGES.length;
+    // Only show funny messages if playback hasn't succeeded yet (first time play)
+    if (!this.hasHadFirstSuccessfulPlay) {
+        this.toastMessageEl.show(this.FUNNY_LOADING_MESSAGES[this.currentLoadingMessageIndex], 0);
+        this.currentLoadingMessageIndex = (this.currentLoadingMessageIndex + 1) % this.FUNNY_LOADING_MESSAGES.length;
 
-    this.loadingMessageInterval = window.setInterval(() => {
-        if (this.playbackState === 'loading') {
-            this.toastMessageEl.show(this.FUNNY_LOADING_MESSAGES[this.currentLoadingMessageIndex], 0);
-            this.currentLoadingMessageIndex = (this.currentLoadingMessageIndex + 1) % this.FUNNY_LOADING_MESSAGES.length;
-        } else {
-            this.clearLoadingMessageInterval(); // Stop if no longer loading
-        }
-    }, 3500); // Change message every 3.5 seconds
+        this.loadingMessageInterval = window.setInterval(() => {
+            if (this.playbackState === 'loading' && !this.hasHadFirstSuccessfulPlay) { // Added check here too
+                this.toastMessageEl.show(this.FUNNY_LOADING_MESSAGES[this.currentLoadingMessageIndex], 0);
+                this.currentLoadingMessageIndex = (this.currentLoadingMessageIndex + 1) % this.FUNNY_LOADING_MESSAGES.length;
+            } else {
+                this.clearLoadingMessageInterval(); 
+            }
+        }, 3500);
+    }
   }
 
   private clearLoadingMessageInterval() {
     if (this.loadingMessageInterval) {
         clearInterval(this.loadingMessageInterval);
         this.loadingMessageInterval = null;
-        // Do not hide the toast here, handleSessionMessage or other state changes will show a new one or it will time out.
     }
   }
 
@@ -855,6 +893,7 @@ class PromptDj extends LitElement {
       text: 'Neuer Prompt',
       weight: 0.0, // Default weight
       color: this.getUnusedRandomColor(Array.from(this.prompts.values()).map(p => p.color)),
+      isDropTrack: false,
     };
 
     if (this.isTutorialActive && this.prompts.size === 0) {
@@ -892,7 +931,7 @@ class PromptDj extends LitElement {
     const { promptId, ...changes } = e.detail;
     const existingPrompt = this.prompts.get(promptId);
     if (existingPrompt) {
-      const updatedPrompt = { ...existingPrompt, ...changes };
+      const updatedPrompt: Prompt = { ...existingPrompt, ...changes, isDropTrack: existingPrompt.isDropTrack }; // Preserve isDropTrack
       this.prompts = new Map(this.prompts).set(promptId, updatedPrompt);
 
       if (changes.text && this.filteredPrompts.has(existingPrompt.text) && existingPrompt.text !== changes.text) {
@@ -919,7 +958,7 @@ class PromptDj extends LitElement {
   }
 
   private handlePromptRemoved(e: CustomEvent<string>) {
-    if (this.isDropEffectActive) return;
+    if (this.isDropEffectActive && e.detail !== this.dropTrackId) return; // Allow drop track to be removed by its own logic
     const promptIdToRemove = e.detail;
     const promptToRemove = this.prompts.get(promptIdToRemove);
     if (promptToRemove) {
@@ -937,6 +976,16 @@ class PromptDj extends LitElement {
 
       this.savePromptsToLocalStorage();
       this.sendPromptsToSession();
+
+      // If the drop track was removed manually during its effect
+      if (promptIdToRemove === this.dropTrackId) {
+          if (this.dropEffectTimer) {
+              clearTimeout(this.dropEffectTimer);
+              this.dropEffectTimer = null;
+          }
+          this.dropTrackId = null;
+          this.isDropEffectActive = false;
+      }
     }
   }
 
@@ -970,10 +1019,12 @@ class PromptDj extends LitElement {
     if (this.isTutorialActive && this.prompts.size === 0 && this.tutorialControllerEl?.currentStepId !== 'completion') {
         return;
     }
-    const promptsToStore: PresetPrompt[] = Array.from(this.prompts.values()).map(p => ({
-      text: p.text,
-      weight: p.weight,
-    }));
+    const promptsToStore: PresetPrompt[] = Array.from(this.prompts.values())
+      .filter(p => !p.isDropTrack) // Don't save temporary drop track
+      .map(p => ({
+        text: p.text,
+        weight: p.weight,
+      }));
     localStorage.setItem('prompts', JSON.stringify(promptsToStore));
   }
 
@@ -1015,6 +1066,10 @@ class PromptDj extends LitElement {
 
   private toggleSettingsPanel() {
     this.showSettings = !this.showSettings;
+    // If opening settings, ensure MIDI learn button state is correct.
+    if (this.showSettings) {
+        this.updateComplete.then(() => this.updateMidiLearnButtonState());
+    }
   }
   private toggleHelpPanel() {
     this.showHelp = !this.showHelp;
@@ -1035,39 +1090,58 @@ class PromptDj extends LitElement {
       return;
     }
     if (this.isDropEffectActive) {
-        this.toastMessageEl.show("'Drop!'-Effekt läuft bereits.", 2000);
-        return;
+      this.toastMessageEl.show("'Drop!'-Effekt läuft bereits.", 2000);
+      return;
     }
 
+    const activeUserPrompts = Array.from(this.prompts.values()).filter(p => p.weight > 0.01 && !p.isDropTrack);
+    if (activeUserPrompts.length === 0 && !this.isTutorialActive) { // Allow drop in tutorial even without active prompts for testing
+        this.toastMessageEl.show("Aktiviere zuerst Prompts für den Drop!-Effekt.", 3000);
+        return;
+    }
+    
     this.isDropEffectActive = true;
-    this.toastMessageEl.show("Drop im Anflug!", 1500);
-
-    // Screen Flash
     this.isScreenFlashActive = true;
     setTimeout(() => { this.isScreenFlashActive = false; }, 300); // Flash duration
 
-    try {
-      if (this.activeSession.resetContext) {
-        this.activeSession.resetContext();
-      } else {
-        console.warn("session.resetContext() not available. 'Drop' effect might not work as intended.");
-        const originalTemp = this.temperature;
-        this.temperature = Math.min(originalTemp + 0.5, 2.0);
-        await this.updatePlaybackParameters();
-        setTimeout(async () => {
-            this.temperature = originalTemp;
-            await this.updatePlaybackParameters();
-        }, 2000);
-      }
+    const currentStyle = activeUserPrompts.length > 0 
+      ? activeUserPrompts.map(p => p.text).join(' and ')
+      : "the current sound"; // Fallback style if no active prompts (e.g., during tutorial step)
+    
+    const dropPromptText = DROP_PROMPT_TEMPLATE.replace(/%STYLE%/g, currentStyle);
 
-    } catch (error) {
-      console.error("Error during 'Drop!' effect:", error);
-      this.toastMessageEl.show("Fehler beim Auslösen des 'Drop!'-Effekts.", 3000);
-    } finally {
-        setTimeout(() => {
-            this.isDropEffectActive = false;
-        }, 4000); // Total duration of the drop active state
+
+    const newDropId = this.generateNewPromptId();
+    const dropPrompt: Prompt = {
+      promptId: newDropId,
+      text: dropPromptText,
+      weight: DROP_TRACK_INITIAL_WEIGHT,
+      color: DROP_TRACK_COLOR,
+      isDropTrack: true, // Mark as drop track
+    };
+
+    this.dropTrackId = newDropId;
+    this.prompts = new Map(this.prompts).set(newDropId, dropPrompt);
+    await this.sendPromptsToSession(); // Send with the new drop prompt
+
+    if (this.dropEffectTimer) {
+      clearTimeout(this.dropEffectTimer);
     }
+
+    this.dropEffectTimer = window.setTimeout(async () => {
+      if (this.dropTrackId) {
+        const currentDropPromptExists = this.prompts.has(this.dropTrackId);
+        if (currentDropPromptExists) {
+          this.prompts.delete(this.dropTrackId);
+          this.prompts = new Map(this.prompts); // Trigger update
+          await this.sendPromptsToSession(); // Send without the drop prompt
+        }
+        this.dropTrackId = null;
+      }
+      this.isDropEffectActive = false;
+      this.dropEffectTimer = null;
+      this.requestUpdate('isDropEffectActive'); // Ensure UI reflects change
+    }, DROP_TRACK_DURATION);
   }
 
 
@@ -1101,7 +1175,7 @@ class PromptDj extends LitElement {
           if (rawValue > 64) this.togglePlayPause();
         } else {
           const prompt = this.prompts.get(targetId);
-          if (prompt) {
+          if (prompt && !prompt.isDropTrack) { // Don't allow MIDI control of drop track weight
             const newWeight = Math.max(0, Math.min(2, value));
             if (prompt.weight !== newWeight) {
                 prompt.weight = newWeight;
@@ -1168,6 +1242,12 @@ class PromptDj extends LitElement {
     if (!this.isMidiLearning) return;
     e.stopPropagation();
 
+    const targetPrompt = this.prompts.get(id);
+    if (targetPrompt?.isDropTrack && targetType === 'prompt') {
+        this.toastMessageEl.show("Der 'Drop!' Track kann nicht per MIDI gesteuert werden.", 2500);
+        return;
+    }
+
     if (this.midiLearnTarget === id) {
       this.midiLearnTarget = null;
       this.toastMessageEl.show(`Zielauswahl aufgehoben. Klicke ein Element an oder Esc zum Beenden.`, 0);
@@ -1204,7 +1284,10 @@ class PromptDj extends LitElement {
   }
 
   private updateMidiLearnButtonState() {
+    // this.learnMidiButtonEl might not exist if settings panel is closed when this is called.
+    // Check for its existence before trying to manipulate it.
     if (!this.learnMidiButtonEl) return;
+
     if (this.isMidiLearning) {
       this.learnMidiButtonEl.textContent = 'Learning... (Abbrechen)';
       this.learnMidiButtonEl.classList.add('learning');
@@ -1339,7 +1422,9 @@ class PromptDj extends LitElement {
     const base = window.location.origin + window.location.pathname;
     const params = new URLSearchParams();
 
-    const promptData = Array.from(this.prompts.values()).map(p => ({t: p.text, w: p.weight.toFixed(2)}));
+    const promptData = Array.from(this.prompts.values())
+      .filter(p => !p.isDropTrack) // Don't include temporary drop track in share link
+      .map(p => ({t: p.text, w: p.weight.toFixed(2)}));
     params.append('p', JSON.stringify(promptData));
 
     params.append('temp', this.temperature.toFixed(2));
@@ -1395,7 +1480,8 @@ class PromptDj extends LitElement {
             promptId: id,
             text: pd.t,
             weight: parseFloat(pd.w),
-            color: this.getUnusedRandomColor(Array.from(newPrompts.values()).map(p => p.color))
+            color: this.getUnusedRandomColor(Array.from(newPrompts.values()).map(p => p.color)),
+            isDropTrack: false,
           });
         });
         this.prompts = newPrompts;
@@ -1406,13 +1492,17 @@ class PromptDj extends LitElement {
     if (params.has('temp')) this.temperature = parseFloat(params.get('temp')!);
 
     if (params.has('play') && params.get('play') === '1') {
+      // Set flag to false to ensure initial loading messages are shown for auto-play from URL
+      this.hasHadFirstSuccessfulPlay = false;
       setTimeout(() => this.startAudioStream(), 500);
     }
   }
 
 
   private handleSavePreset() {
-    const presetPrompts: PresetPrompt[] = Array.from(this.prompts.values()).map(p => ({
+    const presetPrompts: PresetPrompt[] = Array.from(this.prompts.values())
+      .filter(p => !p.isDropTrack) // Don't save temporary drop track
+      .map(p => ({
         text: p.text,
         weight: p.weight
     }));
@@ -1473,7 +1563,8 @@ class PromptDj extends LitElement {
             promptId: id,
             text: pp.text,
             weight: pp.weight,
-            color: this.getUnusedRandomColor(Array.from(newPrompts.values()).map(p => p.color))
+            color: this.getUnusedRandomColor(Array.from(newPrompts.values()).map(p => p.color)),
+            isDropTrack: false,
         });
     });
     this.prompts = newPrompts;
@@ -1484,10 +1575,15 @@ class PromptDj extends LitElement {
     this.savePromptsToLocalStorage();
     this.updatePlaybackParameters();
     this.toastMessageEl.show('Preset geladen!', 2000);
+    
+    // When loading a preset, DON'T reset hasHadFirstSuccessfulPlay
+    // So toasts don't show up again.
     if (this.playbackState === 'playing' || this.playbackState === 'loading') {
-        this.stopAudioStreamResetSession();
+        this.stopAudioStreamResetSession(); // Stops music, does NOT reset the flag
         this.nextAudioChunkStartTime = 0;
         setTimeout(() => this.startAudioStream(), 200);
+    } else {
+        // If not playing, the flag remains as it was.
     }
   }
 
@@ -1759,7 +1855,12 @@ class PromptDj extends LitElement {
   override render() {
     const backgroundOrbs = TRACK_COLORS.slice(0, this.prompts.size).map((color, i) => {
         const promptArray = Array.from(this.prompts.values());
-        const weight = promptArray[i] ? promptArray[i].weight : 0;
+        const promptEntry = promptArray[i];
+        if (!promptEntry) return null; // Should not happen if slice(0, this.prompts.size)
+        
+        const weight = promptEntry.isDropTrack && this.isDropEffectActive 
+                       ? DROP_TRACK_INITIAL_WEIGHT // Use fixed high weight for drop track orb effect
+                       : promptEntry.weight;
         let size = 5 + weight * 30;
         let opacity = 0.05 + weight * 0.15;
         const x = (i / Math.max(1, this.prompts.size -1 )) * 80 + 10;
@@ -1772,15 +1873,6 @@ class PromptDj extends LitElement {
             const baseSize = 5 + weight * 30; 
             size = baseSize * (2 + Math.random() * 2); 
             opacity = Math.min(1, (0.05 + weight * 0.15) * (3 + Math.random() * 2)); 
-            
-            const jitterX = (Math.random() - 0.5) * 15; // vw
-            const jitterY = (Math.random() - 0.5) * 10; // vh
-            
-            // The transform for drop effect orbs will be handled by CSS animation if orbAnimationClass is applied
-            // so we don't need to apply jitter directly here if the animation handles movement.
-            // If animation only scales/rotates, then apply jitter here.
-            // Let's assume animation will handle transform from its current animated state.
-            // For `dropOrbPulseAndSpin`, the `transform` is part of the keyframes.
             orbAnimationClass = 'drop-orb-animate';
         }
 
@@ -1789,12 +1881,12 @@ class PromptDj extends LitElement {
             top: `${y}%`,
             width: `${size}vmax`,
             height: `${size}vmax`,
-            backgroundColor: ORB_COLORS[i % ORB_COLORS.length],
+            backgroundColor: promptEntry.isDropTrack ? DROP_TRACK_COLOR : ORB_COLORS[i % ORB_COLORS.length],
             opacity: opacity.toString(),
-            transform: finalTransform, // Base transform, animation can override
+            transform: finalTransform, 
             animationClass: orbAnimationClass,
         };
-    });
+    }).filter(orb => orb !== null);
 
     return html`
       <div id="drop-flash-overlay" class=${classMap({active: this.isScreenFlashActive})}></div>
@@ -1822,8 +1914,47 @@ class PromptDj extends LitElement {
           <h1>Steppa's BeatLab</h1>
         </div>
         <div class="global-controls">
+            <settings-button title="Einstellungen" @click=${this.toggleSettingsPanel} .isMidiLearnTarget=${false}></settings-button>
+            ${CAST_FEATURE_ENABLED ? html`
+                <cast-button title="Audio Casten" @click=${this.toggleCast} .isCastingActive=${this.isCastingActive} ?disabled=${!this.isCastingAvailable}></cast-button>
+            ` : ''}
+            <help-button title="Hilfe" @click=${this.toggleHelpPanel}></help-button>
+        </div>
+      </header>
+
+      <main class="main-content">
+        ${this.isMidiLearning && this.showSettings ? html`
+            <div class="midi-learn-instructions">
+                ${this.midiLearnTarget
+                    ? `Höre auf MIDI CC für "${this.midiLearnTarget === MIDI_LEARN_TARGET_DROP_BUTTON ? "Drop! Button" : this.midiLearnTarget === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON ? "Play/Pause Button" : this.prompts.get(this.midiLearnTarget)?.text || 'Unbekanntes Ziel'}"... (Esc zum Abwählen)`
+                    : "Klicke einen Slider, Drop!- oder Play/Pause-Button an, dann bewege einen MIDI-Controller. (Esc zum Beenden des Lernmodus)"
+                }
+            </div>
+        ` : ''}
+        <div id="prompts-container" class=${classMap({'midi-learn-active': this.isMidiLearning && !this.showSettings /* Only apply if settings panel not open for prompt selection */})}>
+          ${Array.from(this.prompts.values()).map(prompt => html`
+            <prompt-controller
+              .promptId=${prompt.promptId}
+              .text=${prompt.text}
+              .weight=${prompt.weight}
+              .sliderColor=${prompt.color}
+              ?isDropTrack=${!!prompt.isDropTrack}
+              ?ismidilearntarget=${this.isMidiLearning && this.midiLearnTarget === prompt.promptId}
+              ?filtered=${this.filteredPrompts.has(prompt.text)}
+              @prompt-changed=${this.handlePromptChanged}
+              @prompt-removed=${this.handlePromptRemoved}
+              @prompt-interaction=${(e: CustomEvent<{promptId: string}>) => this.handleMidiLearnTargetClick('prompt', e.detail.promptId, e)}
+            ></prompt-controller>
+          `)}
+        </div>
+      </main>
+
+      <div id="settings-panel" class=${classMap({visible: this.showSettings})}>
+        <h3>Einstellungen</h3>
+        <div class="settings-section midi-settings-section">
+            <h4>MIDI-Steuerung</h4>
             <div class="midi-selector-group">
-                <label for="midi-device-select">MIDI:</label>
+                <label for="midi-device-select">MIDI-Gerät:</label>
                 <select id="midi-device-select" @change=${this.handleMidiDeviceChange} .value=${this.selectedMidiInputId || ''}>
                 <option value="">-- MIDI-Gerät wählen --</option>
                 ${this.availableMidiInputs.map(input => html`<option value=${input.id}>${input.name}</option>`)}
@@ -1839,50 +1970,18 @@ class PromptDj extends LitElement {
                     title="Klicken zum Lernmodus. Lang drücken (1.5s) zum Löschen aller Zuweisungen für das Gerät."
                 >Learn MIDI</button>
             </div>
-            <settings-button title="Einstellungen" @click=${this.toggleSettingsPanel} .isMidiLearnTarget=${false}></settings-button>
-            ${CAST_FEATURE_ENABLED ? html`
-                <cast-button title="Audio Casten" @click=${this.toggleCast} .isCastingActive=${this.isCastingActive} ?disabled=${!this.isCastingAvailable}></cast-button>
-            ` : ''}
-            <help-button title="Hilfe" @click=${this.toggleHelpPanel}></help-button>
         </div>
-      </header>
-
-      <main class="main-content">
-        ${this.isMidiLearning ? html`
-            <div class="midi-learn-instructions">
-                ${this.midiLearnTarget
-                    ? `Höre auf MIDI CC für "${this.midiLearnTarget === MIDI_LEARN_TARGET_DROP_BUTTON ? "Drop! Button" : this.midiLearnTarget === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON ? "Play/Pause Button" : this.prompts.get(this.midiLearnTarget)?.text || 'Unbekanntes Ziel'}"... (Esc zum Abwählen)`
-                    : "Klicke einen Slider, Drop!- oder Play/Pause-Button an, dann bewege einen MIDI-Controller. (Esc zum Beenden des Lernmodus)"
-                }
-            </div>
-        ` : ''}
-        <div id="prompts-container" class=${classMap({'midi-learn-active': this.isMidiLearning})}>
-          ${Array.from(this.prompts.values()).map(prompt => html`
-            <prompt-controller
-              .promptId=${prompt.promptId}
-              .text=${prompt.text}
-              .weight=${prompt.weight}
-              .sliderColor=${prompt.color}
-              ?ismidilearntarget=${this.isMidiLearning && this.midiLearnTarget === prompt.promptId}
-              ?filtered=${this.filteredPrompts.has(prompt.text)}
-              @prompt-changed=${this.handlePromptChanged}
-              @prompt-removed=${this.handlePromptRemoved}
-              @prompt-interaction=${(e: CustomEvent<{promptId: string}>) => this.handleMidiLearnTargetClick('prompt', e.detail.promptId, e)}
-            ></prompt-controller>
-          `)}
+        <div class="settings-section">
+            <h4>Wiedergabe-Parameter</h4>
+            <parameter-slider
+                label="Temperatur"
+                .value=${this.temperature}
+                min="0.1" max="2.0" step="0.05"
+                @input=${this.handleTemperatureChange}
+                ?disabled=${this.isDropEffectActive}
+            ></parameter-slider>
         </div>
-      </main>
-
-      <div id="settings-panel" class=${classMap({visible: this.showSettings})}>
-        <h3>Einstellungen</h3>
-        <parameter-slider
-            label="Temperatur"
-            .value=${this.temperature}
-            min="0.1" max="2.0" step="0.05"
-            @input=${this.handleTemperatureChange}
-            ?disabled=${this.isDropEffectActive}
-        ></parameter-slider>
-        <div class="preset-buttons">
+        <div class="settings-section preset-buttons">
             <save-preset-button title="Aktuellen Zustand als Preset speichern" @click=${this.handleSavePreset}></save-preset-button>
             <load-preset-button title="Preset aus Datei laden" @click=${this.handleLoadPresetClick}></load-preset-button>
         </div>
@@ -1892,7 +1991,7 @@ class PromptDj extends LitElement {
       <footer class="footer-controls">
         <play-pause-button
             .playbackState=${this.playbackState}
-            @click=${(e: Event) => { if (this.isMidiLearning) this.handleMidiLearnTargetClick('playpausebutton', MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON, e); else this.togglePlayPause(); }}
+            @click=${(e: Event) => { if (this.isMidiLearning && this.showSettings) this.handleMidiLearnTargetClick('playpausebutton', MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON, e); else this.togglePlayPause(); }}
             ?ismidilearntarget=${this.isMidiLearning && this.midiLearnTarget === MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON}
             title="Musik Start/Pause (Leertaste)"
             ?disabled=${this.isDropEffectActive}
@@ -1907,7 +2006,7 @@ class PromptDj extends LitElement {
         </div>
         <share-button title="Aktuelle Konfiguration teilen" @click=${this.generateShareLink}></share-button>
         <drop-button
-            @click=${(e: Event) => { if (this.isMidiLearning) this.handleMidiLearnTargetClick('dropbutton', MIDI_LEARN_TARGET_DROP_BUTTON, e); else this.handleDropClick(); }}
+            @click=${(e: Event) => { if (this.isMidiLearning && this.showSettings) this.handleMidiLearnTargetClick('dropbutton', MIDI_LEARN_TARGET_DROP_BUTTON, e); else this.handleDropClick(); }}
             ?ismidilearntarget=${this.isMidiLearning && this.midiLearnTarget === MIDI_LEARN_TARGET_DROP_BUTTON}
             title="'Drop!'-Effekt auslösen"
             ?disabled=${this.isDropEffectActive || this.playbackState !== 'playing'}
@@ -2018,50 +2117,7 @@ class PromptDj extends LitElement {
       width: 40px;
       height: 40px;
     }
-    .midi-selector-group {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 4px 8px;
-        background-color: rgba(255,255,255,0.05);
-        border-radius: 6px;
-    }
-    .midi-selector-group label {
-        font-size: 0.9em;
-        color: #ccc;
-    }
-    #midi-device-select {
-        background-color: #333;
-        color: #fff;
-        border: 1px solid #555;
-        border-radius: 4px;
-        padding: 5px 8px;
-        font-size: 0.85em;
-    }
-    #learn-midi-button {
-        background-color: #5a5a5a;
-        color: #fff;
-        border: none;
-        padding: 6px 12px;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 0.85em;
-        transition: background-color 0.2s;
-    }
-    #learn-midi-button:hover {
-        background-color: #777;
-    }
-    #learn-midi-button.learning {
-        background-color: #FFD700;
-        color: #000;
-    }
-    #learn-midi-button:disabled {
-        background-color: #444;
-        cursor: not-allowed;
-        opacity: 0.7;
-    }
-
-
+    
     .main-content {
       display: flex;
       flex-direction: column;
@@ -2084,7 +2140,7 @@ class PromptDj extends LitElement {
       overflow-y: auto;
       overflow-x: hidden;
       width: clamp(350px, 60vw, 550px);
-      max-height: calc(100vh - 200px); /* Adjusted for header and footer */
+      max-height: 100%; /* Changed from calc(100vh - 200px) */
       min-height: 200px;
       align-items: stretch;
       scrollbar-width: thin;
@@ -2092,7 +2148,6 @@ class PromptDj extends LitElement {
       border-radius: 8px;
       background-color: rgba(0,0,0,0.1);
       position: relative;
-      /* padding-bottom: 70px; /* Removed Space for fixed add prompt button */
     }
     #prompts-container::-webkit-scrollbar { width: 8px; }
     #prompts-container::-webkit-scrollbar-track { background: #2c2c2c; border-radius: 4px; }
@@ -2105,10 +2160,12 @@ class PromptDj extends LitElement {
         padding: 8px 15px;
         border-radius: 6px;
         font-size: 0.9em;
-        z-index: 5;
+        z-index: 5; /* Ensure it's above prompts container if it overlaps */
         white-space: normal;
         word-break: break-word;
-        margin-bottom: -5px;
+        margin-bottom: 5px; /* Space between instructions and prompt list */
+        width: clamp(350px, 60vw, 550px); /* Match prompt container width */
+        box-sizing: border-box;
     }
 
     prompt-controller {
@@ -2118,40 +2175,99 @@ class PromptDj extends LitElement {
 
     #settings-panel {
       position: fixed;
-      bottom: 80px;
+      bottom: 80px; /* Above footer */
       left: 50%;
-      transform: translateX(-50%);
-      width: clamp(300px, 60vw, 500px);
-      background-color: rgba(30,30,30,0.9);
+      width: clamp(320px, 60vw, 550px); /* Ensure min width for content */
+      background-color: rgba(30,30,30,0.95); /* Slightly more opaque */
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       color: #e0e0e0;
       padding: 20px;
-      border-radius: 12px 12px 0 0;
-      box-shadow: 0 -5px 20px rgba(0,0,0,0.3);
+      border-radius: 12px 12px 0 0; /* Rounded top corners */
+      box-shadow: 0 -5px 20px rgba(0,0,0,0.4); /* Stronger shadow */
       z-index: 200;
       transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
-      transform: translate(-50%, 100%);
+      transform: translate(-50%, 100%); /* Start off-screen below */
       opacity: 0;
       pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 20px; /* Space between sections */
     }
     #settings-panel.visible {
-      transform: translateX(-50%);
+      transform: translateX(-50%); /* Slide in from bottom */
       opacity: 1;
       pointer-events: auto;
     }
-    #settings-panel h3 {
+    #settings-panel h3 { /* Main settings title */
         text-align: center;
         margin-top: 0;
-        margin-bottom: 15px;
+        margin-bottom: 10px; /* Reduced bottom margin */
         color: #fff;
         font-weight: 500;
+        font-size: 1.3em;
+    }
+    .settings-section {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .settings-section h4 { /* Section titles like MIDI, Wiedergabe */
+        margin: 0 0 5px 0;
+        font-size: 1em;
+        font-weight: 500;
+        color: #ccc;
+        border-bottom: 1px solid #444;
+        padding-bottom: 5px;
+    }
+    .midi-selector-group {
+        display: flex;
+        flex-direction: column; /* Stack label/select and button vertically */
+        align-items: stretch; /* Make children take full width */
+        gap: 10px;
+    }
+    .midi-selector-group label {
+        font-size: 0.9em;
+        color: #bbb;
+        margin-bottom: 3px; /* Small space between label and select */
+    }
+    #midi-device-select {
+        background-color: #333;
+        color: #fff;
+        border: 1px solid #555;
+        border-radius: 4px;
+        padding: 8px 10px; /* Slightly more padding */
+        font-size: 0.9em;
+        width: 100%; /* Take full width */
+    }
+    #learn-midi-button {
+        background-color: #5a5a5a;
+        color: #fff;
+        border: none;
+        padding: 9px 12px; /* Slightly more padding */
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9em;
+        transition: background-color 0.2s;
+        text-align: center;
+    }
+    #learn-midi-button:hover:not(:disabled) {
+        background-color: #777;
+    }
+    #learn-midi-button.learning {
+        background-color: #FFD700;
+        color: #000;
+    }
+    #learn-midi-button:disabled {
+        background-color: #444;
+        cursor: not-allowed;
+        opacity: 0.7;
     }
     .preset-buttons {
         display: flex;
         justify-content: center;
         gap: 15px;
-        margin-top: 20px;
+        margin-top: 10px; /* Reduced top margin */
     }
     .preset-buttons save-preset-button,
     .preset-buttons load-preset-button {

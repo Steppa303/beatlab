@@ -13,6 +13,7 @@ export interface Prompt {
   text: string;
   weight: number;
   color: string;
+  isDropTrack?: boolean; // Added for identifying the special drop track
 }
 
 export type PlaybackState = 'stopped' | 'playing' | 'loading' | 'paused';
@@ -37,6 +38,7 @@ export interface AppLiveMusicGenerationConfig extends GenAiLiveMusicGenerationCo
 export interface PresetPrompt {
   text: string;
   weight: number;
+  // isDropTrack is not part of presets as it's a temporary runtime state
 }
 
 export interface Preset {
