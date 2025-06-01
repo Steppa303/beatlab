@@ -328,7 +328,7 @@ class PromptDj extends LitElement {
   private dropEffectTimer: number | null = null;
   
   private initialAppHeight: number | null = null;
-  private debouncedSetHostHeight: (() => void) | null = null;
+  private debouncedViewportResizeHandler: (() => void) | null = null;
 
 
   // --- Queries for DOM Elements ---
@@ -416,6 +416,31 @@ class PromptDj extends LitElement {
     }
   }
 
+  private handleViewportResize() {
+    const metaViewport = document.getElementById('viewport-meta') as HTMLMetaElement | null;
+    if (!metaViewport || this.initialAppHeight === null) return;
+
+    const visualViewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    // Use a threshold (e.g., 90%) to determine if the keyboard is likely up
+    const isKeyboardLikelyUp = visualViewportHeight < this.initialAppHeight * 0.9;
+
+    if (isKeyboardLikelyUp) {
+      // Keyboard is up, force viewport height to initial app height
+      metaViewport.setAttribute('content', `height=${this.initialAppHeight}px, width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover`);
+    } else {
+      // Keyboard is down or not detected as significantly impacting viewport.
+      // Check for orientation change or significant window resize.
+      if (Math.abs(window.innerHeight - this.initialAppHeight) > 50) { // Heuristic for significant change
+        this.initialAppHeight = window.innerHeight; // Update to new full screen height
+      }
+      // Reset viewport meta tag to be responsive
+      metaViewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover');
+    }
+
+    // Always set the host height (this will use the original initialAppHeight or the updated one after orientation change)
+    this.setHostHeight();
+  }
+
 
   // --- Lifecycle Methods ---
   override connectedCallback() {
@@ -423,22 +448,17 @@ class PromptDj extends LitElement {
     this.audioContext.resume();
     document.addEventListener('keydown', this.handleGlobalKeyDown);
 
-    // JS Height Fix:
-    // Initial height application
+    // JS Height and Viewport Fix:
     requestAnimationFrame(() => {
-      if (this.initialAppHeight === null) { // Capture initial height only once
+      if (this.initialAppHeight === null) {
         this.initialAppHeight = window.innerHeight;
       }
-      this.setHostHeight(); // Apply the captured height
+      this.setHostHeight();
     });
 
     if (window.visualViewport) {
-      // Create and store the debounced function instance
-      // This function will always use the `initialAppHeight` captured on load.
-      this.debouncedSetHostHeight = debounce(() => {
-        this.setHostHeight();
-      }, 150); // 150ms debounce delay
-      window.visualViewport.addEventListener('resize', this.debouncedSetHostHeight);
+      this.debouncedViewportResizeHandler = debounce(() => this.handleViewportResize(), 150);
+      window.visualViewport.addEventListener('resize', this.debouncedViewportResizeHandler);
     } else {
       console.warn('window.visualViewport API not available. Keyboard overlay behavior might be less reliable.');
     }
@@ -485,9 +505,9 @@ class PromptDj extends LitElement {
         this.dropEffectTimer = null;
     }
 
-    // JS Height Fix: Cleanup listener
-    if (this.debouncedSetHostHeight && window.visualViewport) {
-      window.visualViewport.removeEventListener('resize', this.debouncedSetHostHeight);
+    // JS Height and Viewport Fix: Cleanup listener
+    if (this.debouncedViewportResizeHandler && window.visualViewport) {
+      window.visualViewport.removeEventListener('resize', this.debouncedViewportResizeHandler);
     }
   }
 
