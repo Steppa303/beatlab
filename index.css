@@ -6,7 +6,7 @@ html, body {
   background-color: #111; /* Match host background */
 }
 body {
-  overflow: hidden;
+  /* overflow: hidden; removed */
   display: flex; /* Ensure prompt-dj can take full height */
   flex-direction: column;
 }

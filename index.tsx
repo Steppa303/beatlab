@@ -240,19 +240,16 @@ const defaultStyles = css`
   :host {
     display: flex;
     flex-direction: column;
-    /* height: 100vh; replaced by position:fixed */
-    /* width: 100vw;  replaced by position:fixed */
     position: fixed;
     top: 0;
     left: 0;
-    right: 0;
-    bottom: 0;
+    width: 100%; /* Changed from right: 0 */
+    height: 100%; /* Changed from bottom: 0 */
     background-color: #181818;
     color: #e0e0e0;
     font-family: 'Google Sans', sans-serif;
     box-sizing: border-box;
     overflow: hidden;
-    /* position: relative; /* Not needed with position:fixed */
   }
 `;
 
