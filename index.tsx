@@ -243,7 +243,7 @@ const defaultStyles = css`
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%; 
+    width: 100%;
     /* Fallback CSS height, JS will aggressively manage this */
     height: 100vh; 
     min-height: 100vh;
@@ -327,7 +327,7 @@ class PromptDj extends LitElement {
   private dropTrackId: string | null = null;
   private dropEffectTimer: number | null = null;
   
-  private initialAppHeight: number | null = null;
+  private initialAppHeight: number = 0; // Default to 0, will be set
   private debouncedViewportResizeHandler: (() => void) | null = null;
 
 
@@ -385,6 +385,9 @@ class PromptDj extends LitElement {
     } else if (!this.isTutorialActive && !localStorage.getItem('beatLabWelcomeShown')) {
         this.showWelcome = true;
     }
+
+    // Listener for prompt controllers requesting app height reset
+    this.addEventListener('request-app-height-reset', () => this.setHostHeight());
   }
 
 
@@ -409,7 +412,7 @@ class PromptDj extends LitElement {
   }
 
   private setHostHeight() {
-    if (this.initialAppHeight !== null) {
+    if (this.initialAppHeight > 0) {
         this.style.height = `${this.initialAppHeight}px`;
         this.style.minHeight = `${this.initialAppHeight}px`;
         this.style.maxHeight = `${this.initialAppHeight}px`;
@@ -417,27 +420,24 @@ class PromptDj extends LitElement {
   }
 
   private handleViewportResize() {
-    const metaViewport = document.getElementById('viewport-meta') as HTMLMetaElement | null;
-    if (!metaViewport || this.initialAppHeight === null) return;
+    if (this.initialAppHeight === 0) return; // Not yet initialized
 
     const visualViewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-    // Use a threshold (e.g., 90%) to determine if the keyboard is likely up
-    const isKeyboardLikelyUp = visualViewportHeight < this.initialAppHeight * 0.9;
+    const currentWindowHeight = window.innerHeight;
 
-    if (isKeyboardLikelyUp) {
-      // Keyboard is up, force viewport height to initial app height
-      metaViewport.setAttribute('content', `height=${this.initialAppHeight}px, width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover`);
-    } else {
-      // Keyboard is down or not detected as significantly impacting viewport.
-      // Check for orientation change or significant window resize.
-      if (Math.abs(window.innerHeight - this.initialAppHeight) > 50) { // Heuristic for significant change
-        this.initialAppHeight = window.innerHeight; // Update to new full screen height
-      }
-      // Reset viewport meta tag to be responsive
-      metaViewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover');
+    // Heuristic for orientation change or significant desktop resize:
+    // If visualViewport height is close to window.innerHeight (keyboard likely not up)
+    // AND window.innerHeight has changed significantly from our stored initialAppHeight.
+    const isLikelyOrientationOrDesktopResize = 
+        Math.abs(visualViewportHeight - currentWindowHeight) < 50 && 
+        Math.abs(currentWindowHeight - this.initialAppHeight) > 50;
+
+    if (isLikelyOrientationOrDesktopResize) {
+      this.initialAppHeight = currentWindowHeight; // Update to new full screen height
     }
-
-    // Always set the host height (this will use the original initialAppHeight or the updated one after orientation change)
+    
+    // Always set the host height. This will use the original initialAppHeight 
+    // or the updated one after an orientation change, and will fight keyboard resizes.
     this.setHostHeight();
   }
 
@@ -448,19 +448,25 @@ class PromptDj extends LitElement {
     this.audioContext.resume();
     document.addEventListener('keydown', this.handleGlobalKeyDown);
 
-    // JS Height and Viewport Fix:
+    // JS Height Fix:
     requestAnimationFrame(() => {
-      if (this.initialAppHeight === null) {
-        this.initialAppHeight = window.innerHeight;
+      // Capture initial height only once or if it hasn't been set properly
+      if (this.initialAppHeight === 0) {
+         this.initialAppHeight = window.innerHeight;
       }
-      this.setHostHeight();
+      this.setHostHeight(); // Apply it immediately
     });
-
+    
     if (window.visualViewport) {
       this.debouncedViewportResizeHandler = debounce(() => this.handleViewportResize(), 150);
       window.visualViewport.addEventListener('resize', this.debouncedViewportResizeHandler);
     } else {
       console.warn('window.visualViewport API not available. Keyboard overlay behavior might be less reliable.');
+      // Fallback for older browsers, though less effective for keyboard
+      window.addEventListener('resize', debounce(() => {
+        if (this.initialAppHeight === 0) this.initialAppHeight = window.innerHeight; // Ensure it's set
+        this.handleViewportResize(); // Let the main logic handle it
+      }, 150));
     }
   }
 
@@ -505,10 +511,11 @@ class PromptDj extends LitElement {
         this.dropEffectTimer = null;
     }
 
-    // JS Height and Viewport Fix: Cleanup listener
+    // JS Height Fix: Cleanup listener
     if (this.debouncedViewportResizeHandler && window.visualViewport) {
       window.visualViewport.removeEventListener('resize', this.debouncedViewportResizeHandler);
     }
+    // Could also remove the fallback window.resize listener if it was added
   }
 
   override firstUpdated() {

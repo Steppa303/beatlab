@@ -253,12 +253,19 @@ export class PromptController extends LitElement {
     if (changedProperties.has('isEditingText') && this.isEditingText && !this.isDropTrack) {
       requestAnimationFrame(() => {
         if (this.textInputElement) {
+          // Dispatch event to parent to ensure app height is set before focusing and scrolling
+          this.dispatchEvent(new CustomEvent('request-app-height-reset', {
+            bubbles: true,
+            composed: true
+          }));
+          
           this.textInputElement.focus();
           this.textInputElement.select();
+          
           // Ensure the focused input scrolls into view if potentially obscured by an overlaying keyboard
           setTimeout(() => {
             this.textInputElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }, 150); // Delay to allow keyboard to potentially appear
+          }, 150); // Delay to allow keyboard to potentially appear and host to resize
         }
       });
     }
