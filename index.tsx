@@ -908,9 +908,13 @@ class PromptDj extends LitElement {
 
     const promptElement = this.shadowRoot?.querySelector(`prompt-controller[promptid="${newId}"]`) as PromptControllerElement | null;
     if (promptElement) {
-        if (!this.isTutorialActive) { // Only enter edit mode automatically if not in tutorial
-            promptElement.enterEditModeAfterCreation?.();
-        }
+        // For tutorial, we don't want to automatically enter edit mode here.
+        // The tutorial steps will manage highlighting the static text, and the user click
+        // on static text will trigger edit mode in PromptController itself.
+        // The original `if (!this.isTutorialActive)` for `enterEditModeAfterCreation` 
+        // was actually achieving part of this, but the tutorial flow implies the
+        // user explicitly clicks to edit, which is good.
+        
         if (this.promptsContainerEl) { // Scroll into view if container exists
           promptElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
@@ -2129,7 +2133,7 @@ class PromptDj extends LitElement {
       padding-bottom: 100px; /* Space for fixed footer */
       box-sizing: border-box;
       gap: 20px;
-      overflow: hidden;
+      overflow: auto; /* Changed from hidden to auto */
       position: relative;
     }
     #prompts-container {
