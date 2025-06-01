@@ -245,6 +245,8 @@ const defaultStyles = css`
     left: 0;
     width: 100%; 
     height: 100vh; /* Use static viewport height for keyboard overlay strategy */
+    min-height: 100vh; /* Aggressively set min-height */
+    max-height: 100vh; /* Aggressively set max-height */
     background-color: #181818;
     color: #e0e0e0;
     font-family: 'Google Sans', sans-serif;
