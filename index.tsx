@@ -244,9 +244,11 @@ const defaultStyles = css`
     top: 0;
     left: 0;
     width: 100%; 
-    height: 100vh; /* Use static viewport height for keyboard overlay strategy */
-    min-height: 100vh; /* Aggressively set min-height */
-    max-height: 100vh; /* Aggressively set max-height */
+    /* Height properties will be aggressively managed by JS */
+    /* Fallback CSS height: */
+    height: 100vh; 
+    min-height: 100vh;
+    max-height: 100vh;
     background-color: #181818;
     color: #e0e0e0;
     font-family: 'Google Sans', sans-serif;
@@ -325,6 +327,8 @@ class PromptDj extends LitElement {
   private sliderJiggleTimeout: number | null = null;
   private dropTrackId: string | null = null;
   private dropEffectTimer: number | null = null;
+  private initialAppHeight: number | null = null;
+  private boundApplyFixedHostHeight: (() => void) | null = null;
 
 
   // --- Queries for DOM Elements ---
@@ -404,12 +408,43 @@ class PromptDj extends LitElement {
     }
   }
 
+  private applyFixedHostHeight() {
+    if (this.initialAppHeight === null) {
+        // Capture initial height if not already done.
+        // This might be slightly delayed if called before first paint,
+        // but window.innerHeight should be available early.
+        this.initialAppHeight = window.innerHeight;
+    }
+
+    if (this.initialAppHeight !== null) {
+        this.style.height = `${this.initialAppHeight}px`;
+        this.style.minHeight = `${this.initialAppHeight}px`;
+        this.style.maxHeight = `${this.initialAppHeight}px`;
+    }
+  }
+
 
   // --- Lifecycle Methods ---
   override connectedCallback() {
     super.connectedCallback();
     this.audioContext.resume();
     document.addEventListener('keydown', this.handleGlobalKeyDown);
+
+    // JS Height Fix: Capture initial height and set up listener
+    // Defer slightly to ensure layout is stable for initial measurement if needed,
+    // though window.innerHeight should be fine.
+    requestAnimationFrame(() => {
+        this.applyFixedHostHeight(); // Apply initial height
+    });
+
+    if (window.visualViewport) {
+        this.boundApplyFixedHostHeight = this.applyFixedHostHeight.bind(this);
+        window.visualViewport.addEventListener('resize', this.boundApplyFixedHostHeight);
+    } else {
+        // Fallback for older browsers or environments without visualViewport
+        // Consider a simple window resize listener, though less effective for keyboard
+        console.warn('window.visualViewport API not available. Keyboard overlay behavior might be less reliable.');
+    }
   }
 
   override disconnectedCallback() {
@@ -451,6 +486,11 @@ class PromptDj extends LitElement {
     if (this.dropEffectTimer) {
         clearTimeout(this.dropEffectTimer);
         this.dropEffectTimer = null;
+    }
+
+    // JS Height Fix: Cleanup listener
+    if (this.boundApplyFixedHostHeight && window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', this.boundApplyFixedHostHeight);
     }
   }
 
