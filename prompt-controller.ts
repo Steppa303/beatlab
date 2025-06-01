@@ -186,49 +186,39 @@ export class PromptController extends LitElement {
   @query('#text-input') private textInputElement!: HTMLInputElement;
   @query('weight-slider') private weightSliderElement!: WeightSlider;
   private _originalTextBeforeEdit = ''; 
-  @state() private _forceSkipAutoFocusOnce = false;
 
   override connectedCallback() {
     super.connectedCallback();
-    // If the prompt is new (default text) and hasn't been updated yet, start in edit mode.
-    // This is primarily for non-tutorial additions. Tutorial might override.
-    if ((this.text === 'Neuer Prompt' || this.text === 'New Prompt') && !this.hasUpdated) {
-        this.enterEditModeAfterCreation();
-    }
+    // Removed automatic edit mode based on default text.
+    // Parent component (PromptDj) now controls this via enterEditModeAfterCreation.
   }
 
   override firstUpdated() {
+    // Main .prompt div handles clicks for learn target selection
     this.addEventListener('click', this.dispatchPromptInteraction);
   }
 
-  override async updated(changedProperties: Map<string | number | symbol, unknown>) {
+  override updated(changedProperties: Map<string | number | symbol, unknown>) {
     super.updated(changedProperties);
-    if (this.isEditingText) { // If we are in edit mode
-      if (this._forceSkipAutoFocusOnce) {
-        this._forceSkipAutoFocusOnce = false; // Consume the flag
-        if (this.textInputElement) { // Ensure input element exists
-            this.textInputElement.blur(); // Explicitly remove focus
+    if (changedProperties.has('isEditingText') && this.isEditingText) {
+      requestAnimationFrame(() => {
+        if (this.textInputElement) {
+          this.textInputElement.focus();
+          this.textInputElement.select();
         }
-      } else if (changedProperties.has('isEditingText')) { // Only auto-focus if isEditingText just became true
-        // Default behavior: auto-focus when entering edit mode
-        // Ensure textInputElement is available by awaiting updateComplete if necessary
-        await this.updateComplete;
-        requestAnimationFrame(() => { // Then focus
-          if (this.textInputElement) {
-            this.textInputElement.focus();
-            // Select text if it's default or empty (after clearText:true)
-            if (this.text === 'Neuer Prompt' || this.text === 'New Prompt' || this.text === '') {
-              this.textInputElement.select();
-            }
-          }
-        });
-      }
+      });
     }
   }
 
   private dispatchPromptInteraction(e: Event) {
+    // Only dispatch if the click is on the prompt card itself, not on interactive elements within
+    // This is tricky because the slider is now part of it.
+    // A simpler way for MIDI learn is to attach learn handlers to specific elements in the parent.
+    // For now, clicking anywhere on the card except buttons/input might be okay.
     const target = e.target as HTMLElement;
     if (target.closest('button, input, weight-slider, [contenteditable="true"]')) {
+        // If the click was on a button, input, or the slider, don't treat it as a "select this prompt for MIDI learn"
+        // Let those elements handle their own click events.
         return;
     }
     this.dispatchEvent(new CustomEvent('prompt-interaction', {
@@ -246,7 +236,7 @@ export class PromptController extends LitElement {
           text: this.text,
           weight: this.weight,
         },
-        bubbles: true, 
+        bubbles: true, // Ensure it bubbles up to prompt-dj
         composed: true,
       }),
     );
@@ -254,7 +244,8 @@ export class PromptController extends LitElement {
 
   private saveText() {
     const newText = this.textInputElement.value.trim();
-    if (newText === this.text && this.text !== 'Neuer Prompt' && this.text !== '') { 
+    // Only save and dispatch if text actually changed, or if it was the default "Neuer Prompt"
+    if (newText === this.text && this.text !== 'Neuer Prompt') { 
       this.isEditingText = false;
       return;
     }
@@ -275,19 +266,22 @@ export class PromptController extends LitElement {
 
   private handleTextInputKeyDown(e: KeyboardEvent) {
     e.stopPropagation(); 
-    if (e.key === 'Enter' && !e.shiftKey) { 
+    if (e.key === 'Enter' && !e.shiftKey) { // Enter saves, Shift+Enter for newline (if textarea)
       e.preventDefault();
       this.saveText();
     } else if (e.key === 'Escape') {
       e.preventDefault();
       this.text = this._originalTextBeforeEdit; 
-      if(this.textInputElement) this.textInputElement.value = this.text;
+      this.textInputElement.value = this.text; // Reset input field value as well
       this.isEditingText = false;
     }
   }
   
   private handleTextInputBlur(e: FocusEvent) {
     e.stopPropagation();
+    // Save on blur only if it's a real blur, not just focus moving within component
+    // or if a save attempt via Enter/Esc already happened.
+    // For simplicity, always try to save if editing.
     if (this.isEditingText) {
         this.saveText();
     }
@@ -303,7 +297,7 @@ export class PromptController extends LitElement {
 
 
   private updateWeight(event: CustomEvent<number>) {
-    event.stopPropagation(); 
+    event.stopPropagation(); // Prevent this from being a promptInteraction event.
     const newWeight = event.detail;
     if (this.weight === newWeight) {
       return;
@@ -331,27 +325,13 @@ export class PromptController extends LitElement {
     return svg`<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>`;
   }
   
-  public enterEditModeAfterCreation(options: { autoFocus?: boolean, clearText?: boolean } = {}) {
-    const { autoFocus = true, clearText = false } = options;
-
-    this._originalTextBeforeEdit = this.text; // Store current text (could be "Neuer Prompt")
-    this.isEditingText = true; // Ensure edit mode is active
-
-    if (clearText) {
-      this.text = ''; // Clear the model text
-      // If input element is already rendered and available, update its value
-      if (this.textInputElement) {
-          this.textInputElement.value = '';
-      }
-      // If textInputElement is not yet available, the render method will use the cleared `this.text`
+  // Method to be called from parent if add button creates this prompt
+  public enterEditModeAfterCreation() {
+    // "Neuer Prompt" is German, "New Prompt" might be from older versions or direct manipulation
+    if (this.text === 'Neuer Prompt' || this.text === 'New Prompt') {
+      this.isEditingText = true;
+      this._originalTextBeforeEdit = this.text; 
     }
-    
-    if (!autoFocus) {
-      this._forceSkipAutoFocusOnce = true;
-    }
-    // The change to isEditingText (if it wasn't true before) or update of `text`
-    // should trigger the `updated` lifecycle method.
-    this.requestUpdate(); // Ensure re-render if text changed or isEditingText just became true
   }
 
 

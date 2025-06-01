@@ -288,6 +288,8 @@ class PromptDj extends LitElement {
   @state() private showHelp = false;
   @state() private showWelcome = false;
   @state() private isDropEffectActive = false;
+  @state() private isScreenFlashActive = false;
+
 
   @state() private temperature = 1.1;
 
@@ -837,7 +839,9 @@ class PromptDj extends LitElement {
 
     const promptElement = this.shadowRoot?.querySelector(`prompt-controller[promptid="${newId}"]`) as PromptControllerElement | null;
     if (promptElement) {
-        promptElement.enterEditModeAfterCreation?.();
+        if (!this.isTutorialActive) { // Only enter edit mode automatically if not in tutorial
+            promptElement.enterEditModeAfterCreation?.();
+        }
         if (this.promptsContainerEl) { // Scroll into view if container exists
           promptElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
@@ -1007,6 +1011,11 @@ class PromptDj extends LitElement {
 
     this.isDropEffectActive = true;
     this.toastMessageEl.show("Drop im Anflug!", 1500);
+
+    // Screen Flash
+    this.isScreenFlashActive = true;
+    setTimeout(() => { this.isScreenFlashActive = false; }, 300); // Flash duration
+
     try {
       if (this.activeSession.resetContext) {
         this.activeSession.resetContext();
@@ -1027,7 +1036,7 @@ class PromptDj extends LitElement {
     } finally {
         setTimeout(() => {
             this.isDropEffectActive = false;
-        }, 4000);
+        }, 4000); // Total duration of the drop active state
     }
   }
 
@@ -1708,10 +1717,29 @@ class PromptDj extends LitElement {
     const backgroundOrbs = TRACK_COLORS.slice(0, this.prompts.size).map((color, i) => {
         const promptArray = Array.from(this.prompts.values());
         const weight = promptArray[i] ? promptArray[i].weight : 0;
-        const size = 5 + weight * 30;
-        const opacity = 0.05 + weight * 0.15;
+        let size = 5 + weight * 30;
+        let opacity = 0.05 + weight * 0.15;
         const x = (i / Math.max(1, this.prompts.size -1 )) * 80 + 10;
         const y = 30 + Math.random() * 20 - 10;
+
+        let orbAnimationClass = '';
+        let finalTransform = `translate(-50%, -50%) rotate(${Math.random() * 360}deg)`;
+
+        if (this.isDropEffectActive) {
+            const baseSize = 5 + weight * 30; 
+            size = baseSize * (2 + Math.random() * 2); 
+            opacity = Math.min(1, (0.05 + weight * 0.15) * (3 + Math.random() * 2)); 
+            
+            const jitterX = (Math.random() - 0.5) * 15; // vw
+            const jitterY = (Math.random() - 0.5) * 10; // vh
+            
+            // The transform for drop effect orbs will be handled by CSS animation if orbAnimationClass is applied
+            // so we don't need to apply jitter directly here if the animation handles movement.
+            // If animation only scales/rotates, then apply jitter here.
+            // Let's assume animation will handle transform from its current animated state.
+            // For `dropOrbPulseAndSpin`, the `transform` is part of the keyframes.
+            orbAnimationClass = 'drop-orb-animate';
+        }
 
         return {
             left: `${x}%`,
@@ -1720,13 +1748,15 @@ class PromptDj extends LitElement {
             height: `${size}vmax`,
             backgroundColor: ORB_COLORS[i % ORB_COLORS.length],
             opacity: opacity.toString(),
-            transform: `translate(-50%, -50%) rotate(${Math.random() * 360}deg)`,
+            transform: finalTransform, // Base transform, animation can override
+            animationClass: orbAnimationClass,
         };
     });
 
     return html`
-      <div id="background-gradient">
-        ${backgroundOrbs.map(style => html`<div class="bg-orb" style=${unsafeCSS(`left:${style.left}; top:${style.top}; width:${style.width}; height:${style.height}; background-color:${style.backgroundColor}; opacity:${style.opacity}; transform:${style.transform}`)}></div>`)}
+      <div id="drop-flash-overlay" class=${classMap({active: this.isScreenFlashActive})}></div>
+      <div id="background-gradient" class=${classMap({'drop-effect-active': this.isDropEffectActive})}>
+        ${backgroundOrbs.map(style => html`<div class="bg-orb ${style.animationClass}" style=${unsafeCSS(`left:${style.left}; top:${style.top}; width:${style.width}; height:${style.height}; background-color:${style.backgroundColor}; opacity:${style.opacity}; transform:${style.transform}`)}></div>`)}
       </div>
 
       ${this.showWelcome && !this.isTutorialActive ? html`<welcome-overlay @welcome-complete=${this.handleWelcomeComplete}></welcome-overlay>` : ''}
@@ -1838,6 +1868,7 @@ class PromptDj extends LitElement {
             ?ismidilearntarget=${this.isMidiLearning && this.midiLearnTarget === MIDI_LEARN_TARGET_DROP_BUTTON}
             title="'Drop!'-Effekt auslösen"
             ?disabled=${this.isDropEffectActive || this.playbackState !== 'playing'}
+            ?active=${this.isDropEffectActive}
             >
         </drop-button>
       </footer>
@@ -1846,13 +1877,53 @@ class PromptDj extends LitElement {
   }
 
   static override styles = [defaultStyles, css`
+    #drop-flash-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: white;
+        opacity: 0;
+        pointer-events: none;
+        z-index: 9999; /* Very high z-index */
+    }
+    #drop-flash-overlay.active {
+        animation: screenFlashAnimation 0.3s ease-out forwards;
+    }
+    @keyframes screenFlashAnimation {
+      0% { opacity: 0; }
+      40% { opacity: 0.7; } /* Peak of the flash */
+      100% { opacity: 0; }
+    }
+
     .bg-orb {
         position: absolute;
         border-radius: 50%;
         filter: blur(20px);
-        transition: all 1s ease-in-out;
-        opacity: 0;
+        transition: all 1s ease-in-out; /* Default transition */
+        opacity: 0; /* Initial opacity for fade in */
     }
+    /* Animation for orbs during drop effect */
+    .bg-orb.drop-orb-animate {
+        /* animation overrides transition for the properties it animates */
+        animation: dropOrbPulseAndSpin 1.2s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+    }
+    @keyframes dropOrbPulseAndSpin {
+        0% { 
+            transform: translate(-50%, -50%) scale(0.8) rotate(0deg); 
+            filter: brightness(1.0) blur(20px); /* Start with slightly more blur */
+        }
+        50% { 
+            transform: translate(-50%, -50%) scale(1.5) rotate(180deg); 
+            filter: brightness(2.5) blur(5px); /* Less blur, much brighter */
+        }
+        100% { 
+            transform: translate(-50%, -50%) scale(1) rotate(360deg); 
+            filter: brightness(1.2) blur(15px); /* Settle with moderate blur */
+        }
+    }
+
     #background-gradient {
         position: fixed;
         top: 0;

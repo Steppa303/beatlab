@@ -113,13 +113,12 @@ export class TutorialController extends LitElement {
     {
       id: 'createFirstTrack_EnterName',
       highlightTarget: () => this.firstPromptId ? this.targets.getPromptTextInput?.(this.firstPromptId) : null,
-      tooltipText: "Klick ins Feld & benenn ihn (z.B. 'Saxophon', 'Trompete', '20er Swing'). Enter zum Speichern!",
+      tooltipText: "Benenn ihn (z.B. 'Trompete', 'tek house', '20er Swing') & Enter!",
       waitForEvent: 'promptTextChanged',
       eventDetailCondition: (detail) => detail.promptId === this.firstPromptId && detail.newText.trim() !== '' && detail.newText.trim().toLowerCase() !== 'neuer prompt' && detail.newText.trim().toLowerCase() !== 'untitled prompt',
       onEnter: () => {
-        const promptElement = this.firstPromptId ? this.targets.getPromptController?.(this.firstPromptId) : null;
-        promptElement?.enterEditModeAfterCreation({ autoFocus: false, clearText: true });
-        this.showSkipButton = true;
+        // Focus is handled by PromptController's enterEditModeAfterCreation
+        // This step highlights the (already focused) input field.
       }
     },
     {
@@ -164,14 +163,9 @@ export class TutorialController extends LitElement {
     {
       id: 'createSecondTrack_EnterName',
       highlightTarget: () => this.secondPromptId ? this.targets.getPromptTextInput?.(this.secondPromptId) : null,
-      tooltipText: "Klick rein & gib den Namen ein (z.B. 'Tek House', '90er Jahre Hiphop', 'Hyperpop Synth Lead'). Enter zum Speichern!",
+      tooltipText: "Benenn ihn (z.B. '70s Funk Bassline', 'Indie Pop Gitarre', 'Hyperpop Synth Lead') & Enter!",
       waitForEvent: 'promptTextChanged',
       eventDetailCondition: (detail) => detail.promptId === this.secondPromptId && detail.newText.trim() !== '' && detail.newText.trim().toLowerCase() !== 'neuer prompt' && detail.newText.trim().toLowerCase() !== 'untitled prompt',
-      onEnter: () => {
-        const promptElement = this.secondPromptId ? this.targets.getPromptController?.(this.secondPromptId) : null;
-        promptElement?.enterEditModeAfterCreation({ autoFocus: false, clearText: true });
-        this.showSkipButton = true;
-      }
     },
     {
       id: 'mixTrack_SetToOne',
