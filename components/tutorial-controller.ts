@@ -113,7 +113,7 @@ export class TutorialController extends LitElement {
     {
       id: 'createFirstTrack_EnterName',
       highlightTarget: () => this.firstPromptId ? this.targets.getPromptTextInput?.(this.firstPromptId) : null,
-      tooltipText: "Benenn ihn (z.B. 'Trompete', 'tek house', '20er Swing') & Enter!",
+      tooltipText: "Benenne ihn mit Trompete und drück Enter!",
       waitForEvent: 'promptTextChanged',
       eventDetailCondition: (detail) => detail.promptId === this.firstPromptId && detail.newText.trim() !== '' && detail.newText.trim().toLowerCase() !== 'neuer prompt' && detail.newText.trim().toLowerCase() !== 'untitled prompt',
       onEnter: () => {
@@ -163,7 +163,7 @@ export class TutorialController extends LitElement {
     {
       id: 'createSecondTrack_EnterName',
       highlightTarget: () => this.secondPromptId ? this.targets.getPromptTextInput?.(this.secondPromptId) : null,
-      tooltipText: "Benenn ihn (z.B. '70s Funk Bassline', 'Indie Pop Gitarre', 'Hyperpop Synth Lead') & Enter!",
+      tooltipText: "Benenne ihn mit House & Enter!",
       waitForEvent: 'promptTextChanged',
       eventDetailCondition: (detail) => detail.promptId === this.secondPromptId && detail.newText.trim() !== '' && detail.newText.trim().toLowerCase() !== 'neuer prompt' && detail.newText.trim().toLowerCase() !== 'untitled prompt',
     },
@@ -205,7 +205,7 @@ export class TutorialController extends LitElement {
       id: 'completion',
       popup: {
         title: 'Nice!',
-        text: "Basics sitzen. Leg los – deine Bühne!",
+        text: "Basics sitzen. Es gibt vielfältige Möglichkeiten, deine Tracks zu benennen – sei es mit Instrumenten (z.B. 'Klavier', 'Drums'), Musikstilen ('Jazz', 'Techno', 'Ambient') oder Stimmungen ('düster', 'fröhlich', 'episch'). Nutze die Slider dynamisch, um deine Sounds zu mischen und experimentiere, was passiert! Leg los – deine Bühne!",
         buttonText: 'Tutorial schließen',
       },
       onEnter: () => {

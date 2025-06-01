@@ -240,8 +240,8 @@ const defaultStyles = css`
   :host {
     display: flex;
     flex-direction: column;
-    height: var(--visual-viewport-height, 100%); /* Use CSS variable */
-    width: 100%;
+    height: 100vh;
+    width: 100vw;
     background-color: #181818;
     color: #e0e0e0;
     font-family: 'Google Sans', sans-serif;
@@ -321,7 +321,6 @@ class PromptDj extends LitElement {
   private sliderJiggleTimeout: number | null = null;
   private dropTrackId: string | null = null;
   private dropEffectTimer: number | null = null;
-  private boundSetViewportHeight: () => void;
 
 
   // --- Queries for DOM Elements ---
@@ -340,7 +339,6 @@ class PromptDj extends LitElement {
 
   constructor() {
     super();
-    this.boundSetViewportHeight = this.setViewportHeight.bind(this);
 
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('forceTutorial') === 'true') {
@@ -401,26 +399,12 @@ class PromptDj extends LitElement {
     }
   }
 
-  private setViewportHeight() {
-    if (window.visualViewport) {
-      document.documentElement.style.setProperty('--visual-viewport-height', `${window.visualViewport.height}px`);
-    } else {
-      document.documentElement.style.setProperty('--visual-viewport-height', `${window.innerHeight}px`);
-    }
-  }
 
   // --- Lifecycle Methods ---
   override connectedCallback() {
     super.connectedCallback();
     this.audioContext.resume();
     document.addEventListener('keydown', this.handleGlobalKeyDown);
-    
-    this.setViewportHeight(); // Initial call
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', this.boundSetViewportHeight);
-      window.visualViewport.addEventListener('scroll', this.boundSetViewportHeight);
-    }
-    window.addEventListener('resize', this.boundSetViewportHeight);
   }
 
   override disconnectedCallback() {
@@ -463,12 +447,6 @@ class PromptDj extends LitElement {
         clearTimeout(this.dropEffectTimer);
         this.dropEffectTimer = null;
     }
-
-    if (window.visualViewport) {
-      window.visualViewport.removeEventListener('resize', this.boundSetViewportHeight);
-      window.visualViewport.removeEventListener('scroll', this.boundSetViewportHeight);
-    }
-    window.removeEventListener('resize', this.boundSetViewportHeight);
   }
 
   override firstUpdated() {
@@ -930,13 +908,9 @@ class PromptDj extends LitElement {
 
     const promptElement = this.shadowRoot?.querySelector(`prompt-controller[promptid="${newId}"]`) as PromptControllerElement | null;
     if (promptElement) {
-        // For tutorial, we don't want to automatically enter edit mode here.
-        // The tutorial steps will manage highlighting the static text, and the user click
-        // on static text will trigger edit mode in PromptController itself.
-        // The original `if (!this.isTutorialActive)` for `enterEditModeAfterCreation` 
-        // was actually achieving part of this, but the tutorial flow implies the
-        // user explicitly clicks to edit, which is good.
-        
+        if (!this.isTutorialActive) { // Only enter edit mode automatically if not in tutorial
+            promptElement.enterEditModeAfterCreation?.();
+        }
         if (this.promptsContainerEl) { // Scroll into view if container exists
           promptElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
@@ -2155,7 +2129,7 @@ class PromptDj extends LitElement {
       padding-bottom: 100px; /* Space for fixed footer */
       box-sizing: border-box;
       gap: 20px;
-      overflow: auto; /* Changed from hidden to auto */
+      overflow: hidden;
       position: relative;
     }
     #prompts-container {
@@ -2166,7 +2140,7 @@ class PromptDj extends LitElement {
       overflow-y: auto;
       overflow-x: hidden;
       width: clamp(350px, 60vw, 550px);
-      max-height: 100%; /* Changed from calc(100vh - 200px) */
+      max-height: calc(100vh - 200px); /* Adjusted for header and footer */
       min-height: 200px;
       align-items: stretch;
       scrollbar-width: thin;
