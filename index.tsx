@@ -303,6 +303,7 @@ class PromptDj extends LitElement {
   @state() private isCastingActive = false;
 
   @state() private isTutorialActive = false;
+  @state() private forceTutorialFromUrl = false;
 
 
   // --- Internal Class Members ---
@@ -335,6 +336,17 @@ class PromptDj extends LitElement {
 
   constructor() {
     super();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('forceTutorial') === 'true') {
+      this.forceTutorialFromUrl = true;
+      // Clear relevant local storage items immediately if forcing tutorial
+      localStorage.removeItem(TUTORIAL_STORAGE_KEY);
+      localStorage.removeItem('prompts'); // Start with fresh prompts for forced tutorial
+      localStorage.removeItem('beatLabWelcomeShown'); // Don't show welcome if tutorial is forced
+      console.log('Tutorial is being forced by URL parameter. Relevant localStorage cleared.');
+    }
+
     this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
       sampleRate: this.SAMPLE_RATE,
     });
@@ -342,6 +354,7 @@ class PromptDj extends LitElement {
     this.outputGainNode.connect(this.audioContext.destination);
     this.midiController = new MidiController();
     this.initializeMidi();
+    
     this.checkTutorialStatusAndLoadPrompts();
 
 
@@ -356,20 +369,30 @@ class PromptDj extends LitElement {
         this.boundHandleCastApiReady = () => {}; // No-op if Cast is disabled
     }
 
-    if (!this.isTutorialActive && !localStorage.getItem('beatLabWelcomeShown')) {
+    if (this.forceTutorialFromUrl) {
+      this.showWelcome = false; // Don't show welcome overlay if tutorial is forced
+    } else if (!this.isTutorialActive && !localStorage.getItem('beatLabWelcomeShown')) {
         this.showWelcome = true;
     }
   }
 
   private checkTutorialStatusAndLoadPrompts() {
-    const permanentlySkipTutorial = localStorage.getItem(TUTORIAL_STORAGE_KEY) === 'true';
-    if (permanentlySkipTutorial) {
-      this.isTutorialActive = false;
-      this.loadInitialPrompts();
-    } else {
+    if (this.forceTutorialFromUrl) {
       this.isTutorialActive = true;
       this.prompts = new Map(); // Start fresh for tutorial
       this.nextPromptIdCounter = 0;
+      // The localStorage items were already cleared in constructor
+      console.log('Forced tutorial: Initializing with empty prompts.');
+    } else {
+      const permanentlySkipTutorial = localStorage.getItem(TUTORIAL_STORAGE_KEY) === 'true';
+      if (permanentlySkipTutorial) {
+        this.isTutorialActive = false;
+        this.loadInitialPrompts();
+      } else {
+        this.isTutorialActive = true;
+        this.prompts = new Map(); // Start fresh for tutorial
+        this.nextPromptIdCounter = 0;
+      }
     }
   }
 
@@ -420,6 +443,8 @@ class PromptDj extends LitElement {
   }
 
   override firstUpdated() {
+    // loadStateFromURL will check if tutorial is active (including forced)
+    // and skip loading if necessary.
     this.loadStateFromURL();
     this.updateMidiLearnButtonState();
   }
@@ -428,6 +453,9 @@ class PromptDj extends LitElement {
 
   private loadInitialPrompts() {
     // This is called only if tutorial is NOT active or already completed
+    // and not forced by URL
+    if (this.isTutorialActive) return; 
+
     const storedPrompts = localStorage.getItem('prompts');
     if (storedPrompts) {
       try {
@@ -461,6 +489,8 @@ class PromptDj extends LitElement {
         }
     }
 
+    // If tutorial is active (even forced), numToCreate is 0.
+    // Default prompts are only created if tutorial is not active.
     const numToCreate = this.isTutorialActive ? 0 : Math.min(2, defaultTexts.length);
     const newPrompts = new Map<string, Prompt>();
     for (let i = 0; i < numToCreate; i++) {
@@ -1339,8 +1369,21 @@ class PromptDj extends LitElement {
 
   private loadStateFromURL() {
     const params = new URLSearchParams(window.location.search);
-    if (!params.has('v')) return;
-    if (this.isTutorialActive) return; // Don't load from URL if tutorial is active
+
+    // If tutorial is active (either naturally or forced by URL),
+    // skip loading other state from URL to avoid conflicts.
+    if (this.isTutorialActive) {
+      if (this.forceTutorialFromUrl) {
+        console.log('Forced tutorial: Skipping loading state from URL.');
+      } else {
+        console.log('Tutorial active: Skipping loading state from URL.');
+      }
+      // Optional: Clean up URL parameters if tutorial is active to prevent re-processing
+      // window.history.replaceState({}, document.title, window.location.pathname);
+      return;
+    }
+    
+    if (!params.has('v')) return; // Standard check for preset version
 
     if (params.has('p')) {
       try {
