@@ -323,7 +323,7 @@ class PromptDj extends LitElement {
   private sliderJiggleTimeout: number | null = null;
   private dropTrackId: string | null = null;
   private dropEffectTimer: number | null = null;
-  private readonly boundVisualViewportResizeHandler: () => void;
+  // private readonly boundVisualViewportResizeHandler: () => void; // Removed
 
 
   // --- Queries for DOM Elements ---
@@ -342,7 +342,7 @@ class PromptDj extends LitElement {
 
   constructor() {
     super();
-    this.boundVisualViewportResizeHandler = this._handleVisualViewportResize.bind(this);
+    // this.boundVisualViewportResizeHandler = this._handleVisualViewportResize.bind(this); // Removed
 
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('forceTutorial') === 'true') {
@@ -383,11 +383,7 @@ class PromptDj extends LitElement {
     }
   }
 
-  private _handleVisualViewportResize() {
-    if (window.visualViewport) {
-      this.style.height = `${window.visualViewport.height}px`;
-    }
-  }
+  // Removed _handleVisualViewportResize method
 
   private checkTutorialStatusAndLoadPrompts() {
     if (this.forceTutorialFromUrl) {
@@ -415,17 +411,12 @@ class PromptDj extends LitElement {
     super.connectedCallback();
     this.audioContext.resume();
     document.addEventListener('keydown', this.handleGlobalKeyDown);
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', this.boundVisualViewportResizeHandler);
-      this._handleVisualViewportResize(); // Initial call
-    }
+    // Removed visualViewport listener setup
   }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
-    if (window.visualViewport) {
-      window.visualViewport.removeEventListener('resize', this.boundVisualViewportResizeHandler);
-    }
+    // Removed visualViewport listener cleanup
     if (this.activeSession) {
       this.activeSession.stop();
       this.activeSession = null;

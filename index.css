@@ -2,11 +2,13 @@
 html, body {
   height: 100%;
   margin: 0;
+  padding: 0; /* Added padding: 0 */
+  overflow: hidden; /* Added overflow: hidden */
   font-family: 'Google Sans', sans-serif; /* Optional: Add a default nice font */
   background-color: #111; /* Match host background */
 }
 body {
-  /* overflow: hidden; removed */
+  /* overflow: hidden; was removed, now added to html, body block */
   display: flex; /* Ensure prompt-dj can take full height */
   flex-direction: column;
 }
