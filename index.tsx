@@ -420,37 +420,26 @@ class PromptDj extends LitElement {
   }
 
   private handleViewportResize() {
-    if (this.initialAppHeight === 0) { // Not yet initialized, or shouldn't run
-        if (window.visualViewport) { // If visualViewport exists, try to initialize initialAppHeight now
+    if (this.initialAppHeight === 0) { 
+        if (window.visualViewport) { 
             this.initialAppHeight = window.innerHeight;
-            if (this.initialAppHeight === 0) return; // Still couldn't get a valid height
+            if (this.initialAppHeight === 0) return; 
         } else {
-            return; // No visualViewport and initialAppHeight is 0
+            return; 
         }
     }
 
     const visualViewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
     const currentWindowInnerHeight = window.innerHeight;
-
-    // Heuristic for orientation change or significant desktop resize:
-    // Check if visualViewport height is close to window.innerHeight (keyboard likely not the primary cause of resize)
-    // AND window.innerHeight itself has changed significantly from our stored initialAppHeight.
-    // The threshold (e.g., 50px) for "significantly changed" helps differentiate from minor adjustments.
+    
     const isLikelyGenuineResize = 
         Math.abs(visualViewportHeight - currentWindowInnerHeight) < 50 && 
         Math.abs(currentWindowInnerHeight - this.initialAppHeight) > 50;
 
     if (isLikelyGenuineResize) {
-      // This is likely an orientation change or a desktop browser resize.
-      // Update initialAppHeight to the new full screen height.
       this.initialAppHeight = currentWindowInnerHeight;
     }
-    // If it's not a "genuine resize" (e.g., keyboard is up or down),
-    // initialAppHeight remains unchanged, thus preserving the original full screen height.
     
-    // Always call setHostHeight to apply the (potentially updated) initialAppHeight.
-    // This ensures the app container attempts to maintain the true full-screen height
-    // against keyboard-induced shrinking or adapts to new full-screen dimensions.
     this.setHostHeight();
   }
 
@@ -532,8 +521,6 @@ class PromptDj extends LitElement {
   }
 
   override firstUpdated() {
-    // loadStateFromURL will check if tutorial is active (including forced)
-    // and skip loading if necessary.
     this.loadStateFromURL();
     this.updateMidiLearnButtonState();
   }
@@ -1536,49 +1523,55 @@ class PromptDj extends LitElement {
 
   private loadStateFromURL() {
     const params = new URLSearchParams(window.location.search);
+    const isShareLink = params.has('p') || params.has('v');
 
-    // If tutorial is active (either naturally or forced by URL),
-    // skip loading other state from URL to avoid conflicts.
-    if (this.isTutorialActive) {
-      if (this.forceTutorialFromUrl) {
-        console.log('Forced tutorial: Skipping loading state from URL.');
-      } else {
-        console.log('Tutorial active: Skipping loading state from URL.');
-      }
-      // Optional: Clean up URL parameters if tutorial is active to prevent re-processing
-      // window.history.replaceState({}, document.title, window.location.pathname);
-      return;
+    if (isShareLink) {
+        console.log('Share link detected. Overriding tutorial/welcome state.');
+        this.isTutorialActive = false;
+        this.showWelcome = false;
+        localStorage.setItem(TUTORIAL_STORAGE_KEY, 'true');
+        localStorage.setItem('beatLabWelcomeShown', 'true');
+
+        if (params.has('p')) {
+            try {
+                const promptData: {t: string, w: string}[] = JSON.parse(params.get('p')!);
+                const newPrompts = new Map<string, Prompt>();
+                promptData.forEach(pd => {
+                    const id = this.generateNewPromptId();
+                    newPrompts.set(id, {
+                        promptId: id,
+                        text: pd.t,
+                        weight: parseFloat(pd.w),
+                        color: this.getUnusedRandomColor(Array.from(newPrompts.values()).map(p => p.color)),
+                        isDropTrack: false,
+                    });
+                });
+                this.prompts = newPrompts;
+                this.recalculateNextPromptIdCounter(); // Ensure counter is correct after loading
+                this.savePromptsToLocalStorage(); // Save loaded prompts
+            } catch (e) { console.error('Error parsing prompts from URL', e); }
+        }
+
+        if (params.has('temp')) this.temperature = parseFloat(params.get('temp')!);
+        // Potentially load other sharedConfig parameters here if needed from URL (guid, bpm, etc.)
+        // For now, they are only read by getSharedConfigFromState when sending to API
+
+        if (params.has('play') && params.get('play') === '1') {
+            this.hasHadFirstSuccessfulPlay = false;
+            setTimeout(() => this.startAudioStream(), 500);
+        }
+    } else if (this.isTutorialActive) {
+        // Not a share link, but tutorial is active (e.g., normal first visit or forced)
+        if (this.forceTutorialFromUrl) {
+            console.log('Forced tutorial: Normal URL state loading skipped.');
+        } else {
+            console.log('Tutorial active (and not a share link): Normal URL state loading skipped.');
+        }
     }
-    
-    if (!params.has('v')) return; // Standard check for preset version
-
-    if (params.has('p')) {
-      try {
-        const promptData: {t: string, w: string}[] = JSON.parse(params.get('p')!);
-        const newPrompts = new Map<string, Prompt>();
-        promptData.forEach(pd => {
-          const id = this.generateNewPromptId();
-          newPrompts.set(id, {
-            promptId: id,
-            text: pd.t,
-            weight: parseFloat(pd.w),
-            color: this.getUnusedRandomColor(Array.from(newPrompts.values()).map(p => p.color)),
-            isDropTrack: false,
-          });
-        });
-        this.prompts = newPrompts;
-        this.savePromptsToLocalStorage();
-      } catch (e) { console.error('Error parsing prompts from URL', e); }
-    }
-
-    if (params.has('temp')) this.temperature = parseFloat(params.get('temp')!);
-
-    if (params.has('play') && params.get('play') === '1') {
-      // Set flag to false to ensure initial loading messages are shown for auto-play from URL
-      this.hasHadFirstSuccessfulPlay = false;
-      setTimeout(() => this.startAudioStream(), 500);
-    }
-  }
+    // If not a share link AND tutorial is not active, `loadInitialPrompts` (called from constructor via checkTutorialStatus)
+    // would have already loaded prompts from localStorage or created defaults.
+    // No further action needed for URL parameters in that case by this method.
+}
 
 
   private handleSavePreset() {
