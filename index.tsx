@@ -240,8 +240,8 @@ const defaultStyles = css`
   :host {
     display: flex;
     flex-direction: column;
-    height: 100%; /* Changed from 100vh */
-    width: 100%;  /* Changed from 100vw */
+    height: var(--visual-viewport-height, 100%); /* Use CSS variable */
+    width: 100%;
     background-color: #181818;
     color: #e0e0e0;
     font-family: 'Google Sans', sans-serif;
@@ -321,6 +321,7 @@ class PromptDj extends LitElement {
   private sliderJiggleTimeout: number | null = null;
   private dropTrackId: string | null = null;
   private dropEffectTimer: number | null = null;
+  private boundSetViewportHeight: () => void;
 
 
   // --- Queries for DOM Elements ---
@@ -339,6 +340,7 @@ class PromptDj extends LitElement {
 
   constructor() {
     super();
+    this.boundSetViewportHeight = this.setViewportHeight.bind(this);
 
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('forceTutorial') === 'true') {
@@ -399,12 +401,26 @@ class PromptDj extends LitElement {
     }
   }
 
+  private setViewportHeight() {
+    if (window.visualViewport) {
+      document.documentElement.style.setProperty('--visual-viewport-height', `${window.visualViewport.height}px`);
+    } else {
+      document.documentElement.style.setProperty('--visual-viewport-height', `${window.innerHeight}px`);
+    }
+  }
 
   // --- Lifecycle Methods ---
   override connectedCallback() {
     super.connectedCallback();
     this.audioContext.resume();
     document.addEventListener('keydown', this.handleGlobalKeyDown);
+    
+    this.setViewportHeight(); // Initial call
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', this.boundSetViewportHeight);
+      window.visualViewport.addEventListener('scroll', this.boundSetViewportHeight);
+    }
+    window.addEventListener('resize', this.boundSetViewportHeight);
   }
 
   override disconnectedCallback() {
@@ -447,6 +463,12 @@ class PromptDj extends LitElement {
         clearTimeout(this.dropEffectTimer);
         this.dropEffectTimer = null;
     }
+
+    if (window.visualViewport) {
+      window.visualViewport.removeEventListener('resize', this.boundSetViewportHeight);
+      window.visualViewport.removeEventListener('scroll', this.boundSetViewportHeight);
+    }
+    window.removeEventListener('resize', this.boundSetViewportHeight);
   }
 
   override firstUpdated() {
