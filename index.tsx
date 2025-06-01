@@ -16,7 +16,7 @@ import {
   type LiveMusicGenerationConfig,
   // StartLiveMusicSessionParams and LiveMusicSessionConfig might not be needed with ai.live.music.connect
 } from '@google/genai';
-import {decode, decodeAudioData as localDecodeAudioData, throttle} from './utils.js';
+import {decode, decodeAudioData as localDecodeAudioData, throttle, debounce} from './utils.js';
 import { MidiController, type MidiInputInfo } from './midi-controller.js';
 import type { Prompt, PlaybackState, AppLiveMusicGenerationConfig, PresetPrompt, Preset } from './types.js';
 import { TRACK_COLORS, ORB_COLORS, CURRENT_PRESET_VERSION, MIDI_LEARN_TARGET_DROP_BUTTON, MIDI_LEARN_TARGET_PLAY_PAUSE_BUTTON, DROP_TRACK_DURATION, DROP_TRACK_INITIAL_WEIGHT, DROP_TRACK_COLOR, DROP_PROMPT_TEMPLATE } from './constants.js';
@@ -244,8 +244,7 @@ const defaultStyles = css`
     top: 0;
     left: 0;
     width: 100%; 
-    /* Height properties will be aggressively managed by JS */
-    /* Fallback CSS height: */
+    /* Fallback CSS height, JS will aggressively manage this */
     height: 100vh; 
     min-height: 100vh;
     max-height: 100vh;
@@ -327,8 +326,9 @@ class PromptDj extends LitElement {
   private sliderJiggleTimeout: number | null = null;
   private dropTrackId: string | null = null;
   private dropEffectTimer: number | null = null;
+  
   private initialAppHeight: number | null = null;
-  private boundApplyFixedHostHeight: (() => void) | null = null;
+  private debouncedSetHostHeight: (() => void) | null = null;
 
 
   // --- Queries for DOM Elements ---
@@ -408,14 +408,7 @@ class PromptDj extends LitElement {
     }
   }
 
-  private applyFixedHostHeight() {
-    if (this.initialAppHeight === null) {
-        // Capture initial height if not already done.
-        // This might be slightly delayed if called before first paint,
-        // but window.innerHeight should be available early.
-        this.initialAppHeight = window.innerHeight;
-    }
-
+  private setHostHeight() {
     if (this.initialAppHeight !== null) {
         this.style.height = `${this.initialAppHeight}px`;
         this.style.minHeight = `${this.initialAppHeight}px`;
@@ -430,20 +423,24 @@ class PromptDj extends LitElement {
     this.audioContext.resume();
     document.addEventListener('keydown', this.handleGlobalKeyDown);
 
-    // JS Height Fix: Capture initial height and set up listener
-    // Defer slightly to ensure layout is stable for initial measurement if needed,
-    // though window.innerHeight should be fine.
+    // JS Height Fix:
+    // Initial height application
     requestAnimationFrame(() => {
-        this.applyFixedHostHeight(); // Apply initial height
+      if (this.initialAppHeight === null) { // Capture initial height only once
+        this.initialAppHeight = window.innerHeight;
+      }
+      this.setHostHeight(); // Apply the captured height
     });
 
     if (window.visualViewport) {
-        this.boundApplyFixedHostHeight = this.applyFixedHostHeight.bind(this);
-        window.visualViewport.addEventListener('resize', this.boundApplyFixedHostHeight);
+      // Create and store the debounced function instance
+      // This function will always use the `initialAppHeight` captured on load.
+      this.debouncedSetHostHeight = debounce(() => {
+        this.setHostHeight();
+      }, 150); // 150ms debounce delay
+      window.visualViewport.addEventListener('resize', this.debouncedSetHostHeight);
     } else {
-        // Fallback for older browsers or environments without visualViewport
-        // Consider a simple window resize listener, though less effective for keyboard
-        console.warn('window.visualViewport API not available. Keyboard overlay behavior might be less reliable.');
+      console.warn('window.visualViewport API not available. Keyboard overlay behavior might be less reliable.');
     }
   }
 
@@ -489,8 +486,8 @@ class PromptDj extends LitElement {
     }
 
     // JS Height Fix: Cleanup listener
-    if (this.boundApplyFixedHostHeight && window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', this.boundApplyFixedHostHeight);
+    if (this.debouncedSetHostHeight && window.visualViewport) {
+      window.visualViewport.removeEventListener('resize', this.debouncedSetHostHeight);
     }
   }
 

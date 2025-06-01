@@ -79,4 +79,15 @@ function throttle(func: (...args: unknown[]) => void, delay: number) {
   };
 }
 
-export {decode, decodeAudioData, throttle};
+/** Debounces a callback to be called only after `delay` milliseconds have passed without it being called again. */
+function debounce<T extends (...args: any[]) => void>(func: T, delay: number): (...args: Parameters<T>) => void {
+  let timeoutId: number | undefined;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeoutId);
+    timeoutId = window.setTimeout(() => {
+      func(...args);
+    }, delay);
+  };
+}
+
+export {decode, decodeAudioData, throttle, debounce};
