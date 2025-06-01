@@ -240,14 +240,19 @@ const defaultStyles = css`
   :host {
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    width: 100vw;
+    /* height: 100vh; replaced by position:fixed */
+    /* width: 100vw;  replaced by position:fixed */
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     background-color: #181818;
     color: #e0e0e0;
     font-family: 'Google Sans', sans-serif;
     box-sizing: border-box;
     overflow: hidden;
-    position: relative;
+    /* position: relative; /* Not needed with position:fixed */
   }
 `;
 
@@ -2125,12 +2130,11 @@ class PromptDj extends LitElement {
       justify-content: flex-start;
       flex-grow: 1;
       width: 100%;
-      padding: 80px 20px 20px 20px; /* Adjusted top padding for fixed header */
-      padding-bottom: 100px; /* Space for fixed footer */
+      padding: 80px 20px 100px 20px; /* Adjusted top padding for fixed header, bottom for footer */
       box-sizing: border-box;
       gap: 20px;
-      overflow: hidden;
-      position: relative;
+      overflow: hidden; /* main-content itself should not scroll; #prompts-container will */
+      position: relative; /* Context for absolutely positioned children if any */
     }
     #prompts-container {
       display: flex;
@@ -2140,8 +2144,9 @@ class PromptDj extends LitElement {
       overflow-y: auto;
       overflow-x: hidden;
       width: clamp(350px, 60vw, 550px);
-      max-height: calc(100vh - 200px); /* Adjusted for header and footer */
-      min-height: 200px;
+      /* max-height: calc(100vh - 200px); /* Removed in favor of flex-grow */
+      flex-grow: 1; /* Allow this container to take up available vertical space */
+      min-height: 0; /* Important for flex children that need to shrink/grow */
       align-items: stretch;
       scrollbar-width: thin;
       scrollbar-color: #5200ff #2c2c2c;
@@ -2160,12 +2165,13 @@ class PromptDj extends LitElement {
         padding: 8px 15px;
         border-radius: 6px;
         font-size: 0.9em;
-        z-index: 5; /* Ensure it's above prompts container if it overlaps */
+        z-index: 5; 
         white-space: normal;
         word-break: break-word;
-        margin-bottom: 5px; /* Space between instructions and prompt list */
-        width: clamp(350px, 60vw, 550px); /* Match prompt container width */
+        margin-bottom: 5px; 
+        width: clamp(350px, 60vw, 550px); 
         box-sizing: border-box;
+        flex-shrink: 0; /* Prevent instructions from growing or shrinking if main-content is flex */
     }
 
     prompt-controller {
