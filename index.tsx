@@ -1913,13 +1913,16 @@ class PromptDj extends LitElement {
             const pc = this.shadowRoot?.querySelector(`prompt-controller[promptid="${promptId}"]`) as PromptControllerElement | null;
             return pc?.shadowRoot?.querySelector('weight-slider') as HTMLElement | null;
         },
-        getPromptTextInput: (promptId: string) => {
+        getPromptTextInput: (promptId: string) => { // Existing: Returns input if editing, else static text.
             const pcEl = this.shadowRoot?.querySelector(`prompt-controller[promptid="${promptId}"]`) as PromptControllerElement | null;
             if (!pcEl || !pcEl.shadowRoot) return null;
-            // In PromptController, either #text-input or #static-text is rendered based on isEditingText.
-            // We try to find the input first (active editing), then the static text.
             const inputElement = pcEl.shadowRoot.querySelector('#text-input') as HTMLInputElement | null;
             if (inputElement) return inputElement;
+            return pcEl.shadowRoot.querySelector('#static-text') as HTMLElement | null;
+        },
+        getPromptStaticTextDisplay: (promptId: string) => { // New: Specifically targets #static-text
+            const pcEl = this.shadowRoot?.querySelector(`prompt-controller[promptid="${promptId}"]`) as PromptControllerElement | null;
+            if (!pcEl || !pcEl.shadowRoot) return null;
             return pcEl.shadowRoot.querySelector('#static-text') as HTMLElement | null;
         }
     };
