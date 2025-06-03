@@ -113,13 +113,13 @@ export class TutorialController extends LitElement {
     },
     {
       id: 'createFirstTrack_EnterName',
-      highlightTarget: () => this.firstPromptId ? this.targets.getPromptStaticTextDisplay?.(this.firstPromptId) : null,
-      tooltipText: "Klick den Text, gib 'Trompete' ein & drück Enter!",
+      highlightTarget: () => this.firstPromptId ? this.targets.getPromptController?.(this.firstPromptId) : null,
+      tooltipText: "Klick den Text 'Neuer Prompt' innerhalb dieser Karte, gib 'Trompete' ein & drück Enter!",
       waitForEvent: 'promptTextChanged',
       eventDetailCondition: (detail) => detail.promptId === this.firstPromptId && detail.newText.trim() !== '' && detail.newText.trim().toLowerCase() !== 'neuer prompt' && detail.newText.trim().toLowerCase() !== 'untitled prompt',
       onEnter: () => {
-        // Focus is handled by PromptController's enterEditModeAfterCreation logic (when user clicks static text)
-        // This step highlights the static text area.
+        // User needs to click the text area inside the highlighted card.
+        // The prompt-controller will handle focusing the input.
       }
     },
     {
@@ -163,8 +163,8 @@ export class TutorialController extends LitElement {
     },
     {
       id: 'createSecondTrack_EnterName',
-      highlightTarget: () => this.secondPromptId ? this.targets.getPromptStaticTextDisplay?.(this.secondPromptId) : null,
-      tooltipText: "Klick den Text, gib 'House' ein & drück Enter!",
+      highlightTarget: () => this.secondPromptId ? this.targets.getPromptController?.(this.secondPromptId) : null,
+      tooltipText: "Klick den Text 'Neuer Prompt' in der neuen Karte, gib 'House' ein & drück Enter!",
       waitForEvent: 'promptTextChanged',
       eventDetailCondition: (detail) => detail.promptId === this.secondPromptId && detail.newText.trim() !== '' && detail.newText.trim().toLowerCase() !== 'neuer prompt' && detail.newText.trim().toLowerCase() !== 'untitled prompt',
     },
