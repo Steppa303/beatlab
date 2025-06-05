@@ -13,58 +13,69 @@ export class ParameterSlider extends LitElement {
     :host {
       display: flex;
       flex-direction: column;
-      gap: 0.3em;
+      gap: 0.5em; /* Increased gap */
       width: 100%;
-      font-size: 0.9em; /* Slightly smaller than main UI text */
+      font-size: 0.95em; /* Slightly larger */
+      color: var(--neumorph-text-color, #333740);
     }
     .label-value-container {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      color: #ccc; /* Lighter text for labels */
     }
     .label {
       font-weight: 500;
     }
     .value-display {
       font-variant-numeric: tabular-nums;
+      color: var(--neumorph-text-color-light, #707070);
     }
     input[type="range"] {
       -webkit-appearance: none;
       appearance: none;
       width: 100%;
-      height: 10px; /* Slightly thinner than prompt sliders */
-      background: #282828; /* Darker track */
-      border-radius: 5px;
+      height: 10px; 
+      background: var(--neumorph-bg, #e6e7ee); /* Slider track background */
+      border-radius: var(--neumorph-radius-base, 12px);
       outline: none;
       cursor: ew-resize;
       margin: 0;
+      box-shadow: var(--neumorph-shadow-inset-soft); /* Inset track */
     }
     input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
-      width: 18px; /* Thumb size */
-      height: 18px;
-      background: #7e57c2; /* Purple thumb color like screenshot */
-      border-radius: 50%;
+      width: 20px; 
+      height: 20px;
+      background: var(--neumorph-accent-interactive, var(--neumorph-accent-primary)); 
+      border-radius: var(--neumorph-radius-round, 50%);
       cursor: ew-resize;
-      border: 2px solid #fff; /* White border for contrast */
-      box-shadow: 0 0 3px rgba(0,0,0,0.5);
+      border: 2px solid var(--neumorph-bg, #e6e7ee); /* Border to lift thumb */
+      box-shadow: 
+        2px 2px 4px var(--neumorph-shadow-color-dark, #a3b1c6),
+        -2px -2px 4px var(--neumorph-shadow-color-light, #ffffff); /* Extruded thumb */
+      margin-top: -5px; /* Adjust thumb position vertically */
     }
     input[type="range"]::-moz-range-thumb {
-      width: 16px; /* Adjusted for Firefox */
-      height: 16px;
-      background: #7e57c2;
-      border-radius: 50%;
+      width: 18px; 
+      height: 18px;
+      background: var(--neumorph-accent-interactive, var(--neumorph-accent-primary));
+      border-radius: var(--neumorph-radius-round, 50%);
       cursor: ew-resize;
-      border: 2px solid #fff;
-      box-shadow: 0 0 3px rgba(0,0,0,0.5);
+      border: 2px solid var(--neumorph-bg, #e6e7ee);
+      box-shadow: 
+        2px 2px 4px var(--neumorph-shadow-color-dark, #a3b1c6),
+        -2px -2px 4px var(--neumorph-shadow-color-light, #ffffff);
     }
      :host([disabled]) input[type="range"],
      :host([disabled]) input[type="range"]::-webkit-slider-thumb,
      :host([disabled]) input[type="range"]::-moz-range-thumb {
         cursor: not-allowed;
-        opacity: 0.5;
+        opacity: 0.6;
+     }
+     :host([disabled]) input[type="range"]::-webkit-slider-thumb,
+     :host([disabled]) input[type="range"]::-moz-range-thumb {
+        box-shadow: var(--neumorph-shadow-inset); /* Disabled thumb looks pressed in */
      }
   `;
 

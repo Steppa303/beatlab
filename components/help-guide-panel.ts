@@ -25,19 +25,21 @@ export class HelpGuidePanel extends LitElement {
     }
     :host([isOpen]) {
       pointer-events: auto; 
-      background-color: rgba(0, 0, 0, 0.5); 
+      background-color: rgba(230, 231, 238, 0.6); /* Frosted glass effect with neumorph bg */
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
     }
     .panel {
       position: absolute;
       top: 0;
       right: 0;
-      width: clamp(300px, 40vw, 500px); 
+      width: clamp(320px, 45vw, 550px); 
       height: 100%;
-      background-color: #282828; 
-      color: #e0e0e0;
-      box-shadow: -5px 0 15px rgba(0,0,0,0.3);
+      background-color: var(--neumorph-bg, #e6e7ee); 
+      color: var(--neumorph-text-color, #333740);
+      box-shadow: var(--neumorph-shadow-outset-strong); /* Extruded panel from left */
       transform: translateX(100%);
-      transition: transform 0.3s ease-in-out;
+      transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -49,76 +51,92 @@ export class HelpGuidePanel extends LitElement {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 15px 20px;
-      background-color: #333;
-      border-bottom: 1px solid #444;
+      padding: 18px 25px;
+      background-color: var(--neumorph-bg-darker, #dde0e9); /* Slightly different header bg */
+      border-bottom: 1px solid var(--neumorph-shadow-color-dark, #a3b1c6);
       flex-shrink: 0;
+      box-shadow: inset 0 -2px 4px var(--neumorph-shadow-color-dark, #a3b1c6); /* Inner shadow for depth */
     }
     .panel-header h2 {
       margin: 0;
-      font-size: 1.4em;
-      font-weight: 500;
+      font-size: 1.5em;
+      font-weight: 600;
+      color: var(--neumorph-text-color, #333740);
     }
-    .close-button {
-      background: none;
+    .close-button { /* Neumorphic button style for close */
+      background: var(--neumorph-bg, #e6e7ee);
       border: none;
-      color: #e0e0e0;
-      font-size: 1.8em;
+      color: var(--neumorph-text-color-light, #707070);
+      font-size: 1.5em; /* Adjusted for balance */
       font-weight: bold;
       cursor: pointer;
-      padding: 0 5px;
+      padding: 0;
       line-height: 1;
+      width: 36px;
+      height: 36px;
+      border-radius: var(--neumorph-radius-round, 50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--neumorph-shadow-outset);
+      transition: box-shadow 0.2s ease-out, color 0.2s, transform 0.1s;
     }
     .close-button:hover {
-      color: #fff;
+      color: var(--neumorph-text-color, #333740);
+      box-shadow: var(--neumorph-shadow-outset-strong);
+    }
+    .close-button:active {
+      box-shadow: var(--neumorph-shadow-inset);
+      transform: scale(0.95);
     }
     .panel-content {
-      padding: 20px;
+      padding: 25px;
       overflow-y: auto;
       flex-grow: 1;
       scrollbar-width: thin;
-      scrollbar-color: #555 #282828;
+      scrollbar-color: var(--neumorph-shadow-color-dark, #a3b1c6) var(--neumorph-bg-darker, #dde0e9);
     }
     .panel-content::-webkit-scrollbar { width: 8px; }
-    .panel-content::-webkit-scrollbar-track { background: #282828; }
-    .panel-content::-webkit-scrollbar-thumb { background-color: #555; border-radius: 4px; }
+    .panel-content::-webkit-scrollbar-track { background: var(--neumorph-bg-darker, #dde0e9); }
+    .panel-content::-webkit-scrollbar-thumb { background-color: var(--neumorph-shadow-color-dark, #a3b1c6); border-radius: 4px; }
     
     .panel-content h3 {
-      color: #fff;
-      margin-top: 1.5em;
-      margin-bottom: 0.5em;
-      font-weight: 500;
-      border-bottom: 1px solid #444;
-      padding-bottom: 0.3em;
+      color: var(--neumorph-text-color, #333740);
+      margin-top: 1.8em;
+      margin-bottom: 0.6em;
+      font-weight: 600;
+      border-bottom: 1px solid var(--neumorph-shadow-color-dark, #a3b1c6);
+      padding-bottom: 0.4em;
     }
     .panel-content h3:first-child {
       margin-top: 0;
     }
     .panel-content h4 {
-      color: #ddd;
-      margin-top: 1em;
-      margin-bottom: 0.3em;
+      color: var(--neumorph-text-color-light, #707070);
+      margin-top: 1.2em;
+      margin-bottom: 0.4em;
       font-weight: 500;
     }
     .panel-content p, .panel-content ul {
-      line-height: 1.6;
-      margin-bottom: 0.8em;
+      line-height: 1.65;
+      margin-bottom: 1em;
     }
     .panel-content ul {
-      padding-left: 20px;
+      padding-left: 25px;
     }
     .panel-content li {
-      margin-bottom: 0.5em;
+      margin-bottom: 0.6em;
     }
     .panel-content strong {
-      color: #fff;
+      color: var(--neumorph-text-color, #333740);
       font-weight: 600;
     }
     .panel-content code {
-      background-color: #1e1e1e;
-      padding: 0.1em 0.4em;
-      border-radius: 3px;
+      background-color: var(--neumorph-bg-darker, #dde0e9);
+      padding: 0.2em 0.5em;
+      border-radius: var(--neumorph-radius-base, 12px);
       font-family: monospace;
+      box-shadow: var(--neumorph-shadow-inset-soft);
     }
   `;
 

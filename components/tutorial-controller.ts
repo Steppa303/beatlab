@@ -524,8 +524,8 @@ export class TutorialController extends LitElement {
       left: 0;
       width: 100%;
       height: 100%;
-      pointer-events: none; /* Base host is passthrough */
-      z-index: 2000; /* High z-index for tutorial elements */
+      pointer-events: none; 
+      z-index: 2000; 
     }
 
     .popup-overlay {
@@ -534,134 +534,173 @@ export class TutorialController extends LitElement {
       left: 0;
       width: 100%;
       height: 100%;
-      background-color: rgba(0, 0, 0, 0.7);
+      background-color: rgba(230, 231, 238, 0.6); /* Frosted glass neumorph */
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
       display: flex;
       align-items: center;
       justify-content: center;
-      pointer-events: auto; /* Overlay is interactive */
-      animation: fadeIn 0.3s ease-out;
+      pointer-events: auto; 
+      animation: fadeInNeumorph 0.3s ease-out;
     }
 
     .popup-panel {
-      background-color: #333;
-      color: #fff;
-      padding: 20px 30px;
-      border-radius: 12px;
+      background-color: var(--neumorph-bg, #e6e7ee);
+      color: var(--neumorph-text-color, #333740);
+      padding: 25px 35px;
+      border-radius: var(--neumorph-radius-large, 20px);
       text-align: center;
-      box-shadow: 0 5px 25px rgba(0,0,0,0.5);
+      box-shadow: var(--neumorph-shadow-outset-strong); /* Extruded panel */
       max-width: 90vw;
-      width: 350px;
+      width: 380px;
     }
     .popup-panel h3 {
       margin-top: 0;
-      font-size: 1.6em;
+      font-size: 1.8em;
+      font-weight: 600;
     }
     .popup-panel p {
-      font-size: 1em;
-      line-height: 1.5;
-      margin-bottom: 20px;
+      font-size: 1.05em;
+      line-height: 1.6;
+      margin-bottom: 25px;
     }
     .popup-panel .checkbox-container {
-      margin-top: 15px;
-      margin-bottom: 20px;
+      margin-top: 18px;
+      margin-bottom: 25px;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
-      font-size: 0.9em;
+      gap: 10px;
+      font-size: 0.95em;
     }
     .popup-panel .checkbox-container input[type="checkbox"] {
-      accent-color: #7e57c2;
-      width: 16px;
-      height: 16px;
+      accent-color: var(--neumorph-accent-primary, #5200ff);
+      width: 18px;
+      height: 18px;
       cursor: pointer;
+      /* Basic neumorphic checkbox styling if possible, though limited */
+      appearance: none;
+      -webkit-appearance: none;
+      background-color: var(--neumorph-bg, #e6e7ee);
+      border-radius: 4px;
+      box-shadow: var(--neumorph-shadow-inset-soft);
+      position: relative;
+    }
+    .popup-panel .checkbox-container input[type="checkbox"]:checked {
+       background-color: var(--neumorph-accent-primary, #5200ff);
+       box-shadow: var(--neumorph-shadow-outset);
+    }
+    .popup-panel .checkbox-container input[type="checkbox"]:checked::before {
+      content: '✔';
+      color: white;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 12px;
     }
     .popup-panel .checkbox-container label {
       cursor: pointer;
     }
-    .popup-panel button {
-      background-color: #7e57c2;
-      color: white;
+    .popup-panel button { /* Neumorphic button */
+      background: var(--neumorph-bg, #e6e7ee);
+      color: var(--neumorph-accent-primary, #5200ff);
       border: none;
-      padding: 10px 20px;
-      border-radius: 6px;
-      font-size: 1em;
+      padding: 12px 24px;
+      border-radius: var(--neumorph-radius-base, 12px);
+      font-size: 1.05em;
+      font-weight: 500;
       cursor: pointer;
-      transition: background-color 0.2s;
+      transition: box-shadow 0.2s ease-out, transform 0.15s ease-out;
+      box-shadow: var(--neumorph-shadow-outset);
     }
     .popup-panel button:hover {
-      background-color: #673ab7;
+      box-shadow: var(--neumorph-shadow-outset-strong);
+    }
+    .popup-panel button:active {
+      box-shadow: var(--neumorph-shadow-inset);
+      transform: scale(0.98);
     }
 
     .highlight-box {
-      position: fixed; /* Use fixed to overlay correctly regardless of scroll */
-      border: 3px solid #FFD700; /* Gold color */
-      border-radius: 8px;
-      box-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
+      position: fixed; 
+      border: none; /* Remove border, use shadow for highlight */
+      border-radius: var(--neumorph-radius-base, 12px); /* Match target rounding */
+      box-shadow: 
+        0 0 0 3px var(--neumorph-accent-primary, #5200ff), /* Inner glow */
+        0 0 15px 5px var(--neumorph-accent-primary, #5200ff); /* Outer glow */
       pointer-events: none;
       transition: top 0.15s, left 0.15s, width 0.15s, height 0.15s, opacity 0.15s;
       z-index: 2001;
       opacity: 1;
     }
      :host([isActive]) .highlight-box.pulsate {
-        animation: pulsateHighlight 1.5s infinite ease-in-out;
+        animation: pulsateHighlightNeumorph 1.5s infinite ease-in-out;
     }
-    @keyframes pulsateHighlight {
-        0% { box-shadow: 0 0 15px rgba(255, 215, 0, 0.7); transform: scale(1); }
-        50% { box-shadow: 0 0 25px 5px rgba(255, 215, 0, 1); transform: scale(1.03); }
-        100% { box-shadow: 0 0 15px rgba(255, 215, 0, 0.7); transform: scale(1); }
+    @keyframes pulsateHighlightNeumorph {
+        0% { box-shadow: 0 0 0 3px var(--neumorph-accent-primary, #5200ff), 0 0 15px 5px var(--neumorph-accent-primary, #5200ff); transform: scale(1); }
+        50% { box-shadow: 0 0 0 4px var(--neumorph-accent-primary, #5200ff), 0 0 25px 8px var(--neumorph-accent-primary, #5200ff); transform: scale(1.02); }
+        100% { box-shadow: 0 0 0 3px var(--neumorph-accent-primary, #5200ff), 0 0 15px 5px var(--neumorph-accent-primary, #5200ff); transform: scale(1); }
     }
 
 
     .tooltip {
-      position: fixed; /* Use fixed for tooltip as well */
-      background-color: rgba(40, 40, 40, 0.95);
-      color: #fff;
-      padding: 10px 15px;
-      border-radius: 6px;
-      font-size: 0.95em;
-      line-height: 1.4;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+      position: fixed; 
+      background-color: var(--neumorph-bg, #e6e7ee);
+      color: var(--neumorph-text-color, #333740);
+      padding: 12px 18px;
+      border-radius: var(--neumorph-radius-base, 12px);
+      font-size: 1em;
+      line-height: 1.5;
+      box-shadow: var(--neumorph-shadow-outset); /* Tooltip as extruded panel */
       z-index: 2002;
-      max-width: 250px;
-      pointer-events: none; /* Tooltip itself is not interactive */
+      max-width: 280px;
+      pointer-events: none; 
       transition: top 0.15s, left 0.15s, opacity 0.15s, transform 0.15s;
       opacity: 1;
     }
-    .tooltip::after {
+    .tooltip::after { /* Arrow styled to match neumorphic panel */
         content: '';
         position: absolute;
         width: ${ARROW_SIZE}px;
         height: ${ARROW_SIZE}px;
-        background-color: rgba(40, 40, 40, 0.95);
+        background-color: var(--neumorph-bg, #e6e7ee);
         visibility: var(--arrow-visibility, visible);
         top: var(--arrow-top);
         left: var(--arrow-left);
         transform: var(--arrow-transform);
         clip-path: polygon(0% 0%, 100% 100%, 0% 100%);
+        /* Add subtle shadow to arrow if possible, or ensure it blends well */
+         box-shadow: 1px 1px 2px var(--neumorph-shadow-color-dark, #a3b1c6); /* Example for arrow */
     }
 
-    .skip-button {
+    .skip-button { /* Neumorphic skip button */
         position: fixed;
         top: 20px;
         right: 20px;
-        background-color: rgba(0,0,0,0.6);
-        color: #ccc;
-        border: 1px solid #555;
-        padding: 8px 15px;
-        border-radius: 5px;
+        background-color: var(--neumorph-bg, #e6e7ee);
+        color: var(--neumorph-text-color-light, #707070);
+        border: none;
+        padding: 10px 18px;
+        border-radius: var(--neumorph-radius-base, 12px);
         font-size: 0.9em;
+        font-weight: 500;
         cursor: pointer;
         z-index: 2003;
         pointer-events: auto;
-        transition: background-color 0.2s, color 0.2s;
+        transition: box-shadow 0.2s ease-out, color 0.2s, transform 0.15s;
+        box-shadow: var(--neumorph-shadow-outset);
     }
     .skip-button:hover {
-        background-color: rgba(255,0,0,0.7);
-        color: #fff;
+        box-shadow: var(--neumorph-shadow-outset-strong);
+        color: #E53935; /* Red on hover */
+    }
+    .skip-button:active {
+        box-shadow: var(--neumorph-shadow-inset);
+        transform: scale(0.98);
     }
 
-    @keyframes fadeIn {
+    @keyframes fadeInNeumorph {
       from { opacity: 0; }
       to { opacity: 1; }
     }

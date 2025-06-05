@@ -238,18 +238,56 @@ const CAST_FEATURE_ENABLED = false; // Feature flag for Cast
 // Default styles
 const defaultStyles = css`
   :host {
+    /* Neumorphic color palette and variables */
+    --neumorph-bg: #e6e7ee;
+    --neumorph-bg-darker: #dde0e9; /* For inset elements */
+    --neumorph-shadow-color-light: rgba(255, 255, 255, 0.8);
+    --neumorph-shadow-color-dark: rgba(163, 177, 198, 0.6);
+    --neumorph-text-color: #333740;
+    --neumorph-text-color-light: #707070;
+    --neumorph-accent-primary: #6a11cb; /* Adjusted purple for better contrast */
+    --neumorph-accent-secondary: #2575fc; /* Brighter blue as secondary */
+    --neumorph-accent-drop: #FFC107; /* Softer gold for drop */
+    --neumorph-accent-interactive: var(--neumorph-accent-primary); /* Default interactive color */
+    --neumorph-radius-base: 12px;
+    --neumorph-radius-large: 20px;
+    --neumorph-radius-round: 50%;
+    --neumorph-shadow-distance: 5px;
+    --neumorph-shadow-blur: 10px;
+    --neumorph-shadow-distance-strong: 8px;
+    --neumorph-shadow-blur-strong: 15px;
+
+    /* Default neumorphic shadow for extruded elements */
+    --neumorph-shadow-outset:
+      var(--neumorph-shadow-distance) var(--neumorph-shadow-distance) var(--neumorph-shadow-blur) var(--neumorph-shadow-color-dark),
+      calc(var(--neumorph-shadow-distance) * -1) calc(var(--neumorph-shadow-distance) * -1) var(--neumorph-shadow-blur) var(--neumorph-shadow-color-light);
+
+    /* Stronger outset shadow */
+    --neumorph-shadow-outset-strong:
+      var(--neumorph-shadow-distance-strong) var(--neumorph-shadow-distance-strong) var(--neumorph-shadow-blur-strong) var(--neumorph-shadow-color-dark),
+      calc(var(--neumorph-shadow-distance-strong) * -1) calc(var(--neumorph-shadow-distance-strong) * -1) var(--neumorph-shadow-blur-strong) var(--neumorph-shadow-color-light);
+
+    /* Default neumorphic shadow for inset elements */
+    --neumorph-shadow-inset:
+      inset var(--neumorph-shadow-distance) var(--neumorph-shadow-distance) var(--neumorph-shadow-blur) var(--neumorph-shadow-color-dark),
+      inset calc(var(--neumorph-shadow-distance) * -1) calc(var(--neumorph-shadow-distance) * -1) var(--neumorph-shadow-blur) var(--neumorph-shadow-color-light);
+    
+    /* Softer inset for text fields */
+    --neumorph-shadow-inset-soft:
+      inset 2px 2px 4px var(--neumorph-shadow-color-dark),
+      inset -2px -2px 4px var(--neumorph-shadow-color-light);
+
     display: flex;
     flex-direction: column;
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
-    /* Fallback CSS height, JS will aggressively manage this */
     height: 100vh; 
     min-height: 100vh;
     max-height: 100vh;
-    background-color: #181818;
-    color: #e0e0e0;
+    background-color: var(--neumorph-bg);
+    color: var(--neumorph-text-color);
     font-family: 'Google Sans', sans-serif;
     box-sizing: border-box;
     overflow: hidden;
@@ -1360,9 +1398,17 @@ class PromptDj extends LitElement {
     if (this.isMidiLearning) {
       this.learnMidiButtonEl.textContent = 'Learning... (Abbrechen)';
       this.learnMidiButtonEl.classList.add('learning');
+      this.learnMidiButtonEl.style.setProperty('box-shadow', 'var(--neumorph-shadow-inset)');
+      this.learnMidiButtonEl.style.setProperty('background', 'var(--neumorph-accent-primary)');
+      this.learnMidiButtonEl.style.setProperty('color', 'white');
+
+
     } else {
       this.learnMidiButtonEl.textContent = 'Learn MIDI';
       this.learnMidiButtonEl.classList.remove('learning');
+      this.learnMidiButtonEl.style.removeProperty('box-shadow');
+      this.learnMidiButtonEl.style.removeProperty('background');
+      this.learnMidiButtonEl.style.removeProperty('color');
       if (!this.selectedMidiInputId) {
           this.learnMidiButtonEl.setAttribute('disabled', 'true');
       } else {
@@ -1934,24 +1980,25 @@ class PromptDj extends LitElement {
     const backgroundOrbs = TRACK_COLORS.slice(0, this.prompts.size).map((color, i) => {
         const promptArray = Array.from(this.prompts.values());
         const promptEntry = promptArray[i];
-        if (!promptEntry) return null; // Should not happen if slice(0, this.prompts.size)
+        if (!promptEntry) return null;
         
         const weight = promptEntry.isDropTrack && this.isDropEffectActive 
-                       ? DROP_TRACK_INITIAL_WEIGHT // Use fixed high weight for drop track orb effect
+                       ? DROP_TRACK_INITIAL_WEIGHT 
                        : promptEntry.weight;
-        let size = 5 + weight * 30;
-        let opacity = 0.05 + weight * 0.15;
-        const x = (i / Math.max(1, this.prompts.size -1 )) * 80 + 10;
-        const y = 30 + Math.random() * 20 - 10;
+        
+        // Softer neumorphic orbs: larger, more blurred, less opacity
+        let size = 50 + weight * 50; // Larger base size
+        let opacity = 0.02 + weight * 0.05; // Much lower opacity
+        const x = (i / Math.max(1, this.prompts.size -1 )) * 80 + 10; // Spread remains similar
+        const y = 40 + Math.random() * 20 - 10; // Y position adjusted
 
-        let orbAnimationClass = '';
-        let finalTransform = `translate(-50%, -50%) rotate(${Math.random() * 360}deg)`;
+        let orbAnimationClass = 'soft-pulse'; // Default soft pulse
+        let finalTransform = `translate(-50%, -50%) rotate(${Math.random() * 360}deg) scale(1)`;
 
         if (this.isDropEffectActive) {
-            const baseSize = 5 + weight * 30; 
-            size = baseSize * (2 + Math.random() * 2); 
-            opacity = Math.min(1, (0.05 + weight * 0.15) * (3 + Math.random() * 2)); 
-            orbAnimationClass = 'drop-orb-animate';
+            size = (50 + weight * 50) * (1.5 + Math.random() * 1); 
+            opacity = Math.min(0.3, (0.02 + weight * 0.05) * (2 + Math.random() * 2)); 
+            orbAnimationClass = 'drop-orb-animate-neumorph';
         }
 
         return {
@@ -1959,7 +2006,8 @@ class PromptDj extends LitElement {
             top: `${y}%`,
             width: `${size}vmax`,
             height: `${size}vmax`,
-            backgroundColor: promptEntry.isDropTrack ? DROP_TRACK_COLOR : ORB_COLORS[i % ORB_COLORS.length],
+            // Use a desaturated/lighter version of orb colors for neumorphism
+            backgroundColor: promptEntry.isDropTrack ? 'hsla(45, 100%, 70%, 0.5)' : `hsla(${i*60}, 70%, 80%, ${opacity})`,
             opacity: opacity.toString(),
             transform: finalTransform, 
             animationClass: orbAnimationClass,
@@ -2039,6 +2087,7 @@ class PromptDj extends LitElement {
                 </select>
                 <button
                     id="learn-midi-button"
+                    class="neumorph-button"
                     @click=${this.toggleMidiLearnMode}
                     @mousedown=${this.handleMidiLearnButtonMouseDown}
                     @mouseup=${this.handleMidiLearnButtonMouseUpOrLeave}
@@ -2103,44 +2152,50 @@ class PromptDj extends LitElement {
         left: 0;
         width: 100vw;
         height: 100vh;
-        background-color: white;
+        background-color: var(--neumorph-accent-secondary); /* Use a neumorph accent */
         opacity: 0;
         pointer-events: none;
-        z-index: 9999; /* Very high z-index */
+        z-index: 9999; 
     }
     #drop-flash-overlay.active {
-        animation: screenFlashAnimation 0.3s ease-out forwards;
+        animation: screenFlashAnimationNeumorph 0.3s ease-out forwards;
     }
-    @keyframes screenFlashAnimation {
+    @keyframes screenFlashAnimationNeumorph {
       0% { opacity: 0; }
-      40% { opacity: 0.7; } /* Peak of the flash */
+      40% { opacity: 0.4; } /* Softer flash */
       100% { opacity: 0; }
     }
 
     .bg-orb {
         position: absolute;
         border-radius: 50%;
-        filter: blur(20px);
-        transition: all 1s ease-in-out; /* Default transition */
-        opacity: 0; /* Initial opacity for fade in */
+        filter: blur(60px); /* Much more blur for softer orbs */
+        transition: all 3s ease-in-out; /* Slower transition */
+        opacity: 0; 
     }
-    /* Animation for orbs during drop effect */
-    .bg-orb.drop-orb-animate {
-        /* animation overrides transition for the properties it animates */
-        animation: dropOrbPulseAndSpin 1.2s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+    .bg-orb.soft-pulse {
+        animation: softPulseOrb 10s infinite alternate ease-in-out;
     }
-    @keyframes dropOrbPulseAndSpin {
+    @keyframes softPulseOrb {
+        0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.03; }
+        100% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.08; }
+    }
+    .bg-orb.drop-orb-animate-neumorph {
+        animation: dropOrbPulseNeumorph 1.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        filter: blur(40px); /* Slightly less blur during drop */
+    }
+    @keyframes dropOrbPulseNeumorph {
         0% { 
-            transform: translate(-50%, -50%) scale(0.8) rotate(0deg); 
-            filter: brightness(1.0) blur(20px); /* Start with slightly more blur */
+            transform: translate(-50%, -50%) scale(0.9); 
+            opacity: var(--start-opacity, 0.1);
         }
         50% { 
-            transform: translate(-50%, -50%) scale(1.5) rotate(180deg); 
-            filter: brightness(2.5) blur(5px); /* Less blur, much brighter */
+            transform: translate(-50%, -50%) scale(1.3); 
+            opacity: var(--peak-opacity, 0.25);
         }
         100% { 
-            transform: translate(-50%, -50%) scale(1) rotate(360deg); 
-            filter: brightness(1.2) blur(15px); /* Settle with moderate blur */
+            transform: translate(-50%, -50%) scale(1); 
+            opacity: var(--start-opacity, 0.1);
         }
     }
 
@@ -2152,17 +2207,16 @@ class PromptDj extends LitElement {
         height: 100%;
         z-index: -2;
         overflow: hidden;
-        background: radial-gradient(ellipse at center, #331a38 0%, #1a101f 70%, #111 100%);
+        background-color: var(--neumorph-bg); /* Solid neumorph background */
     }
     .app-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 10px 25px;
-      background-color: rgba(20, 20, 20, 0.6);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding: 15px 25px; /* Increased padding */
+      background-color: var(--neumorph-bg);
+      /* Subtle shadow to lift header */
+      box-shadow: 0px 3px 8px rgba(163, 177, 198, 0.2);
       width: 100%;
       box-sizing: border-box;
       position: fixed;
@@ -2173,27 +2227,28 @@ class PromptDj extends LitElement {
     .logo-title {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 12px;
     }
     .logo-icon {
-        font-size: 1.8em;
+        font-size: 2em;
+        color: var(--neumorph-accent-primary);
     }
     .app-header h1 {
-      font-size: 1.5em;
+      font-size: 1.6em;
       margin: 0;
-      color: #fff;
-      font-weight: 500;
+      color: var(--neumorph-text-color);
+      font-weight: 600; /* Slightly bolder for neumorphism */
     }
     .global-controls {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 15px; /* Increased gap */
     }
     .global-controls settings-button,
     .global-controls help-button,
     .global-controls cast-button {
-      width: 40px;
-      height: 40px;
+      width: 44px; /* Standardized neumorphic icon button size */
+      height: 44px;
     }
     
     .main-content {
@@ -2203,48 +2258,50 @@ class PromptDj extends LitElement {
       justify-content: flex-start;
       flex-grow: 1;
       width: 100%;
-      padding: 80px 20px 100px 20px; /* Adjusted top padding for fixed header, bottom for footer */
+      padding: 90px 20px 110px 20px; /* Adjusted top padding for fixed header, bottom for footer */
       box-sizing: border-box;
-      gap: 20px;
-      overflow: hidden; /* main-content itself should not scroll; #prompts-container will */
-      position: relative; /* Context for absolutely positioned children if any */
+      gap: 25px; /* Increased gap */
+      overflow: hidden; 
+      position: relative; 
     }
     #prompts-container {
       display: flex;
       flex-direction: column;
-      gap: 15px;
-      padding: 10px;
+      gap: 20px; /* Increased gap */
+      padding: 15px;
       overflow-y: auto;
       overflow-x: hidden;
-      width: clamp(350px, 60vw, 550px);
-      /* max-height: calc(100vh - 200px); /* Removed in favor of flex-grow */
-      flex-grow: 1; /* Allow this container to take up available vertical space */
-      min-height: 0; /* Important for flex children that need to shrink/grow */
+      width: clamp(350px, 55vw, 500px); /* Adjusted width */
+      flex-grow: 1; 
+      min-height: 0; 
       align-items: stretch;
+      /* Neumorphic inset container */
+      background-color: var(--neumorph-bg);
+      border-radius: var(--neumorph-radius-large);
+      box-shadow: var(--neumorph-shadow-inset);
       scrollbar-width: thin;
-      scrollbar-color: #5200ff #2c2c2c;
-      border-radius: 8px;
-      background-color: rgba(0,0,0,0.1);
-      position: relative;
+      scrollbar-color: var(--neumorph-shadow-color-dark) var(--neumorph-bg-darker);
     }
     #prompts-container::-webkit-scrollbar { width: 8px; }
-    #prompts-container::-webkit-scrollbar-track { background: #2c2c2c; border-radius: 4px; }
-    #prompts-container::-webkit-scrollbar-thumb { background-color: #5200ff; border-radius: 4px;}
+    #prompts-container::-webkit-scrollbar-track { background: var(--neumorph-bg-darker); border-radius: 4px; }
+    #prompts-container::-webkit-scrollbar-thumb { background-color: var(--neumorph-shadow-color-dark); border-radius: 4px;}
 
     .midi-learn-instructions {
         text-align: center;
-        background-color: rgba(40,40,40,0.9);
-        color: #FFD700;
-        padding: 8px 15px;
-        border-radius: 6px;
+        background-color: var(--neumorph-bg-darker);
+        color: var(--neumorph-accent-primary);
+        padding: 10px 18px;
+        border-radius: var(--neumorph-radius-base);
         font-size: 0.9em;
+        font-weight: 500;
         z-index: 5; 
         white-space: normal;
         word-break: break-word;
-        margin-bottom: 5px; 
-        width: clamp(350px, 60vw, 550px); 
+        margin-bottom: 10px; 
+        width: clamp(350px, 55vw, 500px); 
         box-sizing: border-box;
-        flex-shrink: 0; /* Prevent instructions from growing or shrinking if main-content is flex */
+        flex-shrink: 0;
+        box-shadow: var(--neumorph-shadow-inset);
     }
 
     prompt-controller {
@@ -2254,104 +2311,111 @@ class PromptDj extends LitElement {
 
     #settings-panel {
       position: fixed;
-      bottom: 80px; /* Above footer */
+      bottom: 95px; /* Above footer + small gap */
       left: 50%;
-      width: clamp(320px, 60vw, 550px); /* Ensure min width for content */
-      background-color: rgba(30,30,30,0.95); /* Slightly more opaque */
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      color: #e0e0e0;
-      padding: 20px;
-      border-radius: 12px 12px 0 0; /* Rounded top corners */
-      box-shadow: 0 -5px 20px rgba(0,0,0,0.4); /* Stronger shadow */
+      width: clamp(340px, 55vw, 500px); 
+      background-color: var(--neumorph-bg);
+      color: var(--neumorph-text-color);
+      padding: 25px;
+      border-radius: var(--neumorph-radius-large) var(--neumorph-radius-large) 0 0;
+      box-shadow: var(--neumorph-shadow-outset-strong); /* Extruded panel */
       z-index: 200;
-      transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
-      transform: translate(-50%, 100%); /* Start off-screen below */
+      transition: transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease-in-out;
+      transform: translate(-50%, 105%); /* Start off-screen below */
       opacity: 0;
       pointer-events: none;
       display: flex;
       flex-direction: column;
-      gap: 20px; /* Space between sections */
+      gap: 25px; 
     }
     #settings-panel.visible {
-      transform: translateX(-50%); /* Slide in from bottom */
+      transform: translateX(-50%); 
       opacity: 1;
       pointer-events: auto;
     }
-    #settings-panel h3 { /* Main settings title */
+    #settings-panel h3 { 
         text-align: center;
         margin-top: 0;
-        margin-bottom: 10px; /* Reduced bottom margin */
-        color: #fff;
-        font-weight: 500;
-        font-size: 1.3em;
+        margin-bottom: 15px; 
+        color: var(--neumorph-text-color);
+        font-weight: 600;
+        font-size: 1.4em;
     }
     .settings-section {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 15px;
     }
-    .settings-section h4 { /* Section titles like MIDI, Wiedergabe */
-        margin: 0 0 5px 0;
-        font-size: 1em;
+    .settings-section h4 { 
+        margin: 0 0 8px 0;
+        font-size: 1.1em;
         font-weight: 500;
-        color: #ccc;
-        border-bottom: 1px solid #444;
-        padding-bottom: 5px;
+        color: var(--neumorph-text-color-light);
+        border-bottom: 1px solid var(--neumorph-shadow-color-dark);
+        padding-bottom: 8px;
     }
     .midi-selector-group {
         display: flex;
-        flex-direction: column; /* Stack label/select and button vertically */
-        align-items: stretch; /* Make children take full width */
-        gap: 10px;
+        flex-direction: column; 
+        align-items: stretch; 
+        gap: 12px;
     }
     .midi-selector-group label {
-        font-size: 0.9em;
-        color: #bbb;
-        margin-bottom: 3px; /* Small space between label and select */
+        font-size: 0.95em;
+        color: var(--neumorph-text-color);
+        margin-bottom: 4px; 
     }
     #midi-device-select {
-        background-color: #333;
-        color: #fff;
-        border: 1px solid #555;
-        border-radius: 4px;
-        padding: 8px 10px; /* Slightly more padding */
-        font-size: 0.9em;
-        width: 100%; /* Take full width */
-    }
-    #learn-midi-button {
-        background-color: #5a5a5a;
-        color: #fff;
+        background-color: var(--neumorph-bg);
+        color: var(--neumorph-text-color);
         border: none;
-        padding: 9px 12px; /* Slightly more padding */
-        border-radius: 4px;
+        border-radius: var(--neumorph-radius-base);
+        padding: 10px 12px; 
+        font-size: 0.95em;
+        width: 100%; 
+        box-shadow: var(--neumorph-shadow-inset-soft);
+    }
+    #midi-device-select:focus {
+        outline: none;
+        box-shadow: var(--neumorph-shadow-inset-soft), 0 0 0 2px var(--neumorph-accent-primary);
+    }
+    .neumorph-button { /* General class for neumorphic buttons in settings etc. */
+        background: var(--neumorph-bg);
+        color: var(--neumorph-text-color);
+        border: none;
+        padding: 10px 15px;
+        border-radius: var(--neumorph-radius-base);
         cursor: pointer;
-        font-size: 0.9em;
-        transition: background-color 0.2s;
+        font-size: 0.95em;
+        font-weight: 500;
+        transition: box-shadow 0.2s ease-out, background-color 0.2s, color 0.2s;
         text-align: center;
+        box-shadow: var(--neumorph-shadow-outset);
     }
-    #learn-midi-button:hover:not(:disabled) {
-        background-color: #777;
+    .neumorph-button:hover:not(:disabled) {
+        box-shadow: var(--neumorph-shadow-outset-strong);
     }
-    #learn-midi-button.learning {
-        background-color: #FFD700;
-        color: #000;
+    .neumorph-button:active:not(:disabled),
+    .neumorph-button.learning { /* For learn midi button active state */
+        box-shadow: var(--neumorph-shadow-inset);
+        color: var(--neumorph-accent-primary);
     }
-    #learn-midi-button:disabled {
-        background-color: #444;
-        cursor: not-allowed;
+    .neumorph-button:disabled {
         opacity: 0.7;
+        cursor: not-allowed;
+        box-shadow: var(--neumorph-shadow-inset); /* Disabled buttons look pressed in */
     }
+
     .preset-buttons {
         display: flex;
         justify-content: center;
-        gap: 15px;
-        margin-top: 10px; /* Reduced top margin */
+        gap: 20px;
+        margin-top: 10px; 
     }
     .preset-buttons save-preset-button,
     .preset-buttons load-preset-button {
-        width: 50px;
-        height: 50px;
+        width: 55px; /* Slightly larger for better touch */
+        height: 55px;
     }
 
 
@@ -2359,24 +2423,22 @@ class PromptDj extends LitElement {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 10px 20px;
-      background-color: rgba(20,20,20,0.7);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border-top: 1px solid rgba(255,255,255,0.1);
+      padding: 15px 25px;
+      background-color: var(--neumorph-bg);
+      box-shadow: 0px -3px 8px rgba(163, 177, 198, 0.2); /* Subtle top shadow */
       width: 100%;
       box-sizing: border-box;
       position: fixed;
       bottom: 0;
       left: 0;
       z-index: 100;
-      height: 90px; /* Ensure footer has enough height */
+      height: 100px; 
     }
     .footer-controls play-pause-button,
     .footer-controls drop-button,
     .footer-controls share-button,
     .footer-controls add-prompt-button {
-      width: 70px;
+      width: 70px; /* Keep footer buttons prominent */
       height: 70px;
     }
     .footer-center-spacer {

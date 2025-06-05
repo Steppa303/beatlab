@@ -12,51 +12,57 @@ import {styleMap} from 'lit/directives/style-map.js';
 export class WeightSlider extends LitElement {
   static override styles = css`
     :host {
-      cursor: ew-resize; /* Horizontal resize cursor */
+      cursor: ew-resize; 
       position: relative;
       width: 100%;
       display: flex;
       align-items: center;
       box-sizing: border-box;
-      height: 22px; 
+      height: 24px; /* Increased height */
       touch-action: none; 
-      padding: 2px 0; /* Add some vertical padding for easier interaction */
+      padding: 4px 0; /* Increased padding for neumorphic depth */
+      border-radius: var(--neumorph-radius-base, 12px); /* Rounded host for consistency */
     }
     .slider-container {
       position: relative;
-      height: 14px; /* Height of the track */
+      height: 12px; /* Slightly thinner track */
       width: 100%; 
-      background-color: #404040; /* Darker track for better contrast */
-      border-radius: 7px; 
-      overflow: hidden; /* Ensure thumb stays within bounds */
+      background-color: var(--neumorph-bg, #e6e7ee); /* Match app background */
+      border-radius: var(--neumorph-radius-base, 12px); /* Rounded track */
+      box-shadow: var(--neumorph-shadow-inset-soft); /* Inset track */
+      overflow: hidden; 
     }
     #thumb {
       position: absolute;
       left: 0;
-      top: 0;
-      height: 100%;
-      border-radius: 7px; 
-      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.3); /* Inner shadow for depth */
+      top: 50%;
+      transform: translateY(-50%);
+      height: 18px; /* Thumb slightly taller than track */
+      border-radius: var(--neumorph-radius-base, 12px); 
+      /* Extruded thumb */
+      box-shadow: 
+        2px 2px 4px var(--neumorph-shadow-color-dark, #a3b1c6),
+        -2px -2px 4px var(--neumorph-shadow-color-light, #ffffff);
       transition: filter 0.2s ease-out, transform 0.2s ease-out; 
+      border: 1px solid var(--neumorph-bg, #e6e7ee); /* Border to lift thumb */
     }
     #thumb.pulse-effect {
-      animation: thumbPulseEffectHorizontal 0.3s ease-out;
+      animation: thumbPulseEffectHorizontalNeumorph 0.3s ease-out;
     }
-    @keyframes thumbPulseEffectHorizontal { /* Adjusted for horizontal slider */
-      0% { filter: brightness(1.1) saturate(1.1); }
-      50% { filter: brightness(1.4) saturate(1.4); transform: scaleX(1.02); } /* Scale X for horizontal emphasis */
-      100% { filter: brightness(1.1) saturate(1.1); }
+    @keyframes thumbPulseEffectHorizontalNeumorph { 
+      0% { filter: brightness(1); transform: translateY(-50%) scale(1); }
+      50% { filter: brightness(1.1); transform: translateY(-50%) scale(1.05); }
+      100% { filter: brightness(1); transform: translateY(-50%) scale(1); }
     }
   `;
 
   @property({type: Number}) value = 0; // Range 0-2
-  @property({type: String}) sliderColor = '#5200ff'; // Default color if not provided
+  @property({type: String}) sliderColor = 'var(--neumorph-accent-primary, #5200ff)'; 
 
   @query('.slider-container') private sliderContainer!: HTMLDivElement;
   @query('#thumb') private thumbElement!: HTMLDivElement;
 
   private dragStartPos = 0;
-  // private dragStartValue = 0; // Not strictly needed if calculating directly from position
   private containerBounds: DOMRect | null = null;
   private activePointerId: number | null = null;
   @state() private _isThumbPulsing = false;
@@ -71,7 +77,7 @@ export class WeightSlider extends LitElement {
     this.boundHandlePointerUpOrCancel = this.handlePointerUpOrCancel.bind(this);
 
     this.addEventListener('pointerdown', this.handlePointerDown);
-    this.addEventListener('wheel', this.handleWheel, { passive: false }); // Wheel event for horizontal scroll
+    this.addEventListener('wheel', this.handleWheel, { passive: false }); 
   }
 
   override disconnectedCallback(): void {
@@ -85,7 +91,7 @@ export class WeightSlider extends LitElement {
       document.body.removeEventListener('pointermove', this.boundHandlePointerMove);
       document.body.removeEventListener('pointerup', this.boundHandlePointerUpOrCancel);
       document.body.removeEventListener('pointercancel', this.boundHandlePointerUpOrCancel);
-      document.body.classList.remove('dragging'); // Ensure dragging class is removed
+      document.body.classList.remove('dragging'); 
       this.activePointerId = null;
     }
     this.removeEventListener('pointerdown', this.handlePointerDown);
@@ -106,10 +112,9 @@ export class WeightSlider extends LitElement {
   }
 
   private handlePointerDown(e: PointerEvent) {
-    if (this.activePointerId !== null || e.button !== 0) { // Only main button
+    if (this.activePointerId !== null || e.button !== 0) { 
       return;
     }
-    // e.preventDefault(); // Can cause issues with text selection if parent elements need it. Test thoroughly.
     
     this.activePointerId = e.pointerId;
     try {
@@ -119,15 +124,14 @@ export class WeightSlider extends LitElement {
     }
 
     this.containerBounds = this.sliderContainer.getBoundingClientRect();
-    this.dragStartPos = e.clientX; // Use clientX for horizontal
-    // this.dragStartValue = this.value;
-    document.body.classList.add('dragging'); // Add class to body for global cursor changes
+    this.dragStartPos = e.clientX; 
+    document.body.classList.add('dragging'); 
 
     document.body.addEventListener('pointermove', this.boundHandlePointerMove);
     document.body.addEventListener('pointerup', this.boundHandlePointerUpOrCancel);
     document.body.addEventListener('pointercancel', this.boundHandlePointerUpOrCancel);
 
-    this.updateValueFromPosition(e.clientX); // Update value on initial press
+    this.updateValueFromPosition(e.clientX); 
   }
 
   private handlePointerMove(e: PointerEvent) {
@@ -135,7 +139,7 @@ export class WeightSlider extends LitElement {
       return;
     }
     if (e.pointerType === 'touch' || document.body.classList.contains('dragging')) {
-      e.preventDefault(); // Prevent scrolling page during horizontal drag
+      e.preventDefault(); 
     }
     this.updateValueFromPosition(e.clientX);
   }
@@ -159,9 +163,9 @@ export class WeightSlider extends LitElement {
   }
 
   private handleWheel(e: WheelEvent) {
-    e.preventDefault(); // Prevent page scroll
-    const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY; // Prefer deltaX, fallback to deltaY for some trackpads
-    this.value = this.value + delta * 0.002; // Adjusted sensitivity for horizontal scroll
+    e.preventDefault(); 
+    const delta = e.deltaX !== 0 ? e.deltaX : e.deltaY; 
+    this.value = this.value + delta * 0.002; 
     this.value = Math.max(0, Math.min(2, this.value));
     this.dispatchInputEvent();
   }
@@ -184,7 +188,7 @@ export class WeightSlider extends LitElement {
     const thumbWidthPercent = (this.value / 2) * 100;
     const thumbStyle = styleMap({
       width: `${thumbWidthPercent}%`,
-      display: this.value > 0.005 ? 'block' : 'none', // Hide if value is near zero
+      display: this.value > 0.005 ? 'block' : 'none', 
       backgroundColor: this.sliderColor,
     });
 

@@ -2,18 +2,18 @@
 html, body {
   height: 100%;
   margin: 0;
-  padding: 0; /* Added padding: 0 */
-  overflow: hidden; /* Added overflow: hidden */
-  font-family: 'Google Sans', sans-serif; /* Optional: Add a default nice font */
-  background-color: #111; /* Match host background */
+  padding: 0; 
+  overflow: hidden; 
+  font-family: 'Google Sans', sans-serif; 
+  background-color: #e6e7ee; /* Neumorphic base */
+  color: #333740; /* Default text color for neumorphism */
 }
 body {
-  /* overflow: hidden; was removed, now added to html, body block */
-  display: flex; /* Ensure prompt-dj can take full height */
+  display: flex; 
   flex-direction: column;
 }
 body.dragging {
-  cursor: grabbing; /* ns-resize might be more appropriate if dragging sliders */
+  cursor: grabbing; 
 }
 body.dragging * {
   user-select: none;

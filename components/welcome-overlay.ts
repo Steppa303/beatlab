@@ -21,117 +21,117 @@ export class WelcomeOverlay extends LitElement {
       left: 0;
       width: 100vw;
       height: 100vh;
-      background-color: rgba(10, 10, 10, 0.85); 
+      background-color: rgba(230, 231, 238, 0.6); /* Frosted glass neumorph */
       z-index: 2000; 
       backdrop-filter: blur(8px); 
       -webkit-backdrop-filter: blur(8px);
       opacity: 0;
-      animation: fadeInOverlay 0.5s 0.2s ease-out forwards;
+      animation: fadeInOverlayNeumorph 0.5s 0.2s ease-out forwards;
     }
-    @keyframes fadeInOverlay {
+    @keyframes fadeInOverlayNeumorph {
       to { opacity: 1; }
     }
     .panel {
-      background-color: #2C2C2C; 
-      padding: 30px 40px;
-      border-radius: 16px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-      color: #e0e0e0;
-      width: clamp(320px, 90vw, 600px);
+      background-color: var(--neumorph-bg, #e6e7ee); 
+      padding: 35px 45px; /* Increased padding */
+      border-radius: var(--neumorph-radius-large, 20px);
+      box-shadow: var(--neumorph-shadow-outset-strong); /* Extruded panel */
+      color: var(--neumorph-text-color, #333740);
+      width: clamp(340px, 90vw, 650px); /* Wider panel */
       text-align: center;
-      border: 1px solid #444;
       transform: scale(0.95);
       opacity: 0;
-      animation: popInPanel 0.5s 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      animation: popInPanelNeumorph 0.5s 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
     }
-    @keyframes popInPanel {
+    @keyframes popInPanelNeumorph {
       to { transform: scale(1); opacity: 1; }
     }
 
     .app-icon {
-      font-size: 3em; 
-      margin-bottom: 15px;
+      font-size: 3.5em; 
+      margin-bottom: 20px;
+      color: var(--neumorph-accent-primary, #5200ff);
     }
 
     h1 {
-      font-size: 2em; 
+      font-size: 2.2em; 
       font-weight: 600;
-      color: #fff;
+      color: var(--neumorph-text-color, #333740);
       margin-top: 0;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
     }
     .tagline {
-      font-size: 1.1em;
-      color: #bbb;
-      margin-bottom: 25px;
+      font-size: 1.2em;
+      color: var(--neumorph-text-color-light, #707070);
+      margin-bottom: 30px;
     }
     .features {
       list-style: none;
       padding: 0;
-      margin: 0 0 25px 0;
+      margin: 0 0 30px 0;
       text-align: left;
     }
     .features li {
       display: flex;
       align-items: center;
-      margin-bottom: 12px;
-      font-size: 1em;
-      color: #ccc;
+      margin-bottom: 15px;
+      font-size: 1.05em;
+      color: var(--neumorph-text-color, #333740);
     }
     .features li svg {
-      width: 22px;
-      height: 22px;
-      margin-right: 12px;
-      fill: #A0A0A0; 
+      width: 24px;
+      height: 24px;
+      margin-right: 15px;
+      fill: var(--neumorph-text-color-light, #707070); 
       flex-shrink: 0;
     }
 
     .prompt-section {
-      margin-bottom: 25px;
+      margin-bottom: 30px;
     }
     .prompt-section label {
       display: block;
-      font-size: 1em;
-      color: #ddd;
-      margin-bottom: 10px;
+      font-size: 1.05em;
+      color: var(--neumorph-text-color, #333740);
+      margin-bottom: 12px;
       font-weight: 500;
     }
-    #first-prompt-input {
+    #first-prompt-input { /* Neumorphic input */
       width: 100%;
-      padding: 12px 15px;
-      border-radius: 8px;
-      border: 1px solid #555;
-      background-color: #1e1e1e;
-      color: #fff;
+      padding: 14px 18px;
+      border-radius: var(--neumorph-radius-base, 12px);
+      border: none;
+      background-color: var(--neumorph-bg, #e6e7ee);
+      color: var(--neumorph-text-color, #333740);
       font-size: 1em;
       box-sizing: border-box;
-      transition: border-color 0.2s, box-shadow 0.2s;
+      transition: box-shadow 0.2s;
+      box-shadow: var(--neumorph-shadow-inset-soft);
     }
     #first-prompt-input:focus {
       outline: none;
-      border-color: #7e57c2;
-      box-shadow: 0 0 0 3px rgba(126, 87, 194, 0.3);
+      box-shadow: var(--neumorph-shadow-inset-soft), 0 0 0 3px var(--neumorph-accent-primary, #5200ff);
     }
-    .start-button {
-      background: linear-gradient(45deg, #7e57c2, #AB47BC);
-      color: white;
+    .start-button { /* Neumorphic button */
+      background: var(--neumorph-bg, #e6e7ee);
+      color: var(--neumorph-accent-primary, #5200ff);
       border: none;
-      padding: 12px 25px;
-      border-radius: 8px;
-      font-size: 1.1em;
-      font-weight: 500;
+      padding: 14px 28px;
+      border-radius: var(--neumorph-radius-base, 12px);
+      font-size: 1.15em;
+      font-weight: 600;
       cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
+      transition: box-shadow 0.2s ease-out, transform 0.15s ease-out, color 0.2s;
       display: inline-block;
-      box-shadow: 0 4px 15px rgba(126, 87, 194, 0.3);
+      box-shadow: var(--neumorph-shadow-outset);
     }
     .start-button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(126, 87, 194, 0.4);
+      box-shadow: var(--neumorph-shadow-outset-strong);
+      color: var(--neumorph-accent-secondary, #2575fc);
     }
     .start-button:active {
-      transform: translateY(0px);
-      box-shadow: 0 2px 10px rgba(126, 87, 194, 0.3);
+      box-shadow: var(--neumorph-shadow-inset);
+      transform: scale(0.98);
     }
   `;
 

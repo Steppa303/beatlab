@@ -18,7 +18,7 @@ export class PromptController extends LitElement {
     @keyframes promptAppear {
       from {
         opacity: 0;
-        transform: translateY(10px) scale(0.98); /* Adjusted for vertical stacking */
+        transform: translateY(10px) scale(0.98); 
       }
       to {
         opacity: 1;
@@ -27,202 +27,175 @@ export class PromptController extends LitElement {
     }
     :host {
       display: block;
-      width: 100%; /* Take full width of its parent in vertical layout */
+      width: 100%; 
       transition: box-shadow 0.2s ease-out, transform 0.2s ease-out;
     }
     .prompt {
       position: relative;
       display: flex;
-      flex-direction: column; /* Main direction is column */
+      flex-direction: column; 
       box-sizing: border-box;
-      background-color: #2C2C2C; /* Darker background for prompt card */
-      border-radius: 12px; /* Rounded corners for the card */
-      padding: 15px; /* Padding inside the card */
+      background-color: var(--neumorph-bg, #e6e7ee); /* Use CSS var */
+      border-radius: var(--neumorph-radius-large, 20px); /* Use CSS var */
+      padding: 18px; /* Slightly increased padding */
       animation: promptAppear 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-      transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, border 0.2s ease-out, background-color 0.2s;
-      border: 2px solid transparent;
+      box-shadow: var(--neumorph-shadow-outset); /* Use CSS var */
+      transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
     }
     :host([ismidilearntarget]) .prompt:not(.drop-track-active) {
-      border: 2px solid #FFD700; /* Gold border for MIDI learn target */
-      box-shadow: 0 0 10px #FFD700, 0 5px 15px rgba(0,0,0,0.4);
+      box-shadow: 
+        var(--neumorph-shadow-outset-strong), /* Base shadow */
+        0 0 0 3px var(--neumorph-accent-primary, #5200ff),  /* Glow outline */
+        0 0 10px var(--neumorph-accent-primary, #5200ff); /* Outer glow */
       transform: scale(1.02); 
     }
     .prompt:not(.drop-track-active):not([ismidilearntarget]):hover {
       transform: translateY(-2px);
-      box-shadow: 0 6px 12px rgba(0,0,0,0.35);
+      box-shadow: var(--neumorph-shadow-outset-strong); /* Use CSS var */
     }
 
     /* Styles for active drop track */
     .prompt.drop-track-active {
-      background-color: ${unsafeCSS(DROP_TRACK_COLOR)}; /* Gold background */
-      border: 2px solid #B8860B; /* DarkGoldenRod border */
+      background-color: var(--neumorph-accent-drop, #FFD700); 
+      box-shadow: 0 0 10px var(--neumorph-accent-drop), var(--neumorph-shadow-inset);
       animation: promptAppear 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards, 
-                   dropTrackPulse 1.5s infinite ease-in-out 0.4s; /* Delay pulse */
+                   dropTrackPulseNeumorph 1.5s infinite ease-in-out 0.4s; 
     }
-    @keyframes dropTrackPulse {
-      0% { transform: scale(1); box-shadow: 0 4px 8px rgba(0,0,0,0.3), 0 0 5px ${unsafeCSS(DROP_TRACK_COLOR)}; }
-      50% { transform: scale(1.015); box-shadow: 0 5px 10px rgba(0,0,0,0.35), 0 0 12px ${unsafeCSS(DROP_TRACK_COLOR)}, 0 0 18px #B8860B; }
-      100% { transform: scale(1); box-shadow: 0 4px 8px rgba(0,0,0,0.3), 0 0 5px ${unsafeCSS(DROP_TRACK_COLOR)}; }
+    @keyframes dropTrackPulseNeumorph {
+      0% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.015); opacity: 1; box-shadow: 0 0 15px var(--neumorph-accent-drop), var(--neumorph-shadow-inset); }
+      100% { transform: scale(1); opacity: 0.9; }
     }
     .drop-track-text-display {
       font-family: 'Arial Black', 'Impact', sans-serif;
       font-size: 1.8em;
       font-weight: 900;
-      color: #4A3B00; /* Dark gold/brown text for contrast on gold background */
+      color: #805500; /* Darker gold text */
       text-align: center;
       width: 100%;
       padding: 5px 0; 
-      margin: auto 0; /* Vertically center if flex allows */
+      margin: auto 0; 
       line-height: 1.2;
-      text-shadow: 1px 1px 0px rgba(255,255,255,0.2);
+      text-shadow: 1px 1px 0px rgba(255,255,255,0.3);
       display: flex;
       align-items: center;
       justify-content: center;
-      flex-grow: 1; /* Allow it to take space in header */
+      flex-grow: 1; 
     }
 
 
     .prompt-header {
       display: flex;
       justify-content: space-between;
-      align-items: center; /* Align items vertically in the center */
+      align-items: center; 
       gap: 10px;
-      margin-bottom: 12px; /* Space between header and slider */
-      min-height: 2.5em; /* Ensure header has some min height */
+      margin-bottom: 15px; 
+      min-height: 2.5em; 
     }
     .text-and-edit {
       display: flex;
       align-items: center;
       flex-grow: 1;
-      overflow: hidden; /* Important for text ellipsis if not editing */
-      margin-right: 10px; /* Space before ratio/remove button */
+      overflow: hidden; 
+      margin-right: 10px; 
     }
     #text-input, #static-text {
       font-family: 'Google Sans', sans-serif;
-      font-size: 1em; /* Adjusted font size for better readability */
+      font-size: 1.05em; /* Slightly larger for prominence */
       font-weight: 500;
-      padding: 5px 8px; 
+      padding: 8px 10px; 
       box-sizing: border-box;
       text-align: left;
       border: none;
       outline: none;
       -webkit-font-smoothing: antialiased;
-      color: #fff;
-      background-color: transparent;
-      border-radius: 6px; /* Rounded corners for input/text area */
+      color: var(--neumorph-text-color, #333740);
+      background-color: var(--neumorph-bg, #e6e7ee); /* Match card background */
+      border-radius: var(--neumorph-radius-base, 12px);
       flex-grow: 1;
       min-width: 0; 
       line-height: 1.4;
+      box-shadow: var(--neumorph-shadow-inset-soft); /* Inset style */
     }
-    /* Text color for normal prompts on dark background */
-    :not(.drop-track-active) #static-text, 
-    :not(.drop-track-active) #text-input {
-        color: #fff;
-    }
-    /* Text color for drop track on gold background */
-    .drop-track-active #static-text { /* This is now handled by .drop-track-text-display */
-        /* color: #4A3B00; */ 
-    }
-
     #static-text {
-      white-space: normal; /* Allow text to wrap */
-      word-wrap: break-word; /* Ensure long words break */
+      white-space: normal; 
+      word-wrap: break-word; 
       cursor: text;
-      min-height: 1.4em; /* Ensure it has some height even if empty */
-      padding: 6px 8px;
+      min-height: 1.4em; 
+      padding: 9px 10px; /* Adjust to match input */
     }
     #static-text:hover {
-      background-color: rgba(255,255,255,0.08);
-    }
-    #text-input {
-      background-color: rgba(0,0,0,0.25); 
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15);
+      background-color: var(--neumorph-bg-darker, #dde0e9); /* Slightly darker on hover */
     }
     #text-input:focus {
-      box-shadow: 0 0 0 2px #7e57c2; /* Focus similar to welcome overlay */
+      box-shadow: var(--neumorph-shadow-inset-soft), 0 0 0 2px var(--neumorph-accent-primary, #5200ff); 
     }
     .controls-group {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px; /* Increased gap */
       flex-shrink: 0;
     }
-    .edit-save-button {
-      background: none;
+    .edit-save-button, .remove-button {
+      background: var(--neumorph-bg, #e6e7ee);
       border: none;
-      color: #ccc;
+      color: var(--neumorph-text-color-light, #707070);
       cursor: pointer;
-      padding: 6px;
+      padding: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 50%; /* Circular button */
-      width: 32px;
-      height: 32px;
-      transition: background-color 0.2s, color 0.2s;
+      border-radius: var(--neumorph-radius-round, 50%);
+      width: 36px; /* Neumorphic button size */
+      height: 36px;
+      transition: box-shadow 0.2s ease-out, color 0.2s, transform 0.1s ease-out;
+      box-shadow: var(--neumorph-shadow-outset);
     }
-    .prompt:not(.drop-track-active) .edit-save-button:hover {
-      background-color: rgba(255,255,255,0.1);
-      color: #fff;
+    .prompt:not(.drop-track-active) .edit-save-button:hover, 
+    .prompt:not(.drop-track-active) .remove-button:hover {
+      color: var(--neumorph-accent-primary, #5200ff);
+      box-shadow: var(--neumorph-shadow-outset-strong);
+    }
+    .prompt:not(.drop-track-active) .edit-save-button:active, 
+    .prompt:not(.drop-track-active) .remove-button:active {
+      box-shadow: var(--neumorph-shadow-inset);
+      transform: scale(0.95);
     }
     .edit-save-button svg {
       width: 20px; 
       height: 20px;
       fill: currentColor;
     }
-    .ratio-display {
-      color: #c0c0c0; /* Lighter color for ratio */
-      font-size: 0.85em; 
-      white-space: nowrap;
-      font-weight: 400;
-      background-color: rgba(0,0,0,0.2);
-      padding: 4px 8px;
-      border-radius: 4px;
-    }
-    .drop-track-active .ratio-display {
-        color: #4A3B00; /* Darker text on gold */
-        background-color: rgba(255,255,255,0.2); /* Lighter bg on gold */
-    }
     .remove-button {
-      background: #D32F2F;
-      color: #FFFFFF;
-      border: none;
-      border-radius: 50%;
-      width: 30px; /* Slightly larger remove button */
-      height: 30px;
-      font-size: 16px;
-      font-weight: bold;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      opacity: 0.8;
-      transition: opacity 0.15s, transform 0.15s, background-color 0.15s;
-    }
-    .drop-track-active .remove-button {
-        background: #8B0000; /* Darker red on gold */
-    }
-    .drop-track-active .remove-button:hover {
-        background: #A52A2A; /* Brownish red on hover */
-        opacity: 1;
-        transform: scale(1.1);
+      color: var(--neumorph-text-color-light, #707070); /* Default color */
     }
     .prompt:not(.drop-track-active) .remove-button:hover {
-      opacity: 1;
-      transform: scale(1.1);
-      background-color: #E53935;
+      color: #E53935; /* Red on hover for remove */
+    }
+    .ratio-display {
+      color: var(--neumorph-text-color-light, #707070); 
+      font-size: 0.9em; 
+      white-space: nowrap;
+      font-weight: 500;
+      background-color: var(--neumorph-bg-darker, #dde0e9);
+      padding: 5px 10px;
+      border-radius: var(--neumorph-radius-base, 12px);
+      box-shadow: var(--neumorph-shadow-inset-soft);
+    }
+    .drop-track-active .ratio-display {
+        color: #805500; 
+        background-color: rgba(255,255,255,0.4);
     }
     weight-slider {
-      width: 100%; /* Slider takes full width */
-      height: 22px; /* Increased height for better touch interaction */
-      /* cursor is handled by weight-slider itself */
+      width: 100%; 
+      height: 24px; 
+      margin-top: 5px; /* Add some space above slider */
     }
     :host([filtered='true']) #static-text:not(.drop-track-text-display),
     :host([filtered='true']) #text-input {
-      background-color: rgba(218, 32, 0, 0.7); /* More prominent filtered indication */
-      color: #fff;
-      border: 1px dashed #ff8a80;
+      background-color: var(--neumorph-bg, #e6e7ee);
+      color: var(--neumorph-text-color, #333740);
+      box-shadow: var(--neumorph-shadow-inset-soft), inset 0 0 0 2px #E53935; /* Red inset border */
     }
   `;
 

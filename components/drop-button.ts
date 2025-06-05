@@ -15,43 +15,42 @@ export class DropButton extends IconButton {
   static override styles = [
     IconButton.styles,
     css`
-      /* Specific styles for the text within the drop button's SVG */
-      text {
-        font-family: 'Arial Black', 'Impact', sans-serif; /* More impactful font */
-        font-size: 36px; /* Adjusted for better fit and impact */
+      :host svg text { /* Target text within this button's SVG specifically */
+        font-family: 'Arial Black', 'Impact', sans-serif;
+        font-size: 32px; /* Adjusted for neumorphic button size */
         font-weight: 900;
-        fill: #FFD700; /* Gold color */
+        fill: var(--neumorph-accent-drop, #FFC107); 
         paint-order: stroke;
-        stroke: #000000cc; /* Dark stroke for better contrast */
-        stroke-width: 1.5px;
-        stroke-linecap: butt;
-        stroke-linejoin: miter;
-        text-shadow: 0 0 5px #000;
+        stroke: rgba(0,0,0,0.3); 
+        stroke-width: 1px;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
       }
 
-      :host([active]) svg { /* Target the SVG for transform/filter for the icon's animation */
-        animation: pulseDropButtonIcon 1s infinite ease-in-out;
+      :host([active]) { /* Neumorphic active state for the button itself */
+        box-shadow: var(--neumorph-shadow-inset); /* Pressed-in look */
+      }
+      :host([active]) svg text {
+        animation: pulseDropTextNeumorph 1s infinite ease-in-out;
       }
 
-      @keyframes pulseDropButtonIcon {
+      @keyframes pulseDropTextNeumorph {
         0% {
+          filter: brightness(1.1) drop-shadow(0 0 2px var(--neumorph-accent-drop));
           transform: scale(1);
-          filter: brightness(1.2) drop-shadow(0 0 3px #FFD700);
         }
         50% {
-          transform: scale(1.10); /* Slightly less aggressive scale for icon */
-          filter: brightness(2.0) drop-shadow(0 0 10px #FFFF00) drop-shadow(0 0 15px #FFD700) drop-shadow(0 0 20px #FF8C00);
+          filter: brightness(1.3) drop-shadow(0 0 6px var(--neumorph-accent-drop));
+          transform: scale(1.05);
         }
         100% {
+          filter: brightness(1.1) drop-shadow(0 0 2px var(--neumorph-accent-drop));
           transform: scale(1);
-          filter: brightness(1.2) drop-shadow(0 0 3px #FFD700);
         }
       }
     `
   ];
 
   private renderDropIcon() {
-    // Text rendering with dominant-baseline and text-anchor for centering
     return svg`
       <text 
         x="50%" 

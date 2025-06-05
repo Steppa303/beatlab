@@ -17,8 +17,8 @@ export class PlayPauseButton extends IconButton {
     IconButton.styles,
     css`
       .loader {
-        stroke: #ffffff;
-        stroke-width: 8;
+        stroke: var(--neumorph-text-color-light, #707070); /* Loader color */
+        stroke-width: 8; /* Kept original thickness */
         stroke-linecap: round;
         animation: spin linear 1s infinite;
         transform-origin: center;
@@ -32,22 +32,26 @@ export class PlayPauseButton extends IconButton {
           transform: rotate(359deg);
         }
       }
-      .icon-path {
-        fill: #FEFEFE;
-      }
+      /* Icon path fill is handled by IconButton's base SVG style, but can be overridden */
       .play-icon-path {
-        fill: #4CAF50; /* Green play icon */
+        fill: var(--neumorph-accent-secondary, #2575fc); /* Play icon accent */
+      }
+      .pause-icon-path {
+        fill: var(--neumorph-text-color, #333740); /* Pause icon neutral */
+      }
+      :host(:active) .play-icon-path,
+      :host(:active) .pause-icon-path {
+         fill: var(--neumorph-accent-interactive, var(--neumorph-accent-primary));
       }
     `,
   ];
 
   private renderPause() {
-    return svg`<path class="icon-path" d="M35 25 H45 V75 H35 Z M55 25 H65 V75 H55 Z" />`;
+    return svg`<path class="pause-icon-path" d="M35 25 H45 V75 H35 Z M55 25 H65 V75 H55 Z" />`;
   }
 
   private renderPlay() {
-    // Added play-icon-path class for specific styling
-    return svg`<path class="icon-path play-icon-path" d="M30 20 L75 50 L30 80 Z" />`;
+    return svg`<path class="play-icon-path" d="M30 20 L75 50 L30 80 Z" />`;
   }
 
   private renderLoading() {
